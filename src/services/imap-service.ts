@@ -1170,6 +1170,7 @@ export class ImapService {
     chunkSize: number = 50,
     onProgress?: (deleted: number, total: number) => void,
     expectedUidValidity?:number,
+    expectedPermanent?:boolean,
   ): Promise<{ deleted: number; failed: number; errors: string[] }> {
     if (!Number.isInteger(chunkSize) || chunkSize < 1 || chunkSize > 1000) throw new Error('chunkSize must be an integer from 1 to 1000');
     if (!uids.every(uid => Number.isInteger(uid) && uid > 0 && uid <= 0xffffffff)) throw new Error('Invalid email UID');
@@ -1183,6 +1184,7 @@ export class ImapService {
       };
     }
     const isAlreadyInTrash = folderName === trashFolder;
+    if(expectedPermanent!==undefined&&isAlreadyInTrash!==expectedPermanent)throw new Error('Trash mapping changed during deletion; create a new preview');
 
     let deleted = 0;
     let failed = 0;

@@ -19,7 +19,7 @@ describe('frozen deletion and batch validation',()=>{
     expect(r.previewOnly).toBe(true); expect(r.operations[0].uids).toEqual([7]);
     expect(imap.bulkDelete).not.toHaveBeenCalled(); expect(imap.deleteEmail).not.toHaveBeenCalled();
     await handlers.get('imap_confirm_delete')({previewId:r.previewId,confirmed:true});
-    expect(imap.bulkDelete).toHaveBeenCalledExactlyOnceWith('synthetic','INBOX',[7],50,undefined,123);
+    expect(imap.bulkDelete).toHaveBeenCalledExactlyOnceWith('synthetic','INBOX',[7],50,undefined,123,false);
     await expect(handlers.get('imap_confirm_delete')({previewId:r.previewId,confirmed:true})).rejects.toThrow(/used|unknown/i);
   });
   it('freezes matching UIDs and reports permanent Trash deletion',async()=>{
@@ -27,7 +27,7 @@ describe('frozen deletion and batch validation',()=>{
     expect(r.operations[0].permanent).toBe(true);
     imap.searchEmails.mockResolvedValue([{uid:99}]);
     await handlers.get('imap_confirm_delete')({previewId:r.previewId,confirmed:true});
-    expect(imap.bulkDelete).toHaveBeenCalledWith('synthetic','Trash',[7],50,undefined,123);expect(imap.searchEmails).toHaveBeenCalledOnce();
+    expect(imap.bulkDelete).toHaveBeenCalledWith('synthetic','Trash',[7],50,undefined,123,true);expect(imap.searchEmails).toHaveBeenCalledOnce();
   });
   it('rejects UIDVALIDITY changes before deletion',async()=>{
     const r=parse(await handlers.get('imap_delete_email')({accountId:'synthetic',folder:'INBOX',uid:7}));
@@ -58,5 +58,10 @@ describe('frozen deletion and batch validation',()=>{
     const service=new ImapService();vi.spyOn(service as any,'ensureConnected').mockResolvedValue(client);vi.spyOn(service,'resolveTrashFolder').mockResolvedValue('Trash');
     const result=await service.bulkDelete('synthetic','INBOX',[7,8],1,undefined,123);
     expect(result.failed).toBe(2);expect(result.deleted).toBe(0);expect(move).not.toHaveBeenCalled();
+  });
+  it('does not turn a previewed Trash move into permanent deletion',async()=>{
+    const remove=vi.fn();const service=new ImapService();vi.spyOn(service as any,'ensureConnected').mockResolvedValue({messageDelete:remove});vi.spyOn(service,'resolveTrashFolder').mockResolvedValue('INBOX');
+    await expect(service.bulkDelete('synthetic','INBOX',[7],50,undefined,123,false)).rejects.toThrow(/Trash mapping changed/);
+    expect(remove).not.toHaveBeenCalled();
   });
 });
