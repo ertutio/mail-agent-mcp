@@ -21,5 +21,6 @@ describe('bounded resumable unified search',()=>{
     const next=parse(await handler({limit:1,query:'fixture',cursors:first.cursors}));
     expect(next.partial).toBe(false);expect(next.cursors).toHaveLength(0);expect(next.messages[0].uid).toBe(1);
     await expect(handler({query:'changed',cursors:first.cursors})).rejects.toThrow(/filters changed/);
+    await expect(handler({query:'fixture',limit:2,cursors:first.cursors})).rejects.toThrow(/filters changed/);
   });
 });

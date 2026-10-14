@@ -69,7 +69,7 @@ export function unifiedSearchTools(server: McpServer, imap: ImapService, manager
     if (criteria.since && criteria.before && criteria.since >= criteria.before) throw new Error('since must precede before');
     if (args.seen !== undefined) criteria.seen = args.seen;
     if (args.flagged !== undefined) criteria.flagged = args.flagged;
-    const filterKey=createHash('sha256').update(JSON.stringify({criteria,searchAllFolders:args.searchAllFolders!==false,folder:args.folder??'INBOX',includeTrash:args.includeTrash??false,includeSpam:args.includeSpam??false,includeDrafts:args.includeDrafts??false})).digest('hex');
+    const filterKey=createHash('sha256').update(JSON.stringify({criteria,limit:args.limit??50,searchAllFolders:args.searchAllFolders!==false,folder:args.folder??'INBOX',includeTrash:args.includeTrash??false,includeSpam:args.includeSpam??false,includeDrafts:args.includeDrafts??false})).digest('hex');
     if(args.cursors?.some(c=>c.filterKey!==filterKey))throw new Error('Continuation filters changed; restart the search without cursors');
     const limit = args.limit ?? 50;
     const deadline = Date.now() + (runtime.overallTimeoutMs ?? 40_000);
