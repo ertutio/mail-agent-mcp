@@ -22,6 +22,9 @@ vi.mock('fs', async () => {
       readFile: vi.fn(),
       writeFile: vi.fn(),
       mkdir: vi.fn(),
+      open: vi.fn(),
+      unlink: vi.fn(),
+      rename: vi.fn(),
     },
     readFileSync: vi.fn(),
     writeFileSync: vi.fn(),
@@ -45,11 +48,20 @@ describe('AccountManager', () => {
     vi.clearAllMocks();
 
     // Mock encryption key file
-    vi.mocked(readFileSync).mockReturnValue(mockEncryptionKey);
+    let stored:string|undefined;
+    let pending:string|undefined;
+    vi.mocked(readFileSync).mockReset().mockImplementation((file:any)=>{
+      if(String(file).endsWith('.key'))return mockEncryptionKey;
+      if(stored!==undefined)return stored;
+      throw Object.assign(new Error('Synthetic file not found'),{code:'ENOENT'});
+    });
 
     // Mock accounts file not existing initially
     vi.mocked(fs.readFile).mockRejectedValue({ code: 'ENOENT' });
-    vi.mocked(fs.writeFile).mockResolvedValue(undefined);
+    vi.mocked(fs.writeFile).mockReset().mockImplementation(async(_file:any,text:any)=>{pending=String(text);});
+    vi.mocked(fs.rename).mockImplementation(async()=>{stored=pending;});
+    vi.mocked(fs.open).mockResolvedValue({writeFile:async()=>{},close:async()=>{}} as any);
+    vi.mocked(fs.unlink).mockResolvedValue(undefined);
     vi.mocked(fs.mkdir).mockResolvedValue(undefined);
   });
 
@@ -87,7 +99,7 @@ describe('AccountManager', () => {
         expect.objectContaining({ recursive: true }),
       );
       expect(fs.writeFile).toHaveBeenCalledWith(
-        path.join(path.resolve('C:\\Users\\example\\mail-agent-cleanroom'), 'accounts.json'),
+        expect.stringMatching(/accounts\.json\..+\.tmp$/),
         expect.any(String),
         expect.any(Object),
       );
@@ -95,7 +107,7 @@ describe('AccountManager', () => {
 
     it('should create encryption key if not exists', () => {
       vi.mocked(readFileSync).mockImplementation(() => {
-        throw new Error('File not found');
+        throw Object.assign(new Error('File not found'),{code:'ENOENT'});
       });
 
       const manager = new AccountManager();

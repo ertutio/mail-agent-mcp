@@ -17,7 +17,7 @@ export interface GmailEnrollmentInput {
   refreshToken: string;
 }
 
-type EnrollmentAccountManager = Pick<AccountManager, 'addAccount'>;
+type EnrollmentAccountManager = Pick<AccountManager, 'addAccount'> & Partial<Pick<AccountManager,'withStoreTransaction'>>;
 export const NETEASE_ENDPOINTS = {
   '163': { imapHost: 'imap.163.com', smtpHost: 'smtp.163.com', smtpPort: 465 },
   '126': { imapHost: 'imap.126.com', smtpHost: 'smtp.126.com', smtpPort: 465 },
@@ -121,6 +121,10 @@ export class AccountEnrollmentService {
     credentials: Array<{ target: string; secret: string }>,
     account: Omit<ImapAccount, 'id'>,
   ): Promise<ImapAccount> {
+    if(this.accounts.withStoreTransaction) return this.accounts.withStoreTransaction(()=>this.persistUnlocked(credentials,account));
+    return this.persistUnlocked(credentials,account);
+  }
+  private async persistUnlocked(credentials:Array<{target:string;secret:string}>,account:Omit<ImapAccount,'id'>):Promise<ImapAccount>{
     const snapshots = credentials.map(({ target, secret }) => ({
       ...this.snapshot(target),
       target,

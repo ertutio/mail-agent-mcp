@@ -7,6 +7,8 @@ import { ImapAccount } from '../types/index.js';
 import { ENV_CREDENTIAL_SUFFIXES, envVarName } from '../utils/env-credentials.js';
 import { accountForPersistence, assertCredentialTarget } from '../credentials/account-auth.js';
 import type { CredentialBackend } from '../credentials/credential-backend.js';
+import {AsyncLocalStorage} from 'node:async_hooks';
+import {withAccountStoreLock} from '../utils/account-store-lock.js';
 
 
 type ProviderAccountCandidate = Pick<ImapAccount, 'host' | 'smtp' | 'auth'>;
@@ -46,6 +48,19 @@ export class AccountManager {
   private accounts: Map<string, ImapAccount> = new Map();
   private encryptionKey: string;
   private capturedEnvOverrides: Map<string, string> = new Map();
+  private readonly transactionContext=new AsyncLocalStorage<boolean>();
+  private writeInProgress=false;
+
+  async withStoreTransaction<T>(action:()=>Promise<T>):Promise<T>{
+    if(this.transactionContext.getStore()) return action();
+    return withAccountStoreLock(this.configDir,async()=>{
+      this.loadAccountsSync(true);
+      const snapshot=new Map(this.accounts);this.writeInProgress=true;
+      try{return await this.transactionContext.run(true,action);}
+      catch(error){this.accounts=snapshot;throw error;}
+      finally{this.writeInProgress=false;}
+    });
+  }
 
   private static readonly ENV_OVERRIDE_PATTERN =
     /^IMAP_MCP_ACCOUNT_.+_(?:IMAP|SMTP)_(?:USERNAME|PASSWORD)$/;
@@ -62,6 +77,9 @@ export class AccountManager {
   }
 
   async addAccount(account: Omit<ImapAccount, 'id'>): Promise<ImapAccount> {
+    return this.withStoreTransaction(()=>this.addAccountUnlocked(account));
+  }
+  private async addAccountUnlocked(account: Omit<ImapAccount,'id'>):Promise<ImapAccount>{
     assertProviderAccountAuth(account);
     for (const existing of this.accounts.values()) {
       if (existing.name === account.name) throw new Error('Account name already exists; choose a unique name');
@@ -93,6 +111,9 @@ export class AccountManager {
 
 
   async removeAccount(id: string): Promise<void> {
+    return this.withStoreTransaction(()=>this.removeAccountUnlocked(id));
+  }
+  private async removeAccountUnlocked(id:string):Promise<void>{
     const account = this.accounts.get(id);
     if (!account) {
       throw new Error(`Account ${id} not found`);
@@ -163,6 +184,9 @@ export class AccountManager {
   }
 
   async updateAccount(id: string, updates: Partial<Omit<ImapAccount, 'id'>>): Promise<ImapAccount> {
+    return this.withStoreTransaction(()=>this.updateAccountUnlocked(id,updates));
+  }
+  private async updateAccountUnlocked(id:string,updates:Partial<Omit<ImapAccount,'id'>>):Promise<ImapAccount>{
     const existingAccount = this.accounts.get(id);
     if (!existingAccount) {
       throw new Error(`Account with id ${id} not found`);
@@ -411,7 +435,8 @@ export class AccountManager {
     return this.applyEnvOverrides(decrypted);
   }
 
-  private loadAccountsSync(): void {
+  private loadAccountsSync(strict=false): void {
+    if(this.writeInProgress&&!strict) return;
     try {
       const data = readFileSync(this.configPath, 'utf-8');
       const accounts = JSON.parse(data) as ImapAccount[];
@@ -421,6 +446,7 @@ export class AccountManager {
         this.accounts.set(account.id, account);
       }
     } catch (error) {
+      if(strict&&(error as NodeJS.ErrnoException).code!=='ENOENT') throw new Error('Account store is unreadable or invalid; refusing to overwrite it');
       // File doesn't exist yet, that's okay
       if ((error as any).code !== 'ENOENT') {
         console.error('Error loading accounts:', error);
@@ -429,11 +455,15 @@ export class AccountManager {
   }
 
   private async saveAccounts(): Promise<void> {
+    const accounts = Array.from(this.accounts.values());
     const dir = path.dirname(this.configPath);
     await fs.mkdir(dir, { recursive: true, mode: 0o700 });
 
-    const accounts = Array.from(this.accounts.values());
-    await fs.writeFile(this.configPath, JSON.stringify(accounts, null, 2), { mode: 0o600 });
+    const temporary=this.configPath+'.'+crypto.randomUUID()+'.tmp';
+    try{
+      await fs.writeFile(temporary,JSON.stringify(accounts,null,2),{mode:0o600,flag:'wx'});
+      await fs.rename(temporary,this.configPath);
+    }finally{await fs.unlink(temporary).catch(()=>undefined);}
 
     await this.enforceStorePermissions();
   }
@@ -473,12 +503,14 @@ export class AccountManager {
     
     try {
       return readFileSync(keyPath, 'utf-8');
-    } catch {
+    } catch (error) {
+      if((error as NodeJS.ErrnoException).code!=='ENOENT') throw error;
       const key = crypto.randomBytes(32).toString('hex');
       // Owner-only from the moment of creation: the key alone can decrypt every
       // stored credential (see enforceStorePermissions).
       mkdirSync(path.dirname(keyPath), { recursive: true, mode: 0o700 });
-      writeFileSync(keyPath, key, { mode: 0o600 });
+      try{writeFileSync(keyPath,key,{mode:0o600,flag:'wx'});}
+      catch(error){if((error as NodeJS.ErrnoException).code!=='EEXIST')throw error;return readFileSync(keyPath,'utf8');}
       return key;
     }
   }
