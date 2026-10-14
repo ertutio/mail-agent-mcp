@@ -132,6 +132,7 @@ export interface MoveEmailBatchResult {
  * callers use it for plain string/regex matching (spam header analysis).
  */
 export function parseRawHeaders(raw: Buffer | string): Record<string, string> {
+  if(Buffer.byteLength(raw)>64*1024)throw new Error('Header processing limit exceeded');
   const text = typeof raw === 'string' ? raw : raw.toString('utf8');
   const headers: Record<string, string> = {};
   let current: { key: string; value: string } | null = null;
@@ -417,6 +418,7 @@ export class ImapService {
       if (!uids || uids.length === 0) {
         return [];
       }
+      if(uids.length>(includeBody?200:5000))throw new Error('Search processing limit exceeded; narrow filters or use resumable unified search');
 
       // Fetch envelopes + flags + internalDate, and — when includeBody — the
       // RFC822 source in the same round-trip (one `client.fetch` call).
@@ -460,7 +462,7 @@ export class ImapService {
           messages.push(this.mergeBodyIntoMessage(base, rendered, options?.bodyFormat ?? DEFAULT_BODY_FORMAT));
         } catch {
           // Parsing one source failed — keep the headers, omit body fields.
-          messages.push(base);
+          messages.push({...base,bodyReadError: 'body_unavailable'});
         }
       }
 
@@ -634,7 +636,7 @@ export class ImapService {
           messages.push(this.mergeBodyIntoMessage(base, rendered, options?.bodyFormat ?? DEFAULT_BODY_FORMAT));
         } catch {
           // One source failed to parse — keep the headers, drop the body.
-          messages.push(base);
+          messages.push({...base,bodyReadError: 'body_unavailable'});
         }
       }
 
@@ -709,7 +711,7 @@ export class ImapService {
     } = options;
 
     assertMessageSize(source);
-    const parsed = await simpleParser(source,{skipHtmlToText:true,maxHtmlLengthToParse:1024*1024});
+    const parsed = await simpleParser(source,{skipHtmlToText:true,skipTextToHtml:true,maxHtmlLengthToParse:1024*1024});
     if((parsed.attachments?.length??0)>MAX_ATTACHMENT_COUNT)throw new Error('Too many message attachments');
     const flagArray = Array.from(flags || []) as string[];
 
@@ -791,6 +793,7 @@ export class ImapService {
       htmlContent,
       markdownContent,
       bodyFormat,
+      bodyResourceTruncated: (parsed.text?.length??0)>MAX_BODY_CHARS || undefined,
       attachments: await Promise.all((parsed.attachments || []).map(async (att: any) => {
         const filename = att.filename || 'unknown';
         const contentType = att.contentType || 'application/octet-stream';
@@ -881,6 +884,7 @@ export class ImapService {
       // result when the message happened to only carry text/plain (markdown
       // mode returns textContent populated as a side-effect — preserve it).
       markdownContent: rendered.markdownContent,
+      bodyResourceTruncated:rendered.bodyResourceTruncated,
       textContent: rendered.textContent,
       ...(bodyFormat === 'html' ? { htmlContent: rendered.htmlContent } : {}),
       bodyFormat,
@@ -906,7 +910,7 @@ export class ImapService {
       }
 
       assertMessageSize(source.source,source.size);
-      const parsed = await simpleParser(source.source,{skipHtmlToText:true,maxHtmlLengthToParse:1024*1024});
+      const parsed = await simpleParser(source.source,{skipHtmlToText:true,skipTextToHtml:true,maxHtmlLengthToParse:1024*1024});
       const attachment = parsed.attachments?.find(
         (att: any) => att.filename === filename || att.contentId === filename
       );
