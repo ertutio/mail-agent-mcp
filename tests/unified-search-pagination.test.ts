@@ -2,14 +2,20 @@ import {describe,it,expect,vi} from 'vitest';
 import {ImapService} from '../src/services/imap-service.js';
 import {unifiedSearchTools} from '../src/tools/unified-search-tools.js';
 describe('bounded resumable unified search',()=>{
-  it('restricts server SEARCH to a 200-UID window and rejects changed validity',async()=>{
-    const search=vi.fn(async()=>[999]);const client={mailbox:{uidNext:1001,uidValidity:123},getMailboxLock:async()=>({release(){}}),search,fetch:async function*(){yield {uid:999,internalDate:new Date('2026-10-01'),envelope:{subject:'fixture'},flags:[]};}};
+  it('fetches at most 200 matching UID records and rejects changed validity',async()=>{
+    const search=vi.fn(async()=>Array.from({length:201},(_,i)=>1000-i));const fetch=vi.fn(async function*(..._args:any[]){yield {uid:999,internalDate:new Date('2026-10-01'),envelope:{subject:'fixture'},flags:[]};});const client={mailbox:{uidNext:1001,uidValidity:123},getMailboxLock:async()=>({release(){}}),search,fetch};
     const service=new ImapService();vi.spyOn(service as any,'ensureConnected').mockResolvedValue(client);
     const result=await service.searchEmailPage('synthetic','INBOX',{});
-    expect(search).toHaveBeenCalledWith(expect.objectContaining({uid:'801:1000'}),{uid:true});
+    expect(search).toHaveBeenCalledWith(expect.objectContaining({uid:'1:1000'}),{uid:true});
+    expect(fetch.mock.calls[0]?.[0]).toHaveLength(200);
     expect(result.nextCursor).toEqual({beforeUid:800,uidValidity:123});
     await expect(service.searchEmailPage('synthetic','INBOX',{}, {beforeUid:800,uidValidity:456})).rejects.toThrow(/UIDVALIDITY/);
     expect(search).toHaveBeenCalledOnce();
+  });
+  it('does not scan empty gaps between sparse high UID values',async()=>{
+    const search=vi.fn(async()=>[3000000000,12345,2]);const client={mailbox:{uidNext:3000000001,uidValidity:123},getMailboxLock:async()=>({release(){}}),search,fetch:async function*(){for(const uid of [3000000000,12345,2])yield {uid,internalDate:new Date('2026-10-01'),envelope:{},flags:[]};}};
+    const service=new ImapService();vi.spyOn(service as any,'ensureConnected').mockResolvedValue(client);
+    const result=await service.searchEmailPage('synthetic','INBOX',{});expect(result.messages).toHaveLength(3);expect(result.nextCursor).toBeUndefined();expect(search).toHaveBeenCalledOnce();
   });
   it('retains top results within a bound and resumes partial folders without changing filters',async()=>{
     let handler:any;const account={id:'synthetic',name:'fixture'};

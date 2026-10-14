@@ -42,7 +42,7 @@ Based on [SinoEdwards/mail-agent-mcp](https://github.com/SinoEdwards/mail-agent-
 - Raw-message processing is capped at 25 MiB, body output at 100,000 characters, attachments at 20 per message, and outbound attachment bytes at 25 MiB total. PDF previews use isolated parsing, capped at 256 KiB, 20 pages, and five seconds; excessive input is rejected or previews are omitted.
 - Pending send previews are capped at 100 with 50 MiB retained attachment bytes; expired attachment copies are automatically cleared.
 - Account mutations use a cross-process lock and atomic replacement. After an abnormal writer exit, remove a leftover `.accounts.lock` only after verifying no configuration writer remains; never remove an active writer's lock.
-- Unified search scans at most 200 UIDs per batch and 25 batches per folder per pass. When `partial` is true, resume with returned `cursors` and identical filters, then merge and sort results across passes. Coverage is incomplete until all cursors are exhausted.
+- Unified search obtains matching UID lists and fetches at most 200 message records per batch, with 25 batches per folder per pass; it does not walk empty UID gaps. Lists over 100,000 matches require narrower filters. When `partial` is true, resume with returned `cursors`, identical filters and the same result limit, then merge and sort results across passes. Coverage is incomplete until all cursors are exhausted.
 
 ## Supported providers
 

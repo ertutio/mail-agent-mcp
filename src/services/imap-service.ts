@@ -492,17 +492,19 @@ export class ImapService {
       const upper=cursor?.beforeUid??newest;
       if(!Number.isInteger(upper)||upper<0||upper>0xffffffff)throw new Error('Invalid search cursor');
       if(!upper)return {messages:[],matched:0};
-      const lower=Math.max(1,upper-199);
-      const result=await client.search({...this.buildSearchQuery(criteria),uid:`${lower}:${upper}`},{uid:true});
-      const uids=result||[];
-      if(uids.length>200||uids.some(uid=>!Number.isInteger(uid)||uid<lower||uid>upper))throw new Error('Server violated bounded UID search');
+      const result=await client.search({...this.buildSearchQuery(criteria),uid:`1:${upper}`},{uid:true});
+      const candidates=result||[];
+      if(candidates.length>100000)throw new Error('Search UID processing limit exceeded; narrow filters');
+      if(candidates.some(uid=>!Number.isInteger(uid)||uid<1||uid>upper))throw new Error('Server violated bounded UID search');
+      const ordered=[...new Set(candidates)].sort((a,b)=>b-a);
+      const uids=ordered.slice(0,200);
       const messages:EmailMessage[]=[];
       if(uids.length){for await(const msg of client.fetch(uids,{uid:true,envelope:true,flags:true,internalDate:true},{uid:true})){
         if(messages.length>=200)throw new Error('Server violated bounded message fetch');
         const flags=Array.from(msg.flags||[]) as string[];
         messages.push({uid:msg.uid,date:new Date(msg.internalDate||msg.envelope?.date||0),from:msg.envelope?.from?.[0]?this.formatAddress(msg.envelope.from[0]).slice(0,2048):'',to:(msg.envelope?.to||[]).slice(0,100).map(a=>this.formatAddress(a).slice(0,2048)),subject:(msg.envelope?.subject||'').slice(0,2000),messageId:(msg.envelope?.messageId||'').slice(0,2048),flags,customKeywords:flags.filter(f=>!isSystemFlag(f))});
       }}
-      return {messages,matched:uids.length,...(lower>1?{nextCursor:{beforeUid:lower-1,uidValidity:validity}}:{})};
+      return {messages,matched:uids.length,...(ordered.length>uids.length?{nextCursor:{beforeUid:uids[uids.length-1]!-1,uidValidity:validity}}:{})};
     }finally{lock.release();}
   }
 
