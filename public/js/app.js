@@ -1,13 +1,11 @@
-let setupSessionPromise;
+let setupSessionToken;
 async function setupFetch(input, init = {}) {
-    if (!setupSessionPromise) {
-        setupSessionPromise = fetch('/api/session').then(async response => {
-            if (!response.ok) throw new Error('Setup session unavailable; reload the page.');
-            return (await response.json()).sessionToken;
-        });
+    if (!setupSessionToken) {
+        setupSessionToken = new URLSearchParams(window.location.hash.slice(1)).get('session');
+        if (!setupSessionToken) throw new Error('Open the private setup link printed by the local terminal.');
+        window.history.replaceState(null, '', window.location.pathname);
     }
-    const token = await setupSessionPromise;
-    return fetch(input, { ...init, headers: { ...(init.headers || {}), 'x-mail-agent-session': token } });
+    return fetch(input, { ...init, headers: { ...(init.headers || {}), 'x-mail-agent-session': setupSessionToken } });
 }
 // Email providers data
 let providers = [];

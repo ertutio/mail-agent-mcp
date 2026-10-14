@@ -66,7 +66,7 @@ beforeAll(async () => {
     httpServer = wizard.getApp().listen(0, () => resolve());
   });
   port = (httpServer.address() as AddressInfo).port;
-  sessionToken=JSON.parse((await request({path:'/api/session'})).text).sessionToken;
+  sessionToken=new URLSearchParams(new URL(wizard.getSetupUrl()).hash.slice(1)).get('session')!;
 });
 
 afterAll(() => {

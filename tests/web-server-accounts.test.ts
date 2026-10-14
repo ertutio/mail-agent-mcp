@@ -52,7 +52,7 @@ beforeAll(async () => {
   });
   const { port } = httpServer.address() as AddressInfo;
   baseUrl = `http://127.0.0.1:${port}`;
-  sessionToken=(await (await fetch(`${baseUrl}/api/session`)).json() as any).sessionToken;
+  sessionToken=new URLSearchParams(new URL(wizard.getSetupUrl()).hash.slice(1)).get('session')!;
 });
 
 afterAll(() => {

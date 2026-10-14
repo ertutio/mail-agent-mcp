@@ -5,7 +5,7 @@ describe('setup account rendering',()=>{
   it('escapes account data and does not interpolate executable event handlers',async()=>{
     const table={innerHTML:'',querySelectorAll:()=>[],classList:{add(){},remove(){}}};
     const payload='<img src=x onerror=alert(1)>"\'';
-    const context:any={document:{addEventListener:vi.fn(),getElementById:()=>table},console,fetch:async(url:string)=>({ok:true,json:async()=>url==='/api/session'?{sessionToken:'fixture-session'}:[{id:payload,name:payload,user:payload,host:payload}]})};
+    const context:any={URLSearchParams,window:{location:{hash:'#session=fixture-session',pathname:'/'},history:{replaceState:vi.fn()}},document:{addEventListener:vi.fn(),getElementById:()=>table},console,fetch:async()=>({ok:true,json:async()=>[{id:payload,name:payload,user:payload,host:payload}]})};
     runInNewContext(readFileSync('public/js/app.js','utf8'),context);
     await context.viewAccounts();
     expect(table.innerHTML).not.toContain('<img');

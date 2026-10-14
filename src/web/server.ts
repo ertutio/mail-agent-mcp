@@ -74,7 +74,6 @@ export class WebUIServer {
     this.app.use((req,res,next)=>{
       if (!req.path.startsWith('/api/')) return next();
       res.setHeader('cache-control','no-store');
-      if(req.path==='/api/session'&&req.method==='GET') return res.json({sessionToken:this.sessionToken});
       const token=req.headers['x-mail-agent-session'];
       if(typeof token!=='string'||!/^[a-f0-9]{64}$/.test(token)||!timingSafeEqual(Buffer.from(token),Buffer.from(this.sessionToken))) {
         res.status(403).json({error:'Forbidden: invalid setup session'});return;
@@ -84,6 +83,8 @@ export class WebUIServer {
     this.app.use(bodyParser.json());
     this.app.use(express.static(this.resolvePublicDir()));
   }
+
+  getSetupUrl():string {return `http://localhost:${this.port}/#session=${this.sessionToken}`;}
 
   private static isLoopbackName(name: string): boolean {
     const n = name.toLowerCase();
@@ -378,12 +379,12 @@ export class WebUIServer {
   async start(autoOpen: boolean = true): Promise<void> {
     return new Promise((resolve) => {
       const server = this.app.listen(this.port, '127.0.0.1', () => {
-        console.log(`🌐 Web UI server running at http://localhost:${this.port}`);
+        console.log(`🌐 Open this private local setup session: ${this.getSetupUrl()}`);
         
         if (autoOpen) {
           // Open browser after a short delay
           setTimeout(() => {
-            open(`http://localhost:${this.port}`);
+            open(this.getSetupUrl());
           }, 1000);
         }
         

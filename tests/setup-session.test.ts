@@ -10,7 +10,8 @@ describe('setup session and exact origin boundary',()=>{
     try{
       expect((await fetch(base+'/api/accounts')).status).toBe(403);
       const session=await fetch(base+'/api/session');
-      const {sessionToken}=await session.json() as any;
+      expect(session.status).toBe(403);
+      const sessionToken=new URLSearchParams(new URL(wizard.getSetupUrl()).hash.slice(1)).get('session')!;
       expect(session.headers.get('cache-control')).toBe('no-store');
       const headers={'x-mail-agent-session':sessionToken,'content-type':'application/json'};
       expect((await fetch(base+'/api/accounts/fixture',{method:'PUT',headers:{...headers,origin:'http://localhost:54321'},body:'{"name":"fixture"}'})).status).toBe(403);
