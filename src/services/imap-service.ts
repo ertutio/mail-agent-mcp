@@ -1,3 +1,5 @@
+import {MAX_MESSAGE_BYTES,MAX_BODY_CHARS,MAX_ATTACHMENT_COUNT,boundedSource,assertMessageSize} from '../utils/mail-resource-limits.js';
+import {extractPdfPreview} from '../utils/pdf-preview.js';
 import { ImapFlow } from 'imapflow';
 import { simpleParser } from 'mailparser';
 import { ImapAccount, EmailMessage, EmailContent, EmailBodyFormat, EmailLocation, Folder, SearchCriteria, SearchOptions, SentSaveResult, DEFAULT_BODY_MAX_LENGTH, DEFAULT_BODY_FORMAT, isSystemFlag } from '../types/index.js';
@@ -186,7 +188,7 @@ export class ImapService {
     const resolvedAuth = await this.authResolver.resolve(account, 'imap');
     const proxy = resolveMailProxy(process.env, account.host, account.auth?.provider);
 
-    const client = new ImapFlow({
+    const client = new ImapFlow({ maxLiteralSize: MAX_MESSAGE_BYTES + 1,
       host: account.host,
       port: account.port,
       secure: account.tls,
@@ -418,14 +420,14 @@ export class ImapService {
 
       // Fetch envelopes + flags + internalDate, and — when includeBody — the
       // RFC822 source in the same round-trip (one `client.fetch` call).
-      // Including `source: true` lets us parse the body with mailparser
+      // Including `source: boundedSource, size: true` lets us parse the body with mailparser
       // without an extra fetch per message.
       const fetchQuery: any = {
         uid: true,
         envelope: true,
         flags: true,
         internalDate: true,
-        ...(includeBody ? { source: true } : {}),
+        ...(includeBody ? { source: boundedSource, size: true } : {}),
       };
 
       const messages: EmailMessage[] = [];
@@ -562,7 +564,7 @@ export class ImapService {
         envelope: true,
         flags: true,
         internalDate: true,
-        ...(includeBody ? { source: true } : {}),
+        ...(includeBody ? { source: boundedSource, size: true } : {}),
       };
 
       // Opening the mailbox already told us how many messages it holds, and
@@ -638,12 +640,13 @@ export class ImapService {
     try {
       lock = await client.getMailboxLock(folderName);
 
-      const source = await client.fetchOne(uid, { source: true, flags: true }, { uid: true });
+      const source = await client.fetchOne(uid, { source: boundedSource, size: true, flags: true }, { uid: true });
 
       if (!source || !source.source) {
         throw new Error(`Email with UID ${uid} not found`);
       }
 
+      assertMessageSize(source.source,source.size);
       return await this.buildEmailContentFromSource(uid, source.source, source.flags, options);
     } finally {
       if (lock) {
@@ -679,7 +682,9 @@ export class ImapService {
       bodyMaxLength,
     } = options;
 
-    const parsed = await simpleParser(source);
+    assertMessageSize(source);
+    const parsed = await simpleParser(source,{skipHtmlToText:true,maxHtmlLengthToParse:1024*1024});
+    if((parsed.attachments?.length??0)>MAX_ATTACHMENT_COUNT)throw new Error('Too many message attachments');
     const flagArray = Array.from(flags || []) as string[];
 
     const cap = (s: string | undefined): string | undefined => {
@@ -690,8 +695,9 @@ export class ImapService {
 
     // Body assembly per bodyFormat. The point is that raw HTML never crosses the boundary
     // unless explicitly requested via bodyFormat: 'html'.
-    const rawText = parsed.text || undefined;
+    const rawText = parsed.text?.slice(0,MAX_BODY_CHARS) || undefined;
     const rawHtml = parsed.html || undefined;
+    if(rawHtml&&(rawHtml.length>1024*1024||(rawHtml.match(/</g)?.length??0)>10000))throw new Error('HTML processing limit exceeded');
     let textContent: string | undefined;
     let htmlContent: string | undefined;
     let markdownContent: string | undefined;
@@ -714,7 +720,7 @@ export class ImapService {
         markdownContent = cleanText || undefined;
       }
       // Keep textContent for backward compatibility with consumers that still read it.
-      textContent = rawText;
+      textContent = cap(rawText);
       markdownContent = cap(markdownContent);
     }
 
@@ -785,20 +791,12 @@ export class ImapService {
         // Check if this is a PDF
         const isPdf = contentTypeLower === 'application/pdf' || pdfExtensions.some(ext => filenameLower.endsWith(ext));
 
-        if (isPdf && att?.content) {
+        if (isPdf && att?.content && att.content.length <= Math.min(maxAttachmentTextBytes,256*1024)) {
           try {
-            const { PDFParse } = await import('pdf-parse');
             const contentBuffer = Buffer.isBuffer(att.content) ? att.content : Buffer.from(att.content);
-            const pdfParser = new PDFParse({ data: contentBuffer });
-            let rawText: string;
-            try {
-              const pdfData = await pdfParser.getText({ pageJoiner: '' });
-              rawText = pdfData.text;
-            } finally {
-              await pdfParser.destroy();
-            }
-            const textTruncated = rawText.length > maxAttachmentTextChars;
-            const textContent = textTruncated ? rawText.slice(0, maxAttachmentTextChars) : rawText;
+            const preview=await extractPdfPreview(contentBuffer,Math.min(maxAttachmentTextChars,MAX_BODY_CHARS));
+            const textTruncated=preview.truncated;
+            const textContent=preview.text;
 
             return {
               ...attachment,
@@ -875,13 +873,14 @@ export class ImapService {
     try {
       lock = await client.getMailboxLock(folderName);
 
-      const source = await client.fetchOne(uid, { source: true }, { uid: true });
+      const source = await client.fetchOne(uid, { source: boundedSource, size: true }, { uid: true });
 
       if (!source || !source.source) {
         throw new Error(`Email with UID ${uid} not found`);
       }
 
-      const parsed = await simpleParser(source.source);
+      assertMessageSize(source.source,source.size);
+      const parsed = await simpleParser(source.source,{skipHtmlToText:true,maxHtmlLengthToParse:1024*1024});
       const attachment = parsed.attachments?.find(
         (att: any) => att.filename === filename || att.contentId === filename
       );
@@ -1451,7 +1450,7 @@ export class ImapService {
         envelope: true,
         flags: true,
         internalDate: true,
-        source: true,
+        source: boundedSource, size: true,
       };
       for await (const msg of client.fetch(sortedUids, fetchQuery, { uid: true })) {
         const flags = Array.from(msg.flags || []) as string[];
@@ -1652,7 +1651,7 @@ export class ImapService {
     if (!account.auth) assertCredentialsResolved(account, 'imap');
     const resolvedAuth = await this.authResolver.resolve(account, 'imap');
     const proxy = resolveMailProxy(process.env, account.host, account.auth?.provider);
-    const client = new ImapFlow({
+    const client = new ImapFlow({ maxLiteralSize: MAX_MESSAGE_BYTES + 1,
       host: account.host,
       port: account.port,
       secure: account.tls,
@@ -1681,7 +1680,7 @@ export class ImapService {
     if (!account.auth) assertCredentialsResolved(account, 'imap');
     const resolvedAuth = await this.authResolver.resolve(account, 'imap');
     const proxy = resolveMailProxy(process.env, account.host, account.auth?.provider);
-    const testClient = new ImapFlow({
+    const testClient = new ImapFlow({ maxLiteralSize: MAX_MESSAGE_BYTES + 1,
       host: account.host,
       port: account.port,
       secure: account.tls,

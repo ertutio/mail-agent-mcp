@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { EmailAttachment, EmailComposer } from '../types/index.js';
+import {MAX_BODY_CHARS,MAX_ATTACHMENT_COUNT} from '../utils/mail-resource-limits.js';
 
 export type SafeSendState = 'pending' | 'sending' | 'sent' | 'ambiguous' | 'expired';
 
@@ -139,6 +140,7 @@ export class SafeSendService {
   }
 
   preview(input: SafeSendInput): SafeSendPreview {
+    if((input.composer.text?.length??0)>MAX_BODY_CHARS||(input.composer.html?.length??0)>MAX_BODY_CHARS||(input.composer.attachments?.length??0)>MAX_ATTACHMENT_COUNT) throw new Error('Message preview processing limit exceeded');
     this.expireDrafts();
     const active=[...this.drafts.values()].filter(entry=>entry.payload);
     const bytes=(composer:Readonly<EmailComposer>)=>(composer.attachments??[]).reduce((sum,a)=>sum+(Buffer.isBuffer(a.content)?a.content.length:Buffer.byteLength(a.content??'')),0);

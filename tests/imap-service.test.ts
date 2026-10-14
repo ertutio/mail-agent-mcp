@@ -1145,7 +1145,7 @@ describe('ImapService', () => {
       expect(result.content).toBe(attachmentBuffer);
       expect(result.contentType).toBe('application/pdf');
       expect(result.filename).toBe('report.pdf');
-      expect(mockInstance.fetchOneMock).toHaveBeenCalledWith(42, { source: true }, { uid: true });
+      expect(mockInstance.fetchOneMock).toHaveBeenCalledWith(42, { source: {start:0,maxLength:25*1024*1024+1}, size:true }, { uid: true });
     });
 
     it('should download attachment by contentId', async () => {
