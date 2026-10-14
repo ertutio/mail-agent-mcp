@@ -867,7 +867,7 @@ export function emailTools(
       ...accountSelector,
       folder: z.string().default('INBOX').describe('Folder name'),
       uids: z.array(z.coerce.number()).describe('Array of email UIDs to delete'),
-      chunkSize: z.coerce.number().default(50).describe('Number of emails to delete per batch (default: 50)'),
+      chunkSize: z.coerce.number().int().min(1).max(1000).default(50).describe('Number of emails to delete per batch (default: 50)'),
     }
   }, async ({ accountId: rawAccountId, accountName, folder, uids, chunkSize }) => {
     const accountId = accountManager.resolveAccountId(rawAccountId, accountName);
@@ -901,7 +901,7 @@ export function emailTools(
       subject: z.string().optional().describe('Delete emails with this subject'),
       before: z.string().optional().describe('Delete emails before this date (YYYY-MM-DD)'),
       since: z.string().optional().describe('Delete emails since this date (YYYY-MM-DD)'),
-      chunkSize: z.coerce.number().default(50).describe('Number of emails to delete per batch'),
+      chunkSize: z.coerce.number().int().min(1).max(1000).default(50).describe('Number of emails to delete per batch'),
       dryRun: z.boolean().default(false).describe('If true, only return what would be deleted without actually deleting'),
     }
   }, async ({ accountId: rawAccountId, accountName, folder, from, to, subject, before, since, chunkSize, dryRun }) => {

@@ -1068,7 +1068,7 @@ export class ImapService {
    * to a non-existent `Trash` folder, deleted counter incremented, but
    * messages never actually leave the source folder.
    */
-  private async resolveTrashFolder(accountId: string): Promise<string | null> {
+  async resolveTrashFolder(accountId: string): Promise<string | null> {
     const client = await this.ensureConnected(accountId);
     const connState = this.connections.get(accountId);
     const isGmail = connState?.account?.host?.includes('gmail') || connState?.account?.host?.includes('google');
@@ -1141,6 +1141,8 @@ export class ImapService {
     chunkSize: number = 50,
     onProgress?: (deleted: number, total: number) => void
   ): Promise<{ deleted: number; failed: number; errors: string[] }> {
+    if (!Number.isInteger(chunkSize) || chunkSize < 1 || chunkSize > 1000) throw new Error('chunkSize must be an integer from 1 to 1000');
+    if (!uids.every(uid => Number.isInteger(uid) && uid > 0 && uid <= 0xffffffff)) throw new Error('Invalid email UID');
     const client = await this.ensureConnected(accountId);
     const trashFolder = await this.resolveTrashFolder(accountId);
     if (!trashFolder) {
