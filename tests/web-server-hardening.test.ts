@@ -36,10 +36,11 @@ const fakeAccountManager = {
 
 let httpServer: Server;
 let port: number;
+let sessionToken: string;
 
 function request(opts: { method?: string; path: string; headers?: Record<string, string>; body?: any }) {
   const data = opts.body !== undefined ? JSON.stringify(opts.body) : undefined;
-  const headers: Record<string, string> = { ...(opts.headers ?? {}) };
+  const headers: Record<string, string> = { ...(sessionToken ? {'x-mail-agent-session':sessionToken}:{}), ...(opts.headers ?? {}) };
   if (data !== undefined) {
     headers['content-type'] = 'application/json';
     headers['content-length'] = String(Buffer.byteLength(data));
@@ -65,6 +66,7 @@ beforeAll(async () => {
     httpServer = wizard.getApp().listen(0, () => resolve());
   });
   port = (httpServer.address() as AddressInfo).port;
+  sessionToken=JSON.parse((await request({path:'/api/session'})).text).sessionToken;
 });
 
 afterAll(() => {
@@ -134,7 +136,7 @@ describe('Web wizard — loopback / cross-origin guard', () => {
   });
 
   it('allows a same-origin loopback request', async () => {
-    const res = await request({ path: '/api/accounts', headers: { Origin: `http://localhost:${port}` } });
+    const res = await request({ path: '/api/accounts', headers: { Origin: `http://127.0.0.1:${port}` } });
     expect(res.status).toBe(200);
   });
 });

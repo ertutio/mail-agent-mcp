@@ -40,6 +40,7 @@ const fakeAccountManager = {
 
 let httpServer: Server;
 let baseUrl: string;
+let sessionToken: string;
 
 beforeAll(async () => {
   const wizard = new WebUIServer(0, {
@@ -51,6 +52,7 @@ beforeAll(async () => {
   });
   const { port } = httpServer.address() as AddressInfo;
   baseUrl = `http://127.0.0.1:${port}`;
+  sessionToken=(await (await fetch(`${baseUrl}/api/session`)).json() as any).sessionToken;
 });
 
 afterAll(() => {
@@ -59,7 +61,7 @@ afterAll(() => {
 
 describe('Web wizard credential exposure', () => {
   it('GET /api/accounts never returns passwords', async () => {
-    const res = await fetch(`${baseUrl}/api/accounts`);
+    const res = await fetch(`${baseUrl}/api/accounts`,{headers:{'x-mail-agent-session':sessionToken}});
     expect(res.ok).toBe(true);
     const raw = await res.text();
 
@@ -77,7 +79,7 @@ describe('Web wizard credential exposure', () => {
   });
 
   it('GET /api/accounts/:id also stays password-free', async () => {
-    const res = await fetch(`${baseUrl}/api/accounts/a1`);
+    const res = await fetch(`${baseUrl}/api/accounts/a1`,{headers:{'x-mail-agent-session':sessionToken}});
     const raw = await res.text();
     expect(raw).not.toContain(SECRET);
     expect(raw).not.toContain(SMTP_SECRET);

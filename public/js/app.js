@@ -1,3 +1,14 @@
+let setupSessionPromise;
+async function setupFetch(input, init = {}) {
+    if (!setupSessionPromise) {
+        setupSessionPromise = fetch('/api/session').then(async response => {
+            if (!response.ok) throw new Error('Setup session unavailable; reload the page.');
+            return (await response.json()).sessionToken;
+        });
+    }
+    const token = await setupSessionPromise;
+    return fetch(input, { ...init, headers: { ...(init.headers || {}), 'x-mail-agent-session': token } });
+}
 // Email providers data
 let providers = [];
 let selectedProvider = null;
@@ -62,7 +73,7 @@ function updateEnvVarNames() {
 // Load providers from API
 async function loadProviders() {
     try {
-        const response = await fetch('/api/providers');
+        const response = await setupFetch('/api/providers');
         providers = await response.json();
     } catch (error) {
         console.error('Failed to load providers:', error);
@@ -266,7 +277,7 @@ async function updateAndTestAccount(accountId, accountData) {
     
     try {
         // Test connection with new data
-        const testResponse = await fetch('/api/test-connection', {
+        const testResponse = await setupFetch('/api/test-connection', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -283,7 +294,7 @@ async function updateAndTestAccount(accountId, accountData) {
         }
         
         // Update account
-        const updateResponse = await fetch(`/api/accounts/${accountId}`, {
+        const updateResponse = await setupFetch(`/api/accounts/${accountId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(accountData)
@@ -324,7 +335,7 @@ async function testAndSaveAccount(accountData) {
     
     try {
         // Test connection
-        const testResponse = await fetch('/api/test-connection', {
+        const testResponse = await setupFetch('/api/test-connection', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(accountData)
@@ -337,7 +348,7 @@ async function testAndSaveAccount(accountData) {
         }
         
         // Save account
-        const saveResponse = await fetch('/api/accounts', {
+        const saveResponse = await setupFetch('/api/accounts', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(accountData)
@@ -369,7 +380,7 @@ async function viewAccounts() {
     document.getElementById('accountsList').classList.remove('hidden');
     
     try {
-        const response = await fetch('/api/accounts');
+        const response = await setupFetch('/api/accounts');
         const accounts = await response.json();
         
         const table = document.getElementById('accountsTable');
@@ -425,7 +436,7 @@ async function viewAccounts() {
 async function editAccount(accountId) {
     try {
         // Get account details
-        const response = await fetch(`/api/accounts/${accountId}`);
+        const response = await setupFetch(`/api/accounts/${accountId}`);
         const result = await response.json();
         
         if (!result.success) {
@@ -520,7 +531,7 @@ async function removeAccount(accountId) {
     if (!confirm('Are you sure you want to remove this account?')) return;
     
     try {
-        await fetch(`/api/accounts/${accountId}`, { method: 'DELETE' });
+        await setupFetch(`/api/accounts/${accountId}`, { method: 'DELETE' });
         viewAccounts(); // Refresh list
     } catch (error) {
         alert('Failed to remove account: ' + error.message);
@@ -560,7 +571,7 @@ async function testCurrentSettings() {
     testButton.innerHTML = '<span class="mr-2">⏳</span>Testing...';
     
     try {
-        const response = await fetch('/api/test-connection', {
+        const response = await setupFetch('/api/test-connection', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(accountData)

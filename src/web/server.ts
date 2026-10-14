@@ -1,5 +1,5 @@
 import express from 'express';
-import cors from 'cors';
+import { randomBytes, timingSafeEqual } from 'node:crypto';
 import bodyParser from 'body-parser';
 import path from 'path';
 import fs from 'fs';
@@ -31,6 +31,7 @@ function stripAccountSecrets<T extends Record<string, any>>(account: T): Omit<T,
 }
 
 export class WebUIServer {
+  private readonly sessionToken = randomBytes(32).toString('hex');
   private app: express.Application;
   private accountManager: AccountManager;
   private imapService: ImapService;
@@ -70,7 +71,16 @@ export class WebUIServer {
     // stripAccountSecrets this closes the "any open page can read/modify the
     // local accounts API" vector.
     this.app.use(this.loopbackOnly());
-    this.app.use(cors());
+    this.app.use((req,res,next)=>{
+      if (!req.path.startsWith('/api/')) return next();
+      res.setHeader('cache-control','no-store');
+      if(req.path==='/api/session'&&req.method==='GET') return res.json({sessionToken:this.sessionToken});
+      const token=req.headers['x-mail-agent-session'];
+      if(typeof token!=='string'||!/^[a-f0-9]{64}$/.test(token)||!timingSafeEqual(Buffer.from(token),Buffer.from(this.sessionToken))) {
+        res.status(403).json({error:'Forbidden: invalid setup session'});return;
+      }
+      next();
+    });
     this.app.use(bodyParser.json());
     this.app.use(express.static(this.resolvePublicDir()));
   }
@@ -102,11 +112,14 @@ export class WebUIServer {
           res.status(403).json({ error: 'Forbidden: invalid Origin.' });
           return;
         }
-        if (!WebUIServer.isLoopbackName(originHost)) {
+        if (!WebUIServer.isLoopbackName(originHost) || new URL(origin).origin !== new URL('http://' + host).origin) {
           res.status(403).json({ error: 'Forbidden: cross-origin requests are not allowed.' });
           return;
         }
       }
+
+      const site=req.headers['sec-fetch-site'];
+      if(site&&site!=='same-origin'&&site!=='none') {res.status(403).json({error:'Forbidden: cross-site setup access'});return;}
 
       next();
     };
