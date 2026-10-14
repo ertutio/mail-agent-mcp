@@ -43,7 +43,7 @@ export function guardedDeletion(server:McpServer, imap:ImapService, clock:()=>nu
   const previewServer = new Proxy(server,{get(target,prop){
     if(prop==='registerTool') return (name:string,config:any,handler:any)=> {
       if(!DELETE_TOOLS.has(name)) return (target.registerTool as any)(name,config,handler);
-      return (target.registerTool as any)(name,{...config,inputSchema:{...config.inputSchema,uidValidity:z.number().int().positive().optional().describe('UIDVALIDITY from the earlier mailbox read, when deleting known UIDs')},description:config.description+' This call ONLY freezes a deletion preview. Nothing is deleted until imap_confirm_delete is called after explicit user approval.'},async(args:any)=>{
+      return (target.registerTool as any)(name,{...config,annotations:{readOnlyHint:true,destructiveHint:false},inputSchema:{...config.inputSchema,uidValidity:z.number().int().positive().optional().describe('UIDVALIDITY from the earlier mailbox read, when deleting known UIDs')},description:'Preview deletion only: freeze selected UIDs and return samples. Nothing is deleted until imap_confirm_delete is called after explicit user approval. '+config.description},async(args:any)=>{
         prune(); if(previews.size>=100) throw new Error('Too many pending deletion previews');
         const collection:Collection={operations:[],versions:new Map(),expectedValidity:args.uidValidity};
         const oldResult=await context.run(collection,()=>handler({...args,dryRun:false}));
