@@ -19,7 +19,7 @@ describe('frozen deletion and batch validation',()=>{
     expect(r.previewOnly).toBe(true); expect(r.operations[0].uids).toEqual([7]);
     expect(imap.bulkDelete).not.toHaveBeenCalled(); expect(imap.deleteEmail).not.toHaveBeenCalled();
     await handlers.get('imap_confirm_delete')({previewId:r.previewId,confirmed:true});
-    expect(imap.bulkDelete).toHaveBeenCalledExactlyOnceWith('synthetic','INBOX',[7],50);
+    expect(imap.bulkDelete).toHaveBeenCalledExactlyOnceWith('synthetic','INBOX',[7],50,undefined,123);
     await expect(handlers.get('imap_confirm_delete')({previewId:r.previewId,confirmed:true})).rejects.toThrow(/used|unknown/i);
   });
   it('freezes matching UIDs and reports permanent Trash deletion',async()=>{
@@ -27,7 +27,7 @@ describe('frozen deletion and batch validation',()=>{
     expect(r.operations[0].permanent).toBe(true);
     imap.searchEmails.mockResolvedValue([{uid:99}]);
     await handlers.get('imap_confirm_delete')({previewId:r.previewId,confirmed:true});
-    expect(imap.bulkDelete).toHaveBeenCalledWith('synthetic','Trash',[7],50);expect(imap.searchEmails).toHaveBeenCalledOnce();
+    expect(imap.bulkDelete).toHaveBeenCalledWith('synthetic','Trash',[7],50,undefined,123);expect(imap.searchEmails).toHaveBeenCalledOnce();
   });
   it('rejects UIDVALIDITY changes before deletion',async()=>{
     const r=parse(await handlers.get('imap_delete_email')({accountId:'synthetic',folder:'INBOX',uid:7}));
@@ -52,5 +52,11 @@ describe('frozen deletion and batch validation',()=>{
     const service=new ImapService(); const connect=vi.spyOn(service as any,'ensureConnected');
     await expect(service.bulkDelete('synthetic','INBOX',[7],size)).rejects.toThrow(/chunkSize/);
     expect(connect).not.toHaveBeenCalled();
+  });
+  it('stops remaining batches if validity changes after reconnection',async()=>{
+    const move=vi.fn();const client={getMailboxLock:async()=>({release(){}}),status:async()=>({uidValidity:456}),messageMove:move};
+    const service=new ImapService();vi.spyOn(service as any,'ensureConnected').mockResolvedValue(client);vi.spyOn(service,'resolveTrashFolder').mockResolvedValue('Trash');
+    const result=await service.bulkDelete('synthetic','INBOX',[7,8],1,undefined,123);
+    expect(result.failed).toBe(2);expect(result.deleted).toBe(0);expect(move).not.toHaveBeenCalled();
   });
 });

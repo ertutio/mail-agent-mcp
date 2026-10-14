@@ -1168,11 +1168,12 @@ export class ImapService {
     folderName: string,
     uids: number[],
     chunkSize: number = 50,
-    onProgress?: (deleted: number, total: number) => void
+    onProgress?: (deleted: number, total: number) => void,
+    expectedUidValidity?:number,
   ): Promise<{ deleted: number; failed: number; errors: string[] }> {
     if (!Number.isInteger(chunkSize) || chunkSize < 1 || chunkSize > 1000) throw new Error('chunkSize must be an integer from 1 to 1000');
     if (!uids.every(uid => Number.isInteger(uid) && uid > 0 && uid <= 0xffffffff)) throw new Error('Invalid email UID');
-    const client = await this.ensureConnected(accountId);
+    let client = await this.ensureConnected(accountId);
     const trashFolder = await this.resolveTrashFolder(accountId);
     if (!trashFolder) {
       return {
@@ -1194,9 +1195,13 @@ export class ImapService {
       let lock;
       try {
         // Ensure we're still connected before each chunk
-        await this.ensureConnected(accountId);
+        client=await this.ensureConnected(accountId);
 
         lock = await client.getMailboxLock(folderName);
+        if(expectedUidValidity!==undefined){
+          const status=await client.status(folderName,{uidValidity:true});
+          if(Number(status.uidValidity)!==expectedUidValidity)throw new Error('Mailbox UIDVALIDITY changed during deletion');
+        }
 
         // Use sequence set for bulk operations
         const uidSet = chunk.join(',');
@@ -1212,6 +1217,9 @@ export class ImapService {
           onProgress(deleted, uids.length);
         }
       } catch (err) {
+        if(err instanceof Error&&err.message==='Mailbox UIDVALIDITY changed during deletion'){
+          failed+=uids.length-i;errors.push(err.message);break;
+        }
         failed += chunk.length;
         errors.push(`Failed to delete UIDs ${chunk[0]}-${chunk[chunk.length - 1]}: ${err instanceof Error ? err.message : 'Unknown error'}`);
 

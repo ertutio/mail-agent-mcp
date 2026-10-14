@@ -86,7 +86,7 @@ export function guardedDeletion(server:McpServer, imap:ImapService, clock:()=>nu
         if((op.folder===await imap.resolveTrashFolder(op.accountId))!==op.permanent) throw new Error('Trash mapping changed; create a new preview');
       }
       const results=[];
-      for(const op of preview.operations) results.push(await imap.bulkDelete(op.accountId,op.folder,op.uids,op.chunkSize));
+      for(const op of preview.operations) results.push(await imap.bulkDelete(op.accountId,op.folder,op.uids,op.chunkSize,undefined,op.uidValidity));
       preview.state='finished'; previews.delete(previewId);
       return response({success:results.every(r=>r.failed===0),results});
     }catch(error){preview.state='ambiguous';throw error;}
