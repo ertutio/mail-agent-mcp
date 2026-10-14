@@ -9,7 +9,7 @@ export interface CredentialBackend {
   delete(target: string): boolean;
 }
 
-export type CredentialProvider = 'qq' | 'gmail';
+export type CredentialProvider = 'qq' | 'gmail' | 'netease';
 
 function normalizedAccount(account: string): string {
   const normalized = account.trim();
@@ -21,6 +21,7 @@ function normalizedAccount(account: string): string {
 
 export function credentialTarget(provider: CredentialProvider, account: string): string {
   const normalized = normalizedAccount(account);
+  if (provider === 'netease') return `MailAgentMCP:netease:${normalized}:authorization_code`;
   return provider === 'qq'
     ? `MailAgentMCP:qq:${normalized}:authorization_code`
     : `MailAgentMCP:gmail:${normalized}:refresh_token`;
@@ -45,7 +46,7 @@ export function credentialTargetsForAccount(
   provider: CredentialProvider,
   account: string,
 ): readonly string[] {
-  return [credentialTarget(provider, account), legacyCredentialTarget(provider, account)];
+  return provider === 'netease' ? [credentialTarget(provider, account)] : [credentialTarget(provider, account), legacyCredentialTarget(provider, account)];
 }
 
 export function gmailClientSecretTargetsForAccount(account: string): readonly string[] {

@@ -7,7 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-No changes yet.
+### Added
+
+- Unified read-only search across configured QQ, Gmail, NetEase and generic mail accounts, with account/folder/UID provenance, global sorting and limits, partial-failure reporting, and bounded account concurrency/deadlines.
+- Secure Windows enrollment for NetEase 163, 126, yeah and Hangzhou enterprise IMAP/SMTP endpoints, with authorization codes in Credential Manager and endpoint binding.
+- Chinese Trash/Spam/Drafts exclusions for cross-folder search.
+
+### Fixed
+
+- Preserve existing generic account credentials when updating non-password fields instead of encrypting stored ciphertext again.
+- Reject duplicate account names and duplicate credential-backed identities to avoid ambiguous selection or shared-vault deletion.
 
 ## [0.1.1] - 2026-08-31
 

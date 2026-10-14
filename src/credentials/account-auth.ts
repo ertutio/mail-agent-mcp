@@ -1,4 +1,4 @@
-﻿import type { ImapAccount } from '../types/index.js';
+import type { ImapAccount } from '../types/index.js';
 import type { CredentialBackend, SecretHandle } from './credential-backend.js';
 import { credentialTargetsForAccount, gmailClientSecretTargetsForAccount } from './credential-backend.js';
 
@@ -27,6 +27,7 @@ export function assertCredentialTarget(account: ImapAccount): void {
   if (!account.auth) return;
   const validProviderKind =
     (account.auth.provider === 'qq' && account.auth.kind === 'credential')
+    || (account.auth.provider === 'netease' && account.auth.kind === 'credential')
     || (account.auth.provider === 'gmail' && account.auth.kind === 'oauth2');
   const expected = validProviderKind
     ? credentialTargetsForAccount(account.auth.provider, account.user)
@@ -58,6 +59,16 @@ export class AccountAuthResolver {
       return { kind: 'password', user: smtp?.user || account.user, password: smtp?.password || account.password };
     }
     assertCredentialTarget(account);
+    if (account.auth.kind === 'credential' && account.auth.provider === 'netease') {
+      const binding = account.auth.endpoints;
+      const endpoint = protocol === 'imap' ? { host: account.host, port: account.port, secure: account.tls }
+        : { host: account.smtp?.host, port: account.smtp?.port, secure: account.smtp?.secure };
+      const expectedHost = protocol === 'imap' ? binding.imapHost : binding.smtpHost;
+      const expectedPort = protocol === 'imap' ? binding.imapPort : binding.smtpPort;
+      if (endpoint.host !== expectedHost || endpoint.port !== expectedPort || endpoint.secure !== true) {
+        throw new Error('Credential endpoint mismatch; re-enroll locally to change servers');
+      }
+    }
     if (!this.backend) {
       throw new Error('Credential backend is not configured');
     }

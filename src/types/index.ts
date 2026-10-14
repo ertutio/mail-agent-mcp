@@ -27,6 +27,8 @@ export interface ImapAccount {
 
 export type AccountAuth =
   | { kind: 'credential'; provider: 'qq'; credentialTarget: string }
+  | { kind: 'credential'; provider: 'netease'; credentialTarget: string;
+      endpoints: { imapHost: string; imapPort: number; smtpHost: string; smtpPort: number } }
   | {
       kind: 'oauth2';
       provider: 'gmail';
@@ -101,6 +103,7 @@ export interface Folder {
 }
 
 export interface SearchCriteria {
+  text?: string;
   from?: string;
   to?: string;
   subject?: string;

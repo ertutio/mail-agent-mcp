@@ -1723,6 +1723,7 @@ export class ImapService {
 
   private buildSearchQuery(criteria: SearchCriteria): any {
     const query: any = {};
+    if (criteria.text) query.text = criteria.text;
 
     if (criteria.from) {
       query.from = criteria.from;

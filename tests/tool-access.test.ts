@@ -118,6 +118,7 @@ describe('resolveEnabledTools', () => {
 describe('READ_ONLY_TOOLS subset', () => {
   it('includes core read tools', () => {
     expect(READ_ONLY_TOOLS).toContain('imap_search_emails');
+    expect(READ_ONLY_TOOLS).toContain('imap_search_all_accounts');
     expect(READ_ONLY_TOOLS).toContain('imap_get_email');
     expect(READ_ONLY_TOOLS).toContain('imap_list_folders');
   });

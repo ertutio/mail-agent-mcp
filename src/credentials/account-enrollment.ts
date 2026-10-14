@@ -18,6 +18,12 @@ export interface GmailEnrollmentInput {
 }
 
 type EnrollmentAccountManager = Pick<AccountManager, 'addAccount'>;
+export const NETEASE_ENDPOINTS = {
+  '163': { imapHost: 'imap.163.com', smtpHost: 'smtp.163.com', smtpPort: 465 },
+  '126': { imapHost: 'imap.126.com', smtpHost: 'smtp.126.com', smtpPort: 465 },
+  'yeah': { imapHost: 'imap.yeah.net', smtpHost: 'smtp.yeah.net', smtpPort: 465 },
+  'netease-enterprise': { imapHost: 'imaphz.qiye.163.com', smtpHost: 'smtphz.qiye.163.com', smtpPort: 994 },
+} as const;
 
 interface CredentialSnapshot {
   exists: boolean;
@@ -29,6 +35,21 @@ export class AccountEnrollmentService {
     private readonly credentials: CredentialBackend,
     private readonly accounts: EnrollmentAccountManager,
   ) {}
+
+  async enrollNetease(input: QqEnrollmentInput & { provider: keyof typeof NETEASE_ENDPOINTS }): Promise<ImapAccount> {
+    const endpoint = NETEASE_ENDPOINTS[input.provider];
+    if (!endpoint) throw new Error('Unsupported NetEase provider');
+    const email = required(input.email, 'Email address').toLowerCase();
+    const name = required(input.name, 'Account name');
+    const authorizationCode = required(input.authorizationCode, 'Client authorization code');
+    const target = credentialTarget('netease', email);
+    return this.persist([{ target, secret: authorizationCode }], {
+      name, email, user: email, host: endpoint.imapHost, port: 993, tls: true, password: '',
+      smtp: { host: endpoint.smtpHost, port: endpoint.smtpPort, secure: true, user: email, password: '' },
+      auth: { kind: 'credential', provider: 'netease', credentialTarget: target,
+        endpoints: { ...endpoint, imapPort: 993 } },
+    });
+  }
 
   async enrollQq(input: QqEnrollmentInput): Promise<ImapAccount> {
     const email = required(input.email, 'QQ email').toLowerCase();

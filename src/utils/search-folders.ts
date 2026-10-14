@@ -3,9 +3,9 @@ import type { Folder } from '../types/index.js';
 // Leaf folder names (lowercased) that identify Trash/Spam/Drafts mailboxes on
 // servers that do not advertise RFC 6154 SPECIAL-USE flags. Matched against both
 // the full path and the last path segment, case-insensitively.
-export const TRASH_FOLDER_NAMES = ['trash', 'bin', 'deleted', 'deleted items', 'deleted messages'];
-export const SPAM_FOLDER_NAMES = ['spam', 'junk', 'junk email', 'junk e-mail', 'bulk mail'];
-export const DRAFTS_FOLDER_NAMES = ['drafts', 'draft'];
+export const TRASH_FOLDER_NAMES = ['trash', 'bin', 'deleted', 'deleted items', 'deleted messages', '已删除', '已删除邮件', '垃圾箱'];
+export const SPAM_FOLDER_NAMES = ['spam', 'junk', 'junk email', 'junk e-mail', 'bulk mail', '垃圾邮件', '垃圾邮件夹'];
+export const DRAFTS_FOLDER_NAMES = ['drafts', 'draft', '草稿', '草稿箱'];
 // Always skipped regardless of include-flags (provider quarantine folders).
 export const BLOCKED_FOLDER_NAMES = ['blocked'];
 

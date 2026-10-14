@@ -8,6 +8,7 @@ import { emailTools } from './email-tools.js';
 import { folderTools } from './folder-tools.js';
 import { spamTools } from './spam-tools.js';
 import { safeSendTools } from './safe-send-tools.js';
+import { unifiedSearchTools } from './unified-search-tools.js';
 
 const BLOCKED_DIRECT_SEND_TOOLS = new Set([
   'imap_send_email',
@@ -31,6 +32,7 @@ export const READ_ONLY_TOOLS: readonly string[] = [
   'imap_test_account',
   // Email (read)
   'imap_search_emails',
+  'imap_search_all_accounts',
   'imap_get_email',
   'imap_get_latest_emails',
   'imap_download_attachment',
@@ -151,6 +153,7 @@ export function registerTools(
 
   // Register email operation tools
   emailTools(target, imapService, accountManager, smtpService);
+  unifiedSearchTools(target, imapService, accountManager);
 
   safeSendTools(target, imapService, accountManager, smtpService);
 
