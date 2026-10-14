@@ -1,286 +1,229 @@
 # Mail Agent MCP
 
-[![CI](https://github.com/SinoEdwards/mail-agent-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/SinoEdwards/mail-agent-mcp/actions/workflows/ci.yml)
+**中文** | [English](README.en.md)
+
+[![CI](https://github.com/ertutio/mail-agent-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/ertutio/mail-agent-mcp/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Node.js >=22.12](https://img.shields.io/badge/node-%3E%3D22.12-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
-![Status: Public Preview](https://img.shields.io/badge/status-public_preview-orange.svg)
 
-Mail Agent MCP is a local-first TypeScript stdio MCP server that gives AI agents a controlled interface for Gmail, QQ Mail, NetEase, and other IMAP accounts, including cross-account search, reading, organization, attachments, and preview-confirmed SMTP sending.
+本地运行的邮件 MCP 服务，让支持 MCP 的 AI 客户端搜索、读取和汇总多个邮箱。这个 fork 重点支持中国大陆用户同时使用国内邮箱和需要代理访问的 Gmail：**国内邮箱直连，Gmail 走代理，一次搜索统一汇总。**
 
-Gmail uses OAuth 2.0; QQ Mail uses provider authorization codes. On Windows, provider secrets stay in Windows Credential Manager instead of account JSON.
+基于 [SinoEdwards/mail-agent-mcp](https://github.com/SinoEdwards/mail-agent-mcp) 开发，保留原项目的 OAuth、安全发送、附件边界和通用 IMAP 功能。
 
-> Release status: v0.1.1 Public Preview / Beta. Install from this GitHub repository; the package is not published to npm or the MCP Registry.
+> 当前版本为 v0.1.1 Public Preview / Beta，请从本仓库源码安装。尚未发布到 npm 或 MCP Registry。安全邮箱注册使用 Windows 凭据管理器；macOS/Linux 尚未提供对应的安全凭据后端。
 
-## Features
+## 本次更新
 
-- Gmail OAuth 2.0 installed-app enrollment with PKCE, state validation, refresh-token support, and sanitized provider errors.
-- QQ Mail IMAP/SMTP enrollment with hidden authorization-code input and rollback-safe credential repair.
-- IMAP search, read, recent mail, folders, flags, keywords, move, guarded delete, drafts, and attachments.
-- Four safe-send tools: preview send, reply, forward, then explicit confirmation.
-- Read-only mode and explicit MCP tool allowlists.
-- Attachment path confinement with a configurable local root.
-- Local stdio transport; no hosted service and no telemetry in project code.
+- **多邮箱统一搜索**：同时接入多个 QQ、网易个人/企业邮箱和 Gmail，账号数量没有固定上限，结果保留来源账号。
+- **网易安全注册**：支持 163、126、yeah.net 及网易企业邮箱杭州服务器预设，授权码存入 Windows 凭据管理器。
+- **按服务商分流**：国内邮箱直连；Gmail 授权、令牌刷新及 IMAP/SMTP 必须走代理，失败不回退直连。
+- **通用代理配置**：支持显式环境变量及 Windows 本地系统代理自动检测，不写死个人路径或代理端口。
+- **安全与可靠性修复**：更新存在漏洞的运行时依赖，修复账号改名时重复加密密码的问题，阻止账号重名，纠正 OAuth 回调的过早成功提示。
 
-## Supported providers
+## 支持的邮箱
 
-| Provider | Authentication | Receive | Send | Enrollment |
-| --- | --- | --- | --- | --- |
-| Gmail / Google Workspace | OAuth 2.0 desktop client, PKCE, refresh token | IMAP | SMTP OAuth2 | Windows CLI |
-| QQ Mail | QQ authorization code | IMAP | SMTP | Windows CLI |
-| NetEase 163 / 126 / yeah.net | Client authorization password | IMAP | SMTP | Windows CLI |
-| NetEase enterprise (Hangzhou preset) | Client authorization password | IMAP | SMTP | Windows CLI |
-| Other IMAP/SMTP providers | Legacy password/app-password account path | IMAP | SMTP | Legacy tools/web setup |
+| 服务商 | 登录方式 | 注册命令参数 | 网络策略 |
+| --- | --- | --- | --- |
+| QQ 邮箱 | 客户端授权码 | `qq` | 直连 |
+| 网易 163 | 客户端授权密码 | `163` | 直连 |
+| 网易 126 | 客户端授权密码 | `126` | 直连 |
+| 网易 yeah.net | 客户端授权密码 | `yeah` | 直连 |
+| 网易企业邮箱（杭州预设） | 客户端授权密码 | `netease-enterprise` | 直连 |
+| Gmail / Google Workspace | 桌面应用 OAuth 2.0 | `gmail` | 必须走代理 |
+| 其他 IMAP/SMTP 服务商 | 旧版密码/应用密码配置 | 本地设置界面 | 保留通用代理配置行为 |
 
-The hardened Credential Manager enrollment path is currently Windows-only. Generic-provider compatibility remains available, but its legacy password store is not equivalent to Windows Credential Manager; see Security model.
+QQ、网易和 Gmail 的安全注册目前要求 Windows。其他服务商的旧版配置方式不等同于系统凭据库保护，详见安全说明。
 
-## MCP tools
+## 快速开始
 
-The server exposes 42 tools in full mode. The stable public prefix is imap_.
+### 1. 安装并构建
 
-- Accounts: imap_add_account, imap_update_account, imap_list_accounts, imap_remove_account, imap_connect, imap_disconnect, imap_test_account.
-- Read/search: imap_search_emails, imap_get_email, imap_get_latest_emails, imap_find_thread_messages, imap_find_email_by_message_id.
-- Folders and state: imap_list_folders, imap_folder_status, imap_create_folder, imap_get_unread_count, mark/read, flags, keywords, move and guarded delete tools.
-- Attachments and drafts: imap_upload_file, imap_download_attachment, imap_save_draft.
-- Safe sending: imap_preview_send_email, imap_preview_reply_to_email, imap_preview_forward_email, imap_confirm_send.
-- Spam helpers: inspection, domain lists, and explicitly enabled mutation tools.
-
-imap_send_email, imap_reply_to_email, and imap_forward_email are legacy handlers and are never registered. Sending requires a server-side frozen preview and a separate imap_confirm_send call with confirmed: true. See docs/agent-integration.md for a machine-readable contract and read/write boundaries.
-
-## Quick start
-
-Requirements: Windows 10/11 and Node.js 22.12 or newer for hardened Gmail/QQ enrollment.
-
-1. Clone the repository and enter it:
-
-   ```powershell
-   git clone https://github.com/SinoEdwards/mail-agent-mcp.git
-   Set-Location mail-agent-mcp
-   ```
-
-2. Install locked dependencies and build:
-
-   ```powershell
-   npm ci
-   npm run build
-   ```
-
-3. Check the enrollment commands:
-
-   ```powershell
-   node dist/enroll.js --help
-   ```
-
-4. Enroll at least one provider in an interactive PowerShell terminal:
-
-   ```powershell
-   node dist/enroll.js gmail
-   node dist/enroll.js qq
-   ```
-
-5. Register the local build with Codex CLI:
-
-   ```powershell
-   codex mcp add mail-agent -- node "$PWD\dist\index.js"
-   codex mcp list
-   ```
-
-For read-only discovery:
+需要 Node.js **22.12 或更新版本**、npm 和 Git。以下命令使用 PowerShell：
 
 ```powershell
-codex mcp add --env IMAP_MCP_READ_ONLY=true mail-agent-readonly -- node "$PWD\dist\index.js"
+git clone https://github.com/ertutio/mail-agent-mcp.git
+Set-Location mail-agent-mcp
+npm ci
+npm run build
+node dist/enroll.js --help
 ```
 
-For other MCP clients, configure a stdio server whose command is node and whose only argument is the absolute path to dist/index.js. Do not copy author-specific paths.
-## Unified search and NetEase setup
+### 2. 注册邮箱
 
-Configure any number of QQ, Gmail, NetEase personal, and NetEase enterprise accounts with unique names. Gmail keeps its existing OAuth flow. On Windows, add NetEase accounts in a trusted interactive terminal:
+先在邮箱服务商处启用 IMAP/SMTP，并生成客户端授权码或授权密码。在本机交互终端中按邮箱类型执行：
 
 ```powershell
+node dist/enroll.js qq
 node dist/enroll.js 163
 node dist/enroll.js 126
 node dist/enroll.js yeah
 node dist/enroll.js netease-enterprise
+node dist/enroll.js gmail
 ```
 
-Run the appropriate command once per account. Secrets are entered with hidden prompts and stored in Windows Credential Manager. Do not pass authorization codes in command-line arguments or MCP messages. Duplicate names and duplicate credential-backed identities are rejected.
+每个账号执行一次；同一服务商可重复添加不同邮箱。`Account name` 是本地名称，例如 `personal-163`、`work-mail`、`gmail-personal`，应保持唯一。留空时采用邮箱地址作为默认名称。重复名称或同一服务商下重复的凭据身份会被拒绝。
 
-The enterprise preset uses `imaphz.qiye.163.com:993` and `smtphz.qiye.163.com:994`, both implicit TLS. Personal presets use port 993 for IMAP and 465 for SMTP. These presets require the provider's client authorization password and enabled IMAP access. This feature has mocked coverage; live NetEase compatibility must be checked after local enrollment. Server or TLS changes on a credential-backed NetEase account fail before the secret is read; re-enroll locally when changing endpoints.
+授权码、客户端密钥和令牌不要放进聊天、命令参数、Git 仓库或日志。秘密字段通过隐藏输入接收，存入 Windows 凭据管理器；`accounts.json` 保存账号元数据和凭据引用。
 
-Use `imap_search_all_accounts` for requests such as “搜索我所有邮箱中最近一周关于项目的邮件，统一汇总”. The assistant converts the request into `query`, date and sender filters. Omit `accountNames` to include all configured accounts, or supply exact names for a subset. Accounts are scheduled with up to three workers, with a 15-second per-account and 40-second overall deadline; additional accounts are queued, not excluded by a fixed account-count limit. A deadline can yield partial coverage, which is always reported.
+网易预设均使用隐式 TLS：
 
-Results are sorted newest first with a global limit (default 50, maximum 200). Each result includes `accountId`, `accountName`, `folder`, and `uid`; equal Message-IDs in separate mailboxes retain their provenance. Default cross-folder searches skip Trash, Spam and Drafts, including Chinese folder names. The `accounts` field reports successful folders, failed folders, timeouts, and known match counts. `partial` indicates incomplete coverage and `truncated` indicates the global result cap. `totalFound` counts matches in completed folders only, not the entire mailbox when coverage is partial.
+| 类型 | IMAP（端口 993） | SMTP |
+| --- | --- | --- |
+| 163 | `imap.163.com` | `smtp.163.com:465` |
+| 126 | `imap.126.com` | `smtp.126.com:465` |
+| yeah.net | `imap.yeah.net` | `smtp.yeah.net:465` |
+| 企业邮箱（杭州） | `imaphz.qiye.163.com` | `smtphz.qiye.163.com:994` |
 
-Search results contain metadata only. Before summarizing full message content, use `imap_get_email` with each result's account/folder/UID. The new tool is available in mailbox-read-only mode; add `imap_search_all_accounts` to any explicit tool allowlist. Adding it does not enable sending or mailbox mutation. Reading work mail sends returned information to the connected AI client/model under that client's data policy.
+企业邮箱预设不是所有网易企业部署的通用地址，请以服务商提供的地址为准。网易凭据绑定注册时的服务器、端口和 TLS 设置；修改这些设置会在读取秘密前被拒绝。
 
-## Gmail setup
+### 3. 接入 MCP 客户端
 
-1. In Google Cloud Console, create or select a project and enable the Gmail API.
-2. Configure the OAuth consent screen. In Testing mode, add the Gmail address as a test user; Google may reject users who are not listed.
-3. Create an OAuth client of type Desktop app. Copy its client ID and client secret.
-4. Run node dist/enroll.js gmail in an interactive Windows terminal.
-5. Enter the Gmail address, local account name, client ID, and client secret when prompted. The secret prompt is hidden.
-6. Complete the browser consent flow. The callback binds to a random 127.0.0.1 port and the same redirect URI and PKCE verifier are used for token exchange.
+在客户端添加本地 stdio MCP 服务。将下面路径替换成你的实际安装路径；推荐使用这个 **13 工具只读白名单**：
 
-The refresh token and client secret are stored under provider/account-bound Windows Credential Manager targets. accounts.json stores only non-secret metadata and target references. Gmail never falls back to password authentication.
+```json
+{
+  "mcpServers": {
+    "mail-agent": {
+      "command": "node",
+      "args": ["C:/path/to/mail-agent-mcp/dist/index.js"],
+      "env": {
+        "IMAP_MCP_READ_ONLY": "true",
+        "IMAP_MCP_ENABLED_TOOLS": "imap_list_accounts,imap_connect,imap_disconnect,imap_test_account,imap_search_all_accounts,imap_search_emails,imap_get_email,imap_get_latest_emails,imap_find_thread_messages,imap_find_email_by_message_id,imap_list_folders,imap_folder_status,imap_get_unread_count"
+      }
+    }
+  }
+}
+```
 
-Reauthorization: run node dist/enroll.js gmail-repair ACCOUNT_ID_OR_NAME. It obtains a fresh refresh token through browser OAuth, verifies authentication without reading mail, and restores the previous credential if verification fails.
+各客户端的配置入口可能不同。修改程序或启动环境后，重连 MCP 服务，让新进程加载配置。注册账号与启动服务应使用同一 Windows 用户及同一个 `IMAP_MCP_CONFIG_DIR`（默认 `~/.imap-mcp`）。
 
-Common failures:
+## 一句话搜索所有邮箱
 
-- OAuth test user rejected: add the account under OAuth consent-screen test users or publish the app according to Google's rules.
-- client_secret_required: use the client secret belonging to the same Desktop client ID.
-- invalid_grant: restart enrollment; authorization codes are single-use and expire.
-- no refresh token: revoke the app grant if necessary, then rerun consent with offline access.
-- token refresh fails: verify proxy connectivity, client configuration, and that the grant was not revoked.
-- Credential Manager failure: run in the same Windows user session and do not paste secrets into command arguments.
+可以直接向支持工具调用的 AI 客户端提出：
 
-## QQ Mail setup
+> 搜索我所有邮箱中最近一周关于项目的邮件，按时间排序并统一汇总，标明来源邮箱。
 
-1. Enable IMAP and SMTP in QQ Mail settings.
-2. Generate a QQ Mail authorization code. Do not use the normal QQ password.
-3. Run node dist/enroll.js qq in an interactive Windows terminal.
-4. Enter the address, account name, and hidden authorization code.
+> 查找 work-mail 和 personal-163 中上个月的发票邮件。
 
-Repair an existing credential-backed QQ account:
+客户端使用 `imap_search_all_accounts`，省略 `accountNames` 时搜索全部账号；指定名称数组时只搜索所选账号。支持全文关键词 `query`，以及发件人、收件人、主题、日期、已读和星标过滤。
 
-    node dist/enroll.js qq-repair
+- 默认跨文件夹搜索，跳过垃圾箱、垃圾邮件和草稿，包括常见中文目录名；需要时可显式包含。
+- 结果按时间从新到旧排序，全局上限默认 50，最大 200。每条包含 `accountId`、`accountName`、`folder` 和 `uid`。
+- 最多 3 个账号并发，其余排队；单账号期限 15 秒，整体期限 40 秒。没有固定账号数量上限，但账号较多或服务器较慢时可能产生部分结果。
+- `accounts` 报告各账号及文件夹的完成状态；`partial` 表示搜索未全部完成，`truncated` 表示结果数量受到上限限制。`totalFound` 只计算已完成文件夹的匹配邮件。
+- 统一搜索返回元数据。客户端需要调用 `imap_get_email` 读取正文后，才能生成正文摘要；邮件内容始终作为数据处理。
 
-With multiple QQ accounts, select one by account ID, exact name, or email:
+## 中国大陆代理配置
 
-    node dist/enroll.js qq-repair ACCOUNT_ID_OR_NAME
-
-Reauthorize Gmail through the browser without recreating account metadata:
-
-    node dist/enroll.js gmail-repair ACCOUNT_ID_OR_NAME
-
-Repair uses the account's exact Credential Manager targets, performs authentication-only verification, and restores the previous credential if verification fails. It does not read mail or test SMTP. Never pipe or pass a QQ authorization code, OAuth code, refresh token, or client secret on the command line.
-
-## Generic IMAP/SMTP setup (legacy)
-
-Providers other than Gmail and QQ Mail use the inherited generic account path. From a built clone, start the local setup UI without changing an MCP client configuration:
-
-    node dist/setup.js --skip-claude --no-open
-
-Open the localhost URL printed by the command, enter the provider's IMAP/SMTP hosts, ports, TLS settings, username, and provider-issued password or app password, then stop the setup process. The UI binds only to 127.0.0.1: do not expose it through LAN binding, port forwarding, tunnels, or a reverse proxy. It is a local setup aid, not a remote administration panel. The `imap_add_account` and `imap_update_account` tools can also configure this path, but doing so sends credentials through the MCP client/model; the local setup UI or startup environment overrides are safer.
-
-This compatibility path does not use Windows Credential Manager. Its password may be AES-encrypted in `~/.imap-mcp/accounts.json` with a key stored under the same directory, so an attacker who can read both files can recover it. Gmail and QQ Mail users should use `dist/enroll.js` instead.
-
-## Proxy setup
-
-Gmail authorization opens in the browser; the token endpoint request is made by Node. Configure standard variables before starting enrollment or the MCP server:
-
-    $env:HTTPS_PROXY = "http://proxy-host:proxy-port"
-    $env:HTTP_PROXY = "http://proxy-host:proxy-port"
-    $env:NO_PROXY = "127.0.0.1,localhost"
-    $env:IMAP_MCP_MAIL_PROXY = "http://proxy-host:proxy-port"
-
-QQ and NetEase accounts (163, 126, yeah.net and enterprise) connect directly for IMAP and SMTP, even when a global mail or system proxy is configured. Credential-backed QQ/NetEase accounts with custom server names follow the same policy. Gmail OAuth, token refresh, IMAP and SMTP require a proxy and never silently fall back to a direct connection; `NO_PROXY`, including `*`, cannot bypass this Gmail policy.
-
-Use `IMAP_MCP_GMAIL_PROXY` for a dedicated Gmail HTTP/HTTPS proxy. Otherwise OAuth uses `HTTPS_PROXY`/`HTTP_PROXY` (lowercase also supported), then `IMAP_MCP_MAIL_PROXY`; mail connections prefer `IMAP_MCP_MAIL_PROXY` before standard proxy variables. On Windows, when no explicit setting exists, the plugin detects the currently enabled loopback HTTP system proxy and its port. Remote authenticated proxies and PAC files are not imported automatically; configure an explicit URL instead. On Linux and macOS, set environment variables in the process that launches the plugin. No user-specific port or path is embedded in the plugin. OAuth needs HTTP/HTTPS; a SOCKS mail override alone cannot proxy token requests.
-
-Other providers retain the existing generic proxy/NO_PROXY behavior. Keep 127.0.0.1 and localhost in NO_PROXY for the local browser callback. An unavailable or missing Gmail proxy produces a clear error; domestic mail continues to work independently. Do not commit credential-bearing proxy URLs; TLS validation remains enabled. Network-level VPN/TUN routing is outside this application policy.
-
-## Configuration reference
-
-Existing process environment values take precedence over values loaded from `.env`. Provider-bound Gmail/QQ authentication uses Windows Credential Manager; generic password overrides below apply only to legacy accounts. A non-empty `IMAP_MCP_ENABLED_TOOLS` allowlist takes precedence over `IMAP_MCP_READ_ONLY`.
-
-| Variable | Purpose |
+| 访问目标 | 插件行为 |
 | --- | --- |
-| `IMAP_MCP_ENABLED_TOOLS` | Comma-separated MCP tool allowlist; names may omit the `imap_` prefix. |
-| `IMAP_MCP_READ_ONLY` | Truthy values (`1`, `true`, `yes`, `on`) expose the 17-tool mailbox-read-only subset. |
-| `IMAP_DOWNLOAD_DIR` | Root for uploaded and downloaded attachment files. |
-| `IMAP_MCP_CONFIG_DIR` | Optional account-metadata directory override for isolated profiles and clean-room testing; defaults to `~/.imap-mcp`. |
-| `IMAP_MAX_UPLOAD_SIZE` | Maximum decoded attachment upload size in bytes; default 25 MiB. |
-| `IMAP_UPLOAD_TTL_MS` | Lifetime of uploaded temporary attachment files; default 24 hours. |
-| `HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY` | Gmail OAuth/token HTTP proxy settings; lowercase variants are also accepted. |
-| `IMAP_MCP_MAIL_PROXY` | Optional explicit HTTP CONNECT, HTTPS, or SOCKS proxy override shared by IMAP and SMTP transports. |
-| `IMAP_MCP_GMAIL_PROXY` | Dedicated Gmail proxy, preferred over other settings; use HTTP/HTTPS to cover both OAuth and mail. Domestic mail always connects directly. |
-| `IMAP_SEARCH_FOLDER_TIMEOUT_MS` | Per-folder cross-folder-search deadline; defaults to 10000 ms. |
-| `IMAP_SEARCH_ALL_TIMEOUT_MS` | Overall cross-folder-search deadline, including folder discovery; defaults to 30000 ms. |
-| `IMAP_MCP_ACCOUNT_<NAME>_IMAP_USERNAME` / `_IMAP_PASSWORD` | Startup-only generic IMAP credential overrides. `<NAME>` is the account name uppercased with non-alphanumeric characters replaced by `_`. |
-| `IMAP_MCP_ACCOUNT_<NAME>_SMTP_USERNAME` / `_SMTP_PASSWORD` | Startup-only generic SMTP credential overrides using the same normalized name. |
-| `IMAP_SPAM_DOMAINS`, `IMAP_WHITELIST_DOMAINS` | Comma-separated local spam and allowlist domain additions. |
-| `PORT` | Port for the legacy local setup UI only; default 3000. |
+| QQ、163、126、yeah.net、网易企业邮箱 IMAP/SMTP | 直连，忽略全局邮件代理；凭据绑定的 QQ/网易自定义服务器同样直连 |
+| Gmail OAuth、令牌刷新、IMAP/SMTP | 必须走代理；`NO_PROXY=*` 也不会让 Gmail 直连 |
+| 其他服务商 | 使用原有通用代理与 `NO_PROXY` 规则 |
 
-`IPQUALITYSCORE_API_KEY` is referenced by a legacy internal reputation helper, but no currently registered MCP tool calls that helper. Setting it does not enable an advertised capability.
+建议为 Gmail 指定一个支持 HTTPS CONNECT 的 HTTP/HTTPS 代理，例如在启动注册程序或 MCP 服务前设置：
 
-## Security model
+```powershell
+$env:IMAP_MCP_GMAIL_PROXY = "http://proxy.example.test:8080"
+$env:NO_PROXY = "127.0.0.1,localhost"
+```
 
-- Gmail refresh tokens, Gmail client secrets, and QQ authorization codes use Windows Credential Manager on the hardened provider path.
-- New entries use the MailAgentMCP namespace. Exact legacy CodexLab targets remain readable for compatibility; arbitrary target references are rejected.
-- Removing a provider-bound account deletes its bound Credential Manager entries transactionally; a persistence failure restores both account metadata and credentials when possible.
-- accounts.json contains provider/account metadata and credential target references, not those provider secrets.
-- The connected MCP client and model can receive email bodies returned by read tools. Review that client's data policy.
-- Sending is preview-confirmed. Within one running server process, each frozen draft permits at most one send attempt; an ambiguous SMTP outcome is not retried automatically. Draft IDs and state are in memory and do not survive a restart. Delete, move, flag, folder, account, spam-mutation, and draft tools still modify state.
-- Set IMAP_MCP_READ_ONLY=true for a 17-tool mailbox-read-only surface, or IMAP_MCP_ENABLED_TOOLS for an explicit allowlist. This mode is not filesystem-read-only: imap_download_attachment may save a file inside the attachment root.
-- Attachment paths are confined to IMAP_DOWNLOAD_DIR or, by default, the current user's Downloads/imap-attachments directory.
-- The legacy generic-provider account path may store an AES-encrypted password in ~/.imap-mcp/accounts.json with a colocated local key. This protects against casual plaintext disclosure, not an attacker who can read both files. Use hardened provider enrollment for Gmail and QQ Mail.
-- The server does not intentionally write mail bodies to persistent storage, but pending safe-send content remains in process memory and your MCP client may retain tool results.
-- No claim of complete security is made. A malicious process running as the same OS user can access many of the same local resources.
+这是占位地址，请替换为你的代理地址。客户端启动的 MCP 子进程也需要继承或在配置中显式设置相同变量。
 
-See SECURITY.md for threat boundaries and responsible disclosure.
+| 用途 | 代理选择顺序 |
+| --- | --- |
+| Gmail OAuth / 刷新令牌 | `IMAP_MCP_GMAIL_PROXY` → `HTTPS_PROXY` / `HTTP_PROXY` → `IMAP_MCP_MAIL_PROXY` → Windows 本地系统代理 |
+| Gmail IMAP / SMTP | `IMAP_MCP_GMAIL_PROXY` → `IMAP_MCP_MAIL_PROXY` → `HTTPS_PROXY` / `HTTP_PROXY` → Windows 本地系统代理 |
 
-## Architecture
+标准变量也支持小写形式。Windows 自动检测当前启用的 `127.0.0.1` 或 `localhost` HTTP 系统代理，端口动态读取；不会自动导入远程认证代理或 PAC。macOS/Linux 请显式设置环境变量，安全邮箱注册仍受 Windows 凭据后端限制。
 
-    MCP client
-        |
-        | stdio JSON-RPC
-        v
-    MCP tool registry
-        |-- AccountManager + credential resolver
-        |-- ImapService / SmtpService
-        |-- SafeSendService
-        |-- attachment-root boundary
-        v
-    Gmail or QQ Mail IMAP/SMTP
+OAuth 需要 HTTP/HTTPS 代理；仅配置 SOCKS 邮件代理不能完成令牌交换。没有代理、代理配置无效或连接失败时，Gmail 明确报错，国内邮箱仍可独立工作。插件不关闭 TLS 验证，也不能改变 VPN/TUN 模式下的系统路由。
 
-Configuration metadata lives under ~/.imap-mcp. Provider secrets are resolved into memory only when needed.
+## Gmail OAuth 配置与修复
 
-## Troubleshooting
+1. 在 Google Cloud 中创建 OAuth 桌面应用客户端，配置同意屏幕；测试模式下将自己的 Gmail 账号加入测试用户。
+2. 运行 `node dist/enroll.js gmail`，输入邮箱、本地名称、同一客户端的 client ID 和 client secret。下载的 OAuth JSON 文件可提供 `installed.client_id` 和 `installed.client_secret`；当前命令接收字段值，不接收 JSON 文件路径。
+3. 在浏览器完成授权。回调使用随机端口的 `127.0.0.1`，验证 state 并使用 PKCE。
+4. 浏览器回调提示只表示收到授权响应。**以终端出现 `Gmail account enrolled` 为本地注册成功**；令牌交换或凭据保存仍可能失败。
 
-- node or npm fails: confirm node --version is at least 22.12 and use npm ci.
-- mail-agent-enroll prompts instead of showing help: rebuild with npm run build.
-- Gmail token endpoint cannot connect: set HTTP_PROXY/HTTPS_PROXY before launching, keep 127.0.0.1 in NO_PROXY, and verify the proxy accepts HTTPS CONNECT.
-- Gmail or QQ IMAP/SMTP cannot connect while OAuth works: set `IMAP_MCP_MAIL_PROXY` to a trusted HTTP CONNECT or SOCKS proxy.
-- QQ authentication fails: generate a new authorization code and run qq-repair, adding an account selector when more than one QQ account exists.
-- Gmail authorization or refresh fails: run gmail-repair for the affected account; the command obtains a fresh refresh token through browser OAuth.
-- Credential target mismatch: do not edit accounts.json or reuse another account's target. Re-enroll locally.
-- Attachment path rejected: use a path inside IMAP_DOWNLOAD_DIR.
-- MCP client sees no tools: run npm run build, use the absolute dist/index.js path, and inspect IMAP_MCP_READ_ONLY or IMAP_MCP_ENABLED_TOOLS.
+Gmail 使用 OAuth，不支持在此安全流程中回退到邮箱密码或应用密码。重新授权已有账号：
 
-## FAQ
+```powershell
+node dist/enroll.js gmail-repair ACCOUNT_ID_OR_NAME
+```
 
-### Does this upload my mailbox to a hosted service?
+QQ 授权码修复：
 
-No hosted mail service is part of this repository. The local MCP process connects to the configured provider. Tool results are still sent to your chosen MCP client/model.
+```powershell
+node dist/enroll.js qq-repair ACCOUNT_ID_OR_NAME
+```
 
-### Can I use Gmail app passwords?
+修复流程验证认证，不读取邮件或测试 SMTP；验证失败时恢复原凭据。多个账号时使用 ID、准确名称或相应流程支持的邮箱地址选择。
 
-Not on the hardened Gmail path. It requires OAuth 2.0 and intentionally disables password fallback.
+## 工具权限与安全边界
 
-### Can an agent send without confirmation?
+未设置工具限制时，服务注册 **42 个工具**。`IMAP_MCP_READ_ONLY=true` 提供 **17 个邮箱只读工具**；显式 `IMAP_MCP_ENABLED_TOOLS` 白名单优先于这个开关。
 
-No through registered production tools. It must preview, receive a draft ID, and call imap_confirm_send with confirmed: true.
+| 模式 | 能力 |
+| --- | --- |
+| 上述推荐的 13 工具白名单 | 列出账号、连接测试、搜索与正文读取、会话定位、文件夹状态和未读数量 |
+| 内置 17 工具只读集合 | 上述功能加附件下载及 3 个垃圾邮件分析/列表工具；附件下载会写入本地文件 |
+| 完整模式 | 另含账号管理、邮件状态修改、移动/受限删除、文件夹管理、草稿、上传及发送预览/确认 |
 
-### Does it support macOS or Linux?
+注册的发送工具必须先生成服务端冻结预览，再调用 `imap_confirm_send` 并明确确认。旧版直接发送、回复、转发处理器不注册。推荐白名单不开放发送、修改邮件、附件下载或通过聊天写入账号配置。
 
-The MCP server and generic IMAP features may run there, but hardened Gmail/QQ enrollment currently requires Windows Credential Manager.
+- Windows 凭据库保护 Gmail 令牌和客户端密钥、QQ/网易授权码；同一系统用户下的恶意进程仍可能访问相关资源。
+- 读取结果会交给所连接的 MCP 客户端和 AI 模型，其保存和处理策略由该客户端决定。
+- 附件文件操作限制在 `IMAP_DOWNLOAD_DIR` 范围内。
+- 其他服务商可通过 `node dist/setup.js --skip-claude --no-open` 使用旧版本地配置界面。它可能将密码加密存入账号目录，密钥也在该目录；不等同于系统凭据库，不能防护同时读取两者的攻击者。
+- 移除凭据绑定的账号会删除关联凭据；持久化失败时尽可能恢复。勿手工复用其他账号的凭据引用。
 
-### Is the npm package available?
+详细边界见 [SECURITY.md](SECURITY.md)，工具契约见 [docs/agent-integration.md](docs/agent-integration.md)。
 
-No. Version 0.1.1 is installed from [GitHub](https://github.com/SinoEdwards/mail-agent-mcp); npm and MCP Registry publishing remain separate future release decisions.
+## 常用配置
 
-## Roadmap
+| 变量 | 作用 |
+| --- | --- |
+| `IMAP_MCP_CONFIG_DIR` | 账号元数据目录，默认 `~/.imap-mcp`；注册和服务端需一致 |
+| `IMAP_MCP_READ_ONLY` | 启用内置 17 工具邮箱只读集合 |
+| `IMAP_MCP_ENABLED_TOOLS` | 逗号分隔工具白名单，优先于只读开关 |
+| `IMAP_MCP_GMAIL_PROXY` | Gmail 专用代理，优先级最高 |
+| `HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY` | 标准代理变量；国内邮箱直连，Gmail 不接受绕过规则 |
+| `IMAP_MCP_MAIL_PROXY` | Gmail 及通用服务商的邮件代理；不覆盖国内邮箱直连规则 |
+| `IMAP_DOWNLOAD_DIR` | 上传和下载附件的本地根目录 |
+| `IMAP_MAX_UPLOAD_SIZE` / `IMAP_UPLOAD_TTL_MS` | 上传大小与临时文件存活时间，默认 25 MiB / 24 小时 |
+| `IMAP_SEARCH_FOLDER_TIMEOUT_MS` / `IMAP_SEARCH_ALL_TIMEOUT_MS` | 单邮箱跨文件夹搜索期限，默认 10 秒 / 30 秒；不改变统一搜索的 15 秒 / 40 秒期限 |
+| `IMAP_MCP_ACCOUNT_<NAME>_IMAP_USERNAME` / `_IMAP_PASSWORD` | 旧版通用账号的启动时凭据覆盖 |
+| `IMAP_MCP_ACCOUNT_<NAME>_SMTP_USERNAME` / `_SMTP_PASSWORD` | 同上，适用于 SMTP |
 
-- Cross-platform secure credential backends.
-- Migrate the legacy generic IMAP/SMTP password store to system credential backends.
-- Signed releases and provider smoke workflows that never expose real credentials to public CI.
-- Additional provider adapters only when they add real security or usability value.
+现有进程环境优先于 `.env`。`<NAME>` 为账号名大写并将非字母数字字符替换为下划线。垃圾邮件配置及其他工具参数见集成文档；此项目没有默认托管邮件服务。
 
-## Contributing
+## 常见问题
 
-Read AGENTS.md and CONTRIBUTING.md when present. Keep tool schemas, descriptions, docs, and tests synchronized. Use mocks and localhost fixtures; never put real mailbox credentials in tests or issues.
+- **浏览器成功，终端失败：** 浏览器和 Node.js 不一定使用同一代理。检查 Gmail 代理、client ID/secret 和终端错误；以终端注册结果为准。
+- **Gmail 报代理缺失或令牌超时：** 设置 `IMAP_MCP_GMAIL_PROXY`，确认代理启用并允许 HTTPS CONNECT；修改后重启 MCP 进程。
+- **国内邮箱认证失败：** 确认 IMAP 已启用并使用客户端授权码，而非普通登录密码；QQ 可使用 `qq-repair`。
+- **证书验证失败：** 检查证书链及可信根证书。若当前 Node 支持 `--use-system-ca`，可在其启动参数中启用系统信任库；不要关闭 TLS 验证。
+- **统一搜索只有部分结果：** 查看 `accounts`、`partial`、`truncated`；缩小日期范围或指定部分账号，不能把超时结果当作全部邮件。
+- **看不到新工具：** 重建代码，检查白名单是否含 `imap_search_all_accounts`，然后重连 MCP 服务。
 
-## License
+## 开发与验证
 
-MIT. See LICENSE.
+```powershell
+npm run build
+npm test
+npm run lint
+npm run test:coverage
+npm run check:secrets
+npm audit --omit=dev --audit-level=high
+npm pack --dry-run
+git diff --check
+```
+
+本次代码修改通过 589 项测试（1 项跳过），覆盖 25 账号混合搜索、部分失败/超时及不同代理设置；生产依赖审计未发现漏洞。这不代表开发依赖或整体系统绝对安全。另已进行 QQ、163、126、网易企业邮箱和 Gmail 的本机只读验证，五邮箱统一搜索完成；不保证所有企业部署和网络环境都相同。
+
+遵循 [AGENTS.md](AGENTS.md) 和 [CONTRIBUTING.md](CONTRIBUTING.md)，测试使用模拟凭据和本地服务，不提交个人账号配置、日志或生成产物。未来工作包括跨平台安全凭据后端、旧版密码存储迁移和签名发布。
+
+## 许可证
+
+MIT，见 [LICENSE](LICENSE)。保留原项目及其上游贡献者署名。

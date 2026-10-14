@@ -12,6 +12,7 @@
     "dist",
     "public",
     "README.md",
+    "README.en.md",
     "SECURITY.md",
     "LICENSE",
     "docs/agent-integration.md"
