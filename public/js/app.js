@@ -3,6 +3,10 @@ let providers = [];
 let selectedProvider = null;
 let currentStep = 1;
 
+function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
+}
+
 // Initialize
 document.addEventListener('DOMContentLoaded', async () => {
     await loadProviders();
@@ -386,17 +390,17 @@ async function viewAccounts() {
                     <tbody>
                         ${accounts.map(account => `
                             <tr class="border-b">
-                                <td class="py-3">${account.name}</td>
-                                <td class="py-3">${account.user}</td>
-                                <td class="py-3">${account.host}</td>
+                                <td class="py-3">${escapeHtml(account.name)}</td>
+                                <td class="py-3">${escapeHtml(account.user)}</td>
+                                <td class="py-3">${escapeHtml(account.host)}</td>
                                 <td class="py-3">
                                     <span class="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">Active</span>
                                 </td>
                                 <td class="py-3 text-right">
-                                    <button onclick="editAccount('${account.id}')" class="text-blue-600 hover:text-blue-800 mr-2">
+                                    <button data-action="edit" data-account-id="${escapeHtml(account.id)}" class="text-blue-600 hover:text-blue-800 mr-2">
                                         ✏️
                                     </button>
-                                    <button onclick="removeAccount('${account.id}')" class="text-red-600 hover:text-red-800">
+                                    <button data-action="remove" data-account-id="${escapeHtml(account.id)}" class="text-red-600 hover:text-red-800">
                                         🗑️
                                     </button>
                                 </td>
@@ -405,6 +409,12 @@ async function viewAccounts() {
                     </tbody>
                 </table>
             `;
+            table.querySelectorAll('button[data-action]').forEach(button => {
+                button.addEventListener('click', () => {
+                    if (button.dataset.action === 'edit') editAccount(button.dataset.accountId);
+                    else removeAccount(button.dataset.accountId);
+                });
+            });
         }
     } catch (error) {
         console.error('Failed to load accounts:', error);
