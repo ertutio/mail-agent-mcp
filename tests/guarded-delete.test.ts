@@ -42,6 +42,12 @@ describe('frozen deletion and batch validation',()=>{
     await expect(handlers.get('imap_confirm_delete')({previewId:r.previewId,confirmed:true})).rejects.toThrow(/expired/);
     expect(imap.bulkDelete).not.toHaveBeenCalled();
   });
+  it('rejects UID reuse during selection and a stale known-UID preview',async()=>{
+    imap.getFolderStatus.mockResolvedValueOnce({uidValidity:123}).mockResolvedValueOnce({uidValidity:456});
+    await expect(handlers.get('imap_bulk_delete_by_search')({accountId:'synthetic',folder:'INBOX',from:'sender@example.test',chunkSize:50})).rejects.toThrow(/Mailbox changed/);
+    await expect(handlers.get('imap_delete_email')({accountId:'synthetic',folder:'INBOX',uid:7,uidValidity:456})).rejects.toThrow(/Mailbox changed/);
+    expect(imap.bulkDelete).not.toHaveBeenCalled();
+  });
   it.each([0,-1,0.5,1001])('rejects chunkSize=%s before connecting',async size=>{
     const service=new ImapService(); const connect=vi.spyOn(service as any,'ensureConnected');
     await expect(service.bulkDelete('synthetic','INBOX',[7],size)).rejects.toThrow(/chunkSize/);
