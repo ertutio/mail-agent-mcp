@@ -1,4 +1,4 @@
-﻿import { Writable } from 'node:stream';
+import { Writable } from 'node:stream';
 import { pathToFileURL } from 'node:url';
 import { createInterface } from 'node:readline/promises';
 import open from 'open';
@@ -14,7 +14,7 @@ import { AccountManager } from './services/account-manager.js';
 import { ImapService } from './services/imap-service.js';
 import type { ImapAccount } from './types/index.js';
 
-type Provider = 'qq' | 'gmail';
+type Provider = 'qq' | 'gmail' | '163' | '126' | 'yeah' | 'netease-enterprise';
 
 export type EnrollmentPrompt = (
   label: string,
@@ -69,7 +69,7 @@ class MutedPromptOutput extends Writable {
 
 function parseProvider(value: string | undefined): Provider | undefined {
   const normalized = value?.trim().toLowerCase();
-  return normalized === 'qq' || normalized === 'gmail' ? normalized : undefined;
+  return ['qq', 'gmail', '163', '126', 'yeah', 'netease-enterprise'].includes(normalized ?? '') ? normalized as Provider : undefined;
 }
 
 export async function runEnrollmentCli(
@@ -78,6 +78,9 @@ export async function runEnrollmentCli(
 ): Promise<void> {
   const writeOutput = dependencies.writeOutput ?? ((text: string) => process.stdout.write(text));
   const command = argv[0]?.trim().toLowerCase();
+  if (['163', '126', 'yeah', 'netease-enterprise'].includes(command ?? '') && argv.length > 1) {
+    throw new Error('Enter account details and authorization codes only through the interactive prompts');
+  }
   if (command === '--help' || command === '-h') {
     writeOutput(
       'Usage: mail-agent-enroll <qq|gmail|qq-repair [account-id-or-name]|gmail-repair [account-id-or-name]>\n'
@@ -85,7 +88,8 @@ export async function runEnrollmentCli(
       + '  qq         Enroll a QQ Mail account using an authorization code\n'
       + '  gmail      Enroll a Gmail account using installed-app OAuth\n'
       + '  qq-repair  Replace and verify a selected credential-backed QQ account\n'
-      + '  gmail-repair  Reauthorize and verify a selected Gmail account\n',
+      + '  gmail-repair  Reauthorize and verify a selected Gmail account\n'
+      + '  163 / 126 / yeah / netease-enterprise  Enroll a NetEase account securely\n',
     );
     return;
   }
@@ -95,11 +99,12 @@ export async function runEnrollmentCli(
   }
 
   if (
-    argv[0]?.trim().toLowerCase() === 'qq-repair'
+    ['qq-repair', '163', '126', 'yeah', 'netease-enterprise'].includes(argv[0]?.trim().toLowerCase() ?? '')
     && !dependencies.prompt
     && !(dependencies.stdinIsTTY ?? process.stdin.isTTY)
   ) {
-    throw new Error('QQ credential repair requires an interactive terminal for secret input');
+    if (command === 'qq-repair') throw new Error('QQ credential repair requires an interactive terminal for secret input');
+    throw new Error('NetEase enrollment requires an interactive terminal for secret input');
   }
 
   let output: MutedPromptOutput | undefined;
@@ -288,8 +293,8 @@ export async function runEnrollmentCli(
 
     let provider = parseProvider(argv[0]);
     while (!provider) {
-      provider = parseProvider(await ask('Provider (qq or gmail)'));
-      if (!provider) writeOutput('Provider must be qq or gmail.\n');
+      provider = parseProvider(await ask('Provider (qq, gmail, 163, 126, yeah, netease-enterprise)'));
+      if (!provider) writeOutput('Select qq, gmail, 163, 126, yeah, or netease-enterprise.\n');
     }
 
     const email = await ask('Email address');
@@ -298,6 +303,13 @@ export async function runEnrollmentCli(
       dependencies.credentials ?? new WindowsCredentialBackend(),
       new AccountManager(),
     );
+
+    if (provider !== 'qq' && provider !== 'gmail') {
+      const authorizationCode = await ask('NetEase client authorization code', { secret: true });
+      const account = await enrollment.enrollNetease({ provider, email, name, authorizationCode });
+      writeOutput(`NetEase account enrolled: ${account.id}\n`);
+      return;
+    }
 
     if (provider === 'qq') {
       const authorizationCode = await ask('QQ Mail authorization code', {

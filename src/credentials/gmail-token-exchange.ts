@@ -117,7 +117,7 @@ export function createGmailAccessTokenExchange(
 
     const transport = options.fetch
       ? undefined
-      : createProxyAwareFetch(options.proxyEnvironment, options.proxyFetchDependencies);
+      : createProxyAwareFetch(options.proxyEnvironment, options.proxyFetchDependencies, 'gmail-required');
     const tokenFetch: TokenFetch = options.fetch
       ?? ((input, init) => transport!.fetch(input, init) as Promise<TokenResponse>);
     const controller = new AbortController();

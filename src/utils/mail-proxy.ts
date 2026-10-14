@@ -1,4 +1,5 @@
 import { normalizeProxyEnvironment } from '../credentials/proxy-fetch.js';
+import { resolveGmailProxy } from './gmail-proxy.js';
 
 const SUPPORTED_MAIL_PROXY_PROTOCOLS = new Set([
   'http:',
@@ -25,7 +26,15 @@ function bypassesProxy(host: string, noProxy: string | undefined): boolean {
 export function resolveMailProxy(
   env: NodeJS.ProcessEnv = process.env,
   targetHost?: string,
+  provider?: string,
 ): string | undefined {
+  const host = targetHost?.trim().toLowerCase().replace(/\.$/, '') ?? '';
+  const inDomain = (domain: string) => host === domain || host.endsWith('.' + domain);
+  // Provider policy takes precedence over global proxy and NO_PROXY settings.
+  if (provider === 'gmail' || ['imap.gmail.com', 'smtp.gmail.com', 'imap.googlemail.com', 'smtp.googlemail.com'].includes(host)) {
+    return resolveGmailProxy(env, 'mail');
+  }
+  if (provider === 'qq' || provider === 'netease' || ['qq.com', '163.com', '126.com', 'yeah.net'].some(inDomain)) return undefined;
   const normalized = normalizeProxyEnvironment(env);
   if (targetHost && bypassesProxy(targetHost, normalized.noProxy)) return undefined;
 

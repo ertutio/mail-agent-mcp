@@ -184,7 +184,7 @@ export class ImapService {
     // credential and getting back an indistinguishable "AUTHENTICATE failed".
     if (!account.auth) assertCredentialsResolved(account, 'imap');
     const resolvedAuth = await this.authResolver.resolve(account, 'imap');
-    const proxy = resolveMailProxy(process.env, account.host);
+    const proxy = resolveMailProxy(process.env, account.host, account.auth?.provider);
 
     const client = new ImapFlow({
       host: account.host,
@@ -1649,7 +1649,7 @@ export class ImapService {
   async authenticateOnly(account: ImapAccount): Promise<void> {
     if (!account.auth) assertCredentialsResolved(account, 'imap');
     const resolvedAuth = await this.authResolver.resolve(account, 'imap');
-    const proxy = resolveMailProxy(process.env, account.host);
+    const proxy = resolveMailProxy(process.env, account.host, account.auth?.provider);
     const client = new ImapFlow({
       host: account.host,
       port: account.port,
@@ -1678,7 +1678,7 @@ export class ImapService {
   async testConnection(account: ImapAccount): Promise<{ success: boolean; folders?: string[]; messageCount?: number; error?: string }> {
     if (!account.auth) assertCredentialsResolved(account, 'imap');
     const resolvedAuth = await this.authResolver.resolve(account, 'imap');
-    const proxy = resolveMailProxy(process.env, account.host);
+    const proxy = resolveMailProxy(process.env, account.host, account.auth?.provider);
     const testClient = new ImapFlow({
       host: account.host,
       port: account.port,
@@ -1723,6 +1723,7 @@ export class ImapService {
 
   private buildSearchQuery(criteria: SearchCriteria): any {
     const query: any = {};
+    if (criteria.text) query.text = criteria.text;
 
     if (criteria.from) {
       query.from = criteria.from;

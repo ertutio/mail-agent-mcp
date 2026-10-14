@@ -7,6 +7,7 @@ Mail Agent MCP is a local stdio MCP server that gives an AI client access to con
 On the hardened Windows provider paths:
 
 - QQ Mail authorization codes are stored in Windows Credential Manager.
+- NetEase personal and enterprise authorization codes use Windows Credential Manager and exact endpoint/port/TLS bindings. Changing those endpoints fails before credential retrieval.
 - Gmail refresh tokens and OAuth client secrets are stored in separate Windows Credential Manager entries.
 - accounts.json stores non-secret provider metadata and exact target references, not these values.
 - New provider credentials use MailAgentMCP-scoped targets; exact legacy CodexLab targets are accepted only as a compatibility allowlist.

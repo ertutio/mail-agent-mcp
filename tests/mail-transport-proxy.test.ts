@@ -117,6 +117,30 @@ describe('mail transport proxy wiring', () => {
     expect(transportMocks.smtpOptions).toHaveLength(1);
     expect(transportMocks.smtpOptions[0]?.proxy).toBe('http://proxy.example.test:8080');
   });
+  it.each(['qq.com', '163.com', '126.com', 'yeah.net', 'hz.qiye.163.com'])('omits proxy options in every connection path for %s', async domain => {
+    const domestic = { ...account, host: 'imap.' + domain, smtp: { ...account.smtp, host: 'smtp.' + domain } };
+    const service = new ImapService();
+    await service.connect(domestic);
+    await service.authenticateOnly({ ...domestic, id: 'domestic-auth' });
+    await service.testConnection({ ...domestic, id: 'domestic-test' });
+    await new SmtpService().createTransporter(domestic);
+    expect(transportMocks.imapOptions).toHaveLength(3);
+    for (const options of [...transportMocks.imapOptions, ...transportMocks.smtpOptions]) expect(options).not.toHaveProperty('proxy');
+  });
+  it('keeps both Gmail mail transports proxied when NO_PROXY requests bypass', async () => {
+    const previousNoProxy = process.env.NO_PROXY;
+    process.env.NO_PROXY = '*';
+    try {
+      const gmail = { ...account, host: 'imap.gmail.com', smtp: { ...account.smtp, host: 'smtp.gmail.com' } };
+      await new ImapService().connect(gmail);
+      await new SmtpService().createTransporter(gmail);
+      expect(transportMocks.imapOptions[0]?.proxy).toBe('http://proxy.example.test:8080');
+      expect(transportMocks.smtpOptions[0]?.proxy).toBe('http://proxy.example.test:8080');
+    } finally {
+      if (previousNoProxy === undefined) delete process.env.NO_PROXY;
+      else process.env.NO_PROXY = previousNoProxy;
+    }
+  });
 
   it('omits proxy options when the setting is absent', async () => {
     delete process.env.IMAP_MCP_MAIL_PROXY;

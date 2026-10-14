@@ -1,11 +1,15 @@
 import {
   EnvHttpProxyAgent,
+  ProxyAgent,
   fetch as undiciFetch,
   type Dispatcher,
   type RequestInit as UndiciRequestInit,
 } from 'undici';
+import { resolveGmailProxy } from '../utils/gmail-proxy.js';
 
 export interface ProxyEnvironment {
+  IMAP_MCP_GMAIL_PROXY?: string;
+  IMAP_MCP_MAIL_PROXY?: string;
   HTTP_PROXY?: string;
   HTTPS_PROXY?: string;
   NO_PROXY?: string;
@@ -56,7 +60,21 @@ export function normalizeProxyEnvironment(
 export function createProxyAwareFetch(
   env: ProxyEnvironment = process.env,
   dependencies: ProxyFetchDependencies = {},
+  policy: 'standard' | 'gmail-required' = 'standard',
 ): ProxyAwareFetch {
+  if (policy === 'gmail-required') {
+    const proxy = resolveGmailProxy(env as NodeJS.ProcessEnv, 'http');
+    // A dedicated dispatcher prevents NO_PROXY=* from bypassing Gmail routing.
+    const dispatcher = dependencies.createAgent
+      ? dependencies.createAgent({ httpProxy: proxy, httpsProxy: proxy })
+      : new ProxyAgent(proxy);
+    const request = dependencies.request ?? undiciFetch;
+    return {
+      fetch: (async (input, init) => request(input as string | URL, { ...(init as UndiciRequestInit | undefined), dispatcher })) as typeof globalThis.fetch,
+      close: async () => { await dispatcher.close(); },
+      usingProxy: true,
+    };
+  }
   const { httpProxy, httpsProxy, noProxy } = normalizeProxyEnvironment(env);
   if (!httpProxy && !httpsProxy) {
     return {

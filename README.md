@@ -5,7 +5,7 @@
 [![Node.js >=22.12](https://img.shields.io/badge/node-%3E%3D22.12-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 ![Status: Public Preview](https://img.shields.io/badge/status-public_preview-orange.svg)
 
-Mail Agent MCP is a local-first TypeScript stdio MCP server that gives AI agents a controlled Gmail and QQ Mail interface for IMAP search/read/organization, attachments, and preview-confirmed SMTP sending.
+Mail Agent MCP is a local-first TypeScript stdio MCP server that gives AI agents a controlled interface for Gmail, QQ Mail, NetEase, and other IMAP accounts, including cross-account search, reading, organization, attachments, and preview-confirmed SMTP sending.
 
 Gmail uses OAuth 2.0; QQ Mail uses provider authorization codes. On Windows, provider secrets stay in Windows Credential Manager instead of account JSON.
 
@@ -27,13 +27,15 @@ Gmail uses OAuth 2.0; QQ Mail uses provider authorization codes. On Windows, pro
 | --- | --- | --- | --- | --- |
 | Gmail / Google Workspace | OAuth 2.0 desktop client, PKCE, refresh token | IMAP | SMTP OAuth2 | Windows CLI |
 | QQ Mail | QQ authorization code | IMAP | SMTP | Windows CLI |
+| NetEase 163 / 126 / yeah.net | Client authorization password | IMAP | SMTP | Windows CLI |
+| NetEase enterprise (Hangzhou preset) | Client authorization password | IMAP | SMTP | Windows CLI |
 | Other IMAP/SMTP providers | Legacy password/app-password account path | IMAP | SMTP | Legacy tools/web setup |
 
 The hardened Credential Manager enrollment path is currently Windows-only. Generic-provider compatibility remains available, but its legacy password store is not equivalent to Windows Credential Manager; see Security model.
 
 ## MCP tools
 
-The server exposes 41 tools in full mode. The stable public prefix is imap_.
+The server exposes 42 tools in full mode. The stable public prefix is imap_.
 
 - Accounts: imap_add_account, imap_update_account, imap_list_accounts, imap_remove_account, imap_connect, imap_disconnect, imap_test_account.
 - Read/search: imap_search_emails, imap_get_email, imap_get_latest_emails, imap_find_thread_messages, imap_find_email_by_message_id.
@@ -89,6 +91,27 @@ codex mcp add --env IMAP_MCP_READ_ONLY=true mail-agent-readonly -- node "$PWD\di
 ```
 
 For other MCP clients, configure a stdio server whose command is node and whose only argument is the absolute path to dist/index.js. Do not copy author-specific paths.
+## Unified search and NetEase setup
+
+Configure any number of QQ, Gmail, NetEase personal, and NetEase enterprise accounts with unique names. Gmail keeps its existing OAuth flow. On Windows, add NetEase accounts in a trusted interactive terminal:
+
+```powershell
+node dist/enroll.js 163
+node dist/enroll.js 126
+node dist/enroll.js yeah
+node dist/enroll.js netease-enterprise
+```
+
+Run the appropriate command once per account. Secrets are entered with hidden prompts and stored in Windows Credential Manager. Do not pass authorization codes in command-line arguments or MCP messages. Duplicate names and duplicate credential-backed identities are rejected.
+
+The enterprise preset uses `imaphz.qiye.163.com:993` and `smtphz.qiye.163.com:994`, both implicit TLS. Personal presets use port 993 for IMAP and 465 for SMTP. These presets require the provider's client authorization password and enabled IMAP access. This feature has mocked coverage; live NetEase compatibility must be checked after local enrollment. Server or TLS changes on a credential-backed NetEase account fail before the secret is read; re-enroll locally when changing endpoints.
+
+Use `imap_search_all_accounts` for requests such as “搜索我所有邮箱中最近一周关于项目的邮件，统一汇总”. The assistant converts the request into `query`, date and sender filters. Omit `accountNames` to include all configured accounts, or supply exact names for a subset. Accounts are scheduled with up to three workers, with a 15-second per-account and 40-second overall deadline; additional accounts are queued, not excluded by a fixed account-count limit. A deadline can yield partial coverage, which is always reported.
+
+Results are sorted newest first with a global limit (default 50, maximum 200). Each result includes `accountId`, `accountName`, `folder`, and `uid`; equal Message-IDs in separate mailboxes retain their provenance. Default cross-folder searches skip Trash, Spam and Drafts, including Chinese folder names. The `accounts` field reports successful folders, failed folders, timeouts, and known match counts. `partial` indicates incomplete coverage and `truncated` indicates the global result cap. `totalFound` counts matches in completed folders only, not the entire mailbox when coverage is partial.
+
+Search results contain metadata only. Before summarizing full message content, use `imap_get_email` with each result's account/folder/UID. The new tool is available in mailbox-read-only mode; add `imap_search_all_accounts` to any explicit tool allowlist. Adding it does not enable sending or mailbox mutation. Reading work mail sends returned information to the connected AI client/model under that client's data policy.
+
 ## Gmail setup
 
 1. In Google Cloud Console, create or select a project and enable the Gmail API.
@@ -151,7 +174,11 @@ Gmail authorization opens in the browser; the token endpoint request is made by 
     $env:NO_PROXY = "127.0.0.1,localhost"
     $env:IMAP_MCP_MAIL_PROXY = "http://proxy-host:proxy-port"
 
-`HTTP_PROXY` and `HTTPS_PROXY` are inherited by Gmail OAuth/token requests and, unless `IMAP_MCP_MAIL_PROXY` is set, by IMAP/SMTP transports launched from the same CLI or MCP process. `IMAP_MCP_MAIL_PROXY` remains the explicit mail-transport override. `NO_PROXY` applies to provider hosts and should include the loopback OAuth callback. Do not commit credential-bearing proxy URLs; TLS validation remains enabled.
+QQ and NetEase accounts (163, 126, yeah.net and enterprise) connect directly for IMAP and SMTP, even when a global mail or system proxy is configured. Credential-backed QQ/NetEase accounts with custom server names follow the same policy. Gmail OAuth, token refresh, IMAP and SMTP require a proxy and never silently fall back to a direct connection; `NO_PROXY`, including `*`, cannot bypass this Gmail policy.
+
+Use `IMAP_MCP_GMAIL_PROXY` for a dedicated Gmail HTTP/HTTPS proxy. Otherwise OAuth uses `HTTPS_PROXY`/`HTTP_PROXY` (lowercase also supported), then `IMAP_MCP_MAIL_PROXY`; mail connections prefer `IMAP_MCP_MAIL_PROXY` before standard proxy variables. On Windows, when no explicit setting exists, the plugin detects the currently enabled loopback HTTP system proxy and its port. Remote authenticated proxies and PAC files are not imported automatically; configure an explicit URL instead. On Linux and macOS, set environment variables in the process that launches the plugin. No user-specific port or path is embedded in the plugin. OAuth needs HTTP/HTTPS; a SOCKS mail override alone cannot proxy token requests.
+
+Other providers retain the existing generic proxy/NO_PROXY behavior. Keep 127.0.0.1 and localhost in NO_PROXY for the local browser callback. An unavailable or missing Gmail proxy produces a clear error; domestic mail continues to work independently. Do not commit credential-bearing proxy URLs; TLS validation remains enabled. Network-level VPN/TUN routing is outside this application policy.
 
 ## Configuration reference
 
@@ -160,13 +187,14 @@ Existing process environment values take precedence over values loaded from `.en
 | Variable | Purpose |
 | --- | --- |
 | `IMAP_MCP_ENABLED_TOOLS` | Comma-separated MCP tool allowlist; names may omit the `imap_` prefix. |
-| `IMAP_MCP_READ_ONLY` | Truthy values (`1`, `true`, `yes`, `on`) expose the 16-tool mailbox-read-only subset. |
+| `IMAP_MCP_READ_ONLY` | Truthy values (`1`, `true`, `yes`, `on`) expose the 17-tool mailbox-read-only subset. |
 | `IMAP_DOWNLOAD_DIR` | Root for uploaded and downloaded attachment files. |
 | `IMAP_MCP_CONFIG_DIR` | Optional account-metadata directory override for isolated profiles and clean-room testing; defaults to `~/.imap-mcp`. |
 | `IMAP_MAX_UPLOAD_SIZE` | Maximum decoded attachment upload size in bytes; default 25 MiB. |
 | `IMAP_UPLOAD_TTL_MS` | Lifetime of uploaded temporary attachment files; default 24 hours. |
 | `HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY` | Gmail OAuth/token HTTP proxy settings; lowercase variants are also accepted. |
 | `IMAP_MCP_MAIL_PROXY` | Optional explicit HTTP CONNECT, HTTPS, or SOCKS proxy override shared by IMAP and SMTP transports. |
+| `IMAP_MCP_GMAIL_PROXY` | Dedicated Gmail proxy, preferred over other settings; use HTTP/HTTPS to cover both OAuth and mail. Domestic mail always connects directly. |
 | `IMAP_SEARCH_FOLDER_TIMEOUT_MS` | Per-folder cross-folder-search deadline; defaults to 10000 ms. |
 | `IMAP_SEARCH_ALL_TIMEOUT_MS` | Overall cross-folder-search deadline, including folder discovery; defaults to 30000 ms. |
 | `IMAP_MCP_ACCOUNT_<NAME>_IMAP_USERNAME` / `_IMAP_PASSWORD` | Startup-only generic IMAP credential overrides. `<NAME>` is the account name uppercased with non-alphanumeric characters replaced by `_`. |
@@ -184,7 +212,7 @@ Existing process environment values take precedence over values loaded from `.en
 - accounts.json contains provider/account metadata and credential target references, not those provider secrets.
 - The connected MCP client and model can receive email bodies returned by read tools. Review that client's data policy.
 - Sending is preview-confirmed. Within one running server process, each frozen draft permits at most one send attempt; an ambiguous SMTP outcome is not retried automatically. Draft IDs and state are in memory and do not survive a restart. Delete, move, flag, folder, account, spam-mutation, and draft tools still modify state.
-- Set IMAP_MCP_READ_ONLY=true for a 16-tool mailbox-read-only surface, or IMAP_MCP_ENABLED_TOOLS for an explicit allowlist. This mode is not filesystem-read-only: imap_download_attachment may save a file inside the attachment root.
+- Set IMAP_MCP_READ_ONLY=true for a 17-tool mailbox-read-only surface, or IMAP_MCP_ENABLED_TOOLS for an explicit allowlist. This mode is not filesystem-read-only: imap_download_attachment may save a file inside the attachment root.
 - Attachment paths are confined to IMAP_DOWNLOAD_DIR or, by default, the current user's Downloads/imap-attachments directory.
 - The legacy generic-provider account path may store an AES-encrypted password in ~/.imap-mcp/accounts.json with a colocated local key. This protects against casual plaintext disclosure, not an attacker who can read both files. Use hardened provider enrollment for Gmail and QQ Mail.
 - The server does not intentionally write mail bodies to persistent storage, but pending safe-send content remains in process memory and your MCP client may retain tool results.

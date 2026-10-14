@@ -732,6 +732,14 @@ describe('AccountManager', () => {
     });
 
   describe('updateAccount', () => {
+    it('rejects renaming an account to an existing account name', async () => {
+      const manager = new AccountManager();
+      const first = await manager.addAccount({ name: 'Personal', host: 'imap.example.test', port: 993, user: 'a@example.test', password: SYNTHETIC_PASSWORD_2, tls: true });
+      await manager.addAccount({ name: 'Work', host: 'imap.example.test', port: 993, user: 'b@example.test', password: SYNTHETIC_PASSWORD_2, tls: true });
+      vi.mocked(fs.writeFile).mockClear();
+      await expect(manager.updateAccount(first.id, { name: 'Work' })).rejects.toThrow(/unique name/);
+      expect(fs.writeFile).not.toHaveBeenCalled();
+    });
     it('rejects changing a generic password account to a provider-bound host', async () => {
       const manager = new AccountManager();
       const account = await manager.addAccount({
@@ -784,6 +792,7 @@ describe('AccountManager', () => {
 
       expect(updated.name).toBe('New Name');
       expect(updated.host).toBe('imap.test.com'); // Unchanged
+      expect(manager.getAccount(account.id)?.password).toBe('secret');
     });
 
     it('should encrypt new password on update', async () => {

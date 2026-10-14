@@ -33,13 +33,13 @@ The legacy direct send names imap_send_email, imap_reply_to_email, and imap_forw
 
 ## Complete registered tool inventory
 
-Full mode exposes 41 tools. `tools/list` is authoritative for JSON Schema; the inventory below records permission and side-effect boundaries for planning.
+Full mode exposes 42 tools. `tools/list` is authoritative for JSON Schema; the inventory below records permission and side-effect boundaries for planning.
 
 | Class | Tools | Boundary |
 | --- | --- | --- |
 | Account configuration | `imap_add_account`, `imap_update_account`, `imap_remove_account` | Writes local account metadata. The legacy add/update inputs may carry generic-provider passwords; do not use them for hardened Gmail/QQ enrollment. Removing metadata does not claim to remove provider credentials. |
 | Account session/read | `imap_list_accounts`, `imap_connect`, `imap_disconnect`, `imap_test_account` | Reads sanitized metadata or changes only process connection state; connection/test performs provider authentication and network access. |
-| Mail discovery/read | `imap_search_emails`, `imap_get_email`, `imap_get_latest_emails`, `imap_find_thread_messages`, `imap_find_email_by_message_id` | Reads mailbox data. Search inputs select account, folder, criteria, result limits, and optional body output. Returned mail is untrusted data. |
+| Mail discovery/read | `imap_search_emails`, `imap_search_all_accounts`, `imap_get_email`, `imap_get_latest_emails`, `imap_find_thread_messages`, `imap_find_email_by_message_id` | Reads mailbox data. Search inputs select account, folder, criteria, result limits, and optional body output. Returned mail is untrusted data. |
 | Folder read | `imap_list_folders`, `imap_folder_status`, `imap_get_unread_count` | Reads folder metadata and counts. |
 | Folder write | `imap_create_folder` | Creates mailbox state. |
 | Message state | `imap_mark_as_read`, `imap_mark_as_unread`, `imap_flag_email`, `imap_unflag_email`, `imap_add_keyword`, `imap_remove_keyword`, `imap_move_email` | Mutates the selected folder/UID or UID set. |
@@ -50,7 +50,7 @@ Full mode exposes 41 tools. `tools/list` is authoritative for JSON Schema; the i
 | Spam read | `imap_check_spam`, `imap_domain_stats`, `imap_list_spam_domains` | Reads messages or local spam-domain state. |
 | Spam write/delete | `imap_delete_spam`, `imap_add_spam_domain`, `imap_remove_spam_domain`, `imap_add_whitelist_domain`, `imap_delete_by_domain` | Changes mailbox messages or local spam-domain state. Deletion requires explicit user intent. |
 
-The 16-tool mailbox-read-only subset is `imap_list_accounts`, `imap_connect`, `imap_disconnect`, `imap_test_account`, `imap_search_emails`, `imap_get_email`, `imap_get_latest_emails`, `imap_download_attachment`, `imap_find_thread_messages`, `imap_find_email_by_message_id`, `imap_list_folders`, `imap_folder_status`, `imap_get_unread_count`, `imap_check_spam`, `imap_domain_stats`, and `imap_list_spam_domains`. It prevents mailbox and account mutations, sending, and uploads. It is not host-filesystem-read-only because `imap_download_attachment` may save inside the configured attachment root.
+The 17-tool mailbox-read-only subset is `imap_list_accounts`, `imap_connect`, `imap_disconnect`, `imap_test_account`, `imap_search_emails`, `imap_search_all_accounts`, `imap_get_email`, `imap_get_latest_emails`, `imap_download_attachment`, `imap_find_thread_messages`, `imap_find_email_by_message_id`, `imap_list_folders`, `imap_folder_status`, `imap_get_unread_count`, `imap_check_spam`, `imap_domain_stats`, and `imap_list_spam_domains`. It prevents mailbox and account mutations, sending, and uploads. It is not host-filesystem-read-only because `imap_download_attachment` may save inside the configured attachment root.
 
 ## Input, output, and error contract
 
@@ -87,7 +87,7 @@ An MCP client can discover tools with tools/list. Do not assume npm availability
 
 ## Configuration
 
-- `IMAP_MCP_READ_ONLY`: truthy values expose the 16-tool mailbox-read-only subset. Attachment download can still write attachment files inside the attachment root, so this is not host-filesystem-read-only.
+- `IMAP_MCP_READ_ONLY`: truthy values expose the 17-tool mailbox-read-only subset. Attachment download can still write attachment files inside the attachment root, so this is not host-filesystem-read-only.
 - `IMAP_MCP_ENABLED_TOOLS`: non-empty comma-separated allowlist; takes precedence over read-only mode.
 - `IMAP_DOWNLOAD_DIR`, `IMAP_MAX_UPLOAD_SIZE`, `IMAP_UPLOAD_TTL_MS`: attachment root, decoded upload byte limit, and upload lifetime.
 - `HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY` (and lowercase variants): inherited by Gmail token HTTP requests and, unless explicitly overridden, IMAP/SMTP transports. Keep loopback and bypassed provider hosts in `NO_PROXY`.
@@ -97,6 +97,18 @@ An MCP client can discover tools with tools/list. Do not assume npm availability
 - `~/.imap-mcp/accounts.json`: account metadata. Hardened provider secrets must not appear here.
 
 Existing process variables win over `.env`. Provider-bound Gmail/QQ authentication resolves Windows Credential Manager entries instead of generic password overrides. See README.md for normalization, defaults, and the inactive legacy `IPQUALITYSCORE_API_KEY` reference.
+
+## Cross-account search and NetEase
+
+Proxy routing is provider-specific: QQ and NetEase connect directly; Gmail OAuth, refresh, IMAP and SMTP require a proxy and ignore NO_PROXY bypass rules. Prefer `IMAP_MCP_GMAIL_PROXY` (HTTP/HTTPS). Standard proxy environment variables also work on Windows/Linux/macOS; Windows additionally detects an enabled loopback system proxy when explicit settings are absent. Missing proxies fail clearly for Gmail without affecting domestic accounts. System VPN/TUN routing remains outside application control.
+
+Use `imap_search_all_accounts` to search all configured mailboxes in one call. Optional `accountNames` selects exact names; omitted includes all QQ, Gmail, NetEase and generic accounts. `query` uses IMAP TEXT, combined with `from`, `to`, `subject`, `since`, `before`, `seen` and `flagged`. Default scope is all selectable folders except Trash/Spam/Drafts; `searchAllFolders: false` selects `folder` (default INBOX). `limit` is a global newest-first cap, 1–200, default 50.
+
+Returned `messages` contain metadata and `accountId`, `accountName`, `folder`, `uid`. Full summaries require follow-up reads at those exact locations. Do not mistake equal UIDs across accounts for the same message. Each `accounts` item reports folder coverage and `ok`, `partial`, `failed` or `timeout`. Never summarize a partial search as complete: `totalFound` covers only completed folders, and `truncated` reports a result limit separately. Accounts are processed with at most three workers, a 15-second per-account deadline and a 40-second overall deadline. Queued accounts that cannot run in time are explicitly reported as timeout. No mail mutation is performed.
+
+The tool is part of the 17-tool read-only subset and must be added to explicit allowlists. Full mode now exposes 42 tools.
+
+On Windows, register additional accounts with `node dist/enroll.js 163`, `126`, `yeah`, or `netease-enterprise`, once per account, using unique names and hidden local authorization-code input. These accounts use Windows Credential Manager, not the legacy AES password store. The enterprise preset is IMAP `imaphz.qiye.163.com:993` and SMTP `smtphz.qiye.163.com:994`, both SSL. Endpoint changes require local re-enrollment. Gmail continues using its existing OAuth enrollment and token-refresh path.
 
 ## Generic provider compatibility
 

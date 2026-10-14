@@ -63,6 +63,12 @@ export class AccountManager {
 
   async addAccount(account: Omit<ImapAccount, 'id'>): Promise<ImapAccount> {
     assertProviderAccountAuth(account);
+    for (const existing of this.accounts.values()) {
+      if (existing.name === account.name) throw new Error('Account name already exists; choose a unique name');
+      if (account.auth && existing.auth?.provider === account.auth.provider && existing.user === account.user) {
+        throw new Error('Credential-backed account already exists; repair it instead of enrolling twice');
+      }
+    }
     const id = crypto.randomUUID();
     const persistenceInput = accountForPersistence({ ...account, id });
     const newAccount: ImapAccount = {
@@ -167,6 +173,11 @@ export class AccountManager {
       ...updates,
       smtp: updates.smtp ?? existingAccount.smtp,
     };
+    for (const [otherId, other] of this.accounts) {
+      if (otherId !== id && other.name === candidate.name) {
+        throw new Error('Account name already exists; choose a unique name');
+      }
+    }
     assertProviderAccountAuth(
       candidate,
       updates.password !== undefined || updates.smtp?.password !== undefined,
@@ -176,12 +187,12 @@ export class AccountManager {
     // an empty placeholder ("" — used for env-managed credentials) is encrypted
     // to a decryptable value rather than stored raw.
     const processedUpdates = accountForPersistence({ ...existingAccount, ...updates, id });
-    if (processedUpdates.password !== undefined) {
+    if (existingAccount.auth || updates.password !== undefined) {
       processedUpdates.password = this.encrypt(processedUpdates.password);
     }
     
     // Encrypt SMTP password if it's being updated
-    if (processedUpdates.smtp?.password) {
+    if (updates.smtp?.password && processedUpdates.smtp?.password) {
       processedUpdates.smtp = {
         ...processedUpdates.smtp,
         password: this.encrypt(processedUpdates.smtp.password),
