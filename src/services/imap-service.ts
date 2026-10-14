@@ -478,6 +478,32 @@ export class ImapService {
    * fetch or parse message bodies — used for lightweight header analysis such
    * as spam indicator checks. UIDs with no headers returned are omitted.
    */
+  async searchEmailPage(accountId:string,folderName:string,criteria:SearchCriteria,cursor?:{beforeUid:number;uidValidity:number}):Promise<{messages:EmailMessage[];matched:number;nextCursor?:{beforeUid:number;uidValidity:number}}>{
+    const client=await this.ensureConnected(accountId);
+    const lock=await client.getMailboxLock(folderName);
+    try{
+      const mailbox=client.mailbox || undefined;
+      const status=mailbox?.uidNext&&mailbox?.uidValidity?mailbox:await client.status(folderName,{uidNext:true,uidValidity:true});
+      const validity=Number(status.uidValidity); const newest=Number(status.uidNext)-1;
+      if(!Number.isInteger(validity)||validity<=0||!Number.isInteger(newest)||newest<0)throw new Error('Missing mailbox pagination metadata');
+      if(cursor&&cursor.uidValidity!==validity)throw new Error('Mailbox UIDVALIDITY changed; restart the search');
+      const upper=cursor?.beforeUid??newest;
+      if(!Number.isInteger(upper)||upper<0||upper>0xffffffff)throw new Error('Invalid search cursor');
+      if(!upper)return {messages:[],matched:0};
+      const lower=Math.max(1,upper-199);
+      const result=await client.search({...this.buildSearchQuery(criteria),uid:`${lower}:${upper}`},{uid:true});
+      const uids=result||[];
+      if(uids.length>200||uids.some(uid=>!Number.isInteger(uid)||uid<lower||uid>upper))throw new Error('Server violated bounded UID search');
+      const messages:EmailMessage[]=[];
+      if(uids.length){for await(const msg of client.fetch(uids,{uid:true,envelope:true,flags:true,internalDate:true},{uid:true})){
+        if(messages.length>=200)throw new Error('Server violated bounded message fetch');
+        const flags=Array.from(msg.flags||[]) as string[];
+        messages.push({uid:msg.uid,date:new Date(msg.internalDate||msg.envelope?.date||0),from:msg.envelope?.from?.[0]?this.formatAddress(msg.envelope.from[0]).slice(0,2048):'',to:(msg.envelope?.to||[]).slice(0,100).map(a=>this.formatAddress(a).slice(0,2048)),subject:(msg.envelope?.subject||'').slice(0,2000),messageId:(msg.envelope?.messageId||'').slice(0,2048),flags,customKeywords:flags.filter(f=>!isSystemFlag(f))});
+      }}
+      return {messages,matched:uids.length,...(lower>1?{nextCursor:{beforeUid:lower-1,uidValidity:validity}}:{})};
+    }finally{lock.release();}
+  }
+
   async fetchHeadersForUids(
     accountId: string,
     folderName: string,
