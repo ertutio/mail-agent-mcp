@@ -213,7 +213,6 @@ describe('createGmailAccessTokenExchange', () => {
     expect(createAgent).toHaveBeenCalledWith({
       httpProxy: 'http://proxy.example:8080',
       httpsProxy: 'http://proxy.example:8080',
-      noProxy: '127.0.0.1,localhost',
     });
     expect(request).toHaveBeenCalledOnce();
     expect(close).toHaveBeenCalledOnce();

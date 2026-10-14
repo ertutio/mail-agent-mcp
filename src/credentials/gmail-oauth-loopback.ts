@@ -1,9 +1,9 @@
-﻿import { createHash, randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { createServer, type Server, type ServerResponse } from 'node:http';
 import { createProxyAwareFetch } from './proxy-fetch.js';
 
 export const GMAIL_OAUTH_SUCCESS_TEXT =
-  'Authorization complete. You can close this window.';
+  'Authorization response received. You can close this window and return to the terminal. Token exchange and local account registration are still in progress; check the terminal for the final result.';
 export const GMAIL_OAUTH_FAILURE_TEXT =
   'Authorization failed. You can close this window and return to the terminal.';
 
@@ -155,7 +155,8 @@ export async function runGmailOAuthLoopback(
     throw new Error('Gmail OAuth timeout must be greater than zero');
   }
 
-  const transport = options.fetch ? undefined : createProxyAwareFetch();
+  const transport = options.fetch ? undefined : createProxyAwareFetch(undefined, undefined,
+    options.tokenEndpoint && options.tokenEndpoint !== TOKEN_ENDPOINT ? 'standard' : 'gmail-required');
   const fetchImpl = options.fetch ?? transport!.fetch;
   const state = base64Url(randomBytes(32));
   const verifier = base64Url(randomBytes(48));

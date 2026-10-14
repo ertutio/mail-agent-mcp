@@ -174,7 +174,11 @@ Gmail authorization opens in the browser; the token endpoint request is made by 
     $env:NO_PROXY = "127.0.0.1,localhost"
     $env:IMAP_MCP_MAIL_PROXY = "http://proxy-host:proxy-port"
 
-`HTTP_PROXY` and `HTTPS_PROXY` are inherited by Gmail OAuth/token requests and, unless `IMAP_MCP_MAIL_PROXY` is set, by IMAP/SMTP transports launched from the same CLI or MCP process. `IMAP_MCP_MAIL_PROXY` remains the explicit mail-transport override. `NO_PROXY` applies to provider hosts and should include the loopback OAuth callback. Do not commit credential-bearing proxy URLs; TLS validation remains enabled.
+QQ and NetEase accounts (163, 126, yeah.net and enterprise) connect directly for IMAP and SMTP, even when a global mail or system proxy is configured. Credential-backed QQ/NetEase accounts with custom server names follow the same policy. Gmail OAuth, token refresh, IMAP and SMTP require a proxy and never silently fall back to a direct connection; `NO_PROXY`, including `*`, cannot bypass this Gmail policy.
+
+Use `IMAP_MCP_GMAIL_PROXY` for a dedicated Gmail HTTP/HTTPS proxy. Otherwise OAuth uses `HTTPS_PROXY`/`HTTP_PROXY` (lowercase also supported), then `IMAP_MCP_MAIL_PROXY`; mail connections prefer `IMAP_MCP_MAIL_PROXY` before standard proxy variables. On Windows, when no explicit setting exists, the plugin detects the currently enabled loopback HTTP system proxy and its port. Remote authenticated proxies and PAC files are not imported automatically; configure an explicit URL instead. On Linux and macOS, set environment variables in the process that launches the plugin. No user-specific port or path is embedded in the plugin. OAuth needs HTTP/HTTPS; a SOCKS mail override alone cannot proxy token requests.
+
+Other providers retain the existing generic proxy/NO_PROXY behavior. Keep 127.0.0.1 and localhost in NO_PROXY for the local browser callback. An unavailable or missing Gmail proxy produces a clear error; domestic mail continues to work independently. Do not commit credential-bearing proxy URLs; TLS validation remains enabled. Network-level VPN/TUN routing is outside this application policy.
 
 ## Configuration reference
 
@@ -190,6 +194,7 @@ Existing process environment values take precedence over values loaded from `.en
 | `IMAP_UPLOAD_TTL_MS` | Lifetime of uploaded temporary attachment files; default 24 hours. |
 | `HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY` | Gmail OAuth/token HTTP proxy settings; lowercase variants are also accepted. |
 | `IMAP_MCP_MAIL_PROXY` | Optional explicit HTTP CONNECT, HTTPS, or SOCKS proxy override shared by IMAP and SMTP transports. |
+| `IMAP_MCP_GMAIL_PROXY` | Dedicated Gmail proxy, preferred over other settings; use HTTP/HTTPS to cover both OAuth and mail. Domestic mail always connects directly. |
 | `IMAP_SEARCH_FOLDER_TIMEOUT_MS` | Per-folder cross-folder-search deadline; defaults to 10000 ms. |
 | `IMAP_SEARCH_ALL_TIMEOUT_MS` | Overall cross-folder-search deadline, including folder discovery; defaults to 30000 ms. |
 | `IMAP_MCP_ACCOUNT_<NAME>_IMAP_USERNAME` / `_IMAP_PASSWORD` | Startup-only generic IMAP credential overrides. `<NAME>` is the account name uppercased with non-alphanumeric characters replaced by `_`. |

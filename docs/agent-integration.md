@@ -100,6 +100,8 @@ Existing process variables win over `.env`. Provider-bound Gmail/QQ authenticati
 
 ## Cross-account search and NetEase
 
+Proxy routing is provider-specific: QQ and NetEase connect directly; Gmail OAuth, refresh, IMAP and SMTP require a proxy and ignore NO_PROXY bypass rules. Prefer `IMAP_MCP_GMAIL_PROXY` (HTTP/HTTPS). Standard proxy environment variables also work on Windows/Linux/macOS; Windows additionally detects an enabled loopback system proxy when explicit settings are absent. Missing proxies fail clearly for Gmail without affecting domestic accounts. System VPN/TUN routing remains outside application control.
+
 Use `imap_search_all_accounts` to search all configured mailboxes in one call. Optional `accountNames` selects exact names; omitted includes all QQ, Gmail, NetEase and generic accounts. `query` uses IMAP TEXT, combined with `from`, `to`, `subject`, `since`, `before`, `seen` and `flagged`. Default scope is all selectable folders except Trash/Spam/Drafts; `searchAllFolders: false` selects `folder` (default INBOX). `limit` is a global newest-first cap, 1–200, default 50.
 
 Returned `messages` contain metadata and `accountId`, `accountName`, `folder`, `uid`. Full summaries require follow-up reads at those exact locations. Do not mistake equal UIDs across accounts for the same message. Each `accounts` item reports folder coverage and `ok`, `partial`, `failed` or `timeout`. Never summarize a partial search as complete: `totalFound` covers only completed folders, and `truncated` reports a result limit separately. Accounts are processed with at most three workers, a 15-second per-account deadline and a 40-second overall deadline. Queued accounts that cannot run in time are explicitly reported as timeout. No mail mutation is performed.

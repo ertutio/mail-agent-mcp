@@ -22,7 +22,7 @@ export class SmtpService {
 
     const smtpConfig = account.smtp || this.getDefaultSmtpConfig(account);
     const { secure, requireTLS } = this.resolveTlsMode(smtpConfig.port, smtpConfig.secure);
-    const proxy = resolveMailProxy(process.env, smtpConfig.host);
+    const proxy = resolveMailProxy(process.env, smtpConfig.host, account.auth?.provider);
 
     const transporterOptions = {
       host: smtpConfig.host,

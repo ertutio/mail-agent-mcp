@@ -1,5 +1,11 @@
 # Changelog
 
+## Provider proxy routing (unreleased)
+
+- QQ and NetEase IMAP/SMTP now connect directly despite global proxy settings; Gmail OAuth, refresh and mail require a proxy without direct fallback.
+- Add dedicated `IMAP_MCP_GMAIL_PROXY`, dynamic Windows loopback system-proxy detection, and portable environment-variable configuration for other systems.
+- Gmail callback browser text now distinguishes receiving authorization from completing token exchange and local account registration.
+
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),

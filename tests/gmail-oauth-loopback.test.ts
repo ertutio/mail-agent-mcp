@@ -214,6 +214,7 @@ describe('runGmailOAuthLoopback', () => {
 
   it('closes the listener when the browser cannot open', async () => {
     await expect(runGmailOAuthLoopback({
+      fetch: vi.fn<typeof fetch>(),
       clientId: 'client-id',
       timeoutMs: 2_000,
       openBrowser: async () => { throw new Error('sensitive shell detail'); },
@@ -272,6 +273,7 @@ describe('runGmailOAuthLoopback', () => {
 
   it('times out while waiting for authorization', async () => {
     await expect(runGmailOAuthLoopback({
+      fetch: vi.fn<typeof fetch>(),
       clientId: 'client-id',
       timeoutMs: 20,
       openBrowser: () => undefined,
