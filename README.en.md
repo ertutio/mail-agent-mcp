@@ -38,7 +38,7 @@ Based on [SinoEdwards/mail-agent-mcp](https://github.com/SinoEdwards/mail-agent-
 
 - Deletion tools only return a frozen preview with message samples, UIDs, counts, and permanent-deletion status. After explicit user review, call `imap_confirm_delete` with `confirmed: true`; previews expire in five minutes and changed UIDVALIDITY blocks execution. Add the confirmation tool to explicit write-enabled allowlists.
 - QQ/Gmail credentials are restricted to canonical provider hosts and secure ports; foreign endpoints and disabled certificate verification are rejected.
-- The setup API requires a temporary session and an exact same origin. Reload the setup page after upgrading.
+- The setup API requires a temporary session and an exact same origin. Use the private launch link printed in the terminal; tab reloads retain its session, but a restarted server requires a new link. Do not share the link.
 - Raw-message processing is capped at 25 MiB, body output at 100,000 characters, attachments at 20 per message, and outbound attachment bytes at 25 MiB total. PDF previews use isolated parsing, capped at 256 KiB, 20 pages, and five seconds; excessive input is rejected or previews are omitted.
 - Pending send previews are capped at 100 with 50 MiB retained attachment bytes; expired attachment copies are automatically cleared.
 - Account mutations use a cross-process lock and atomic replacement. After an abnormal writer exit, remove a leftover `.accounts.lock` only after verifying no configuration writer remains; never remove an active writer's lock.

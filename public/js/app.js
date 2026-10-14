@@ -1,11 +1,18 @@
 let setupSessionToken;
 async function setupFetch(input, init = {}) {
     if (!setupSessionToken) {
-        setupSessionToken = new URLSearchParams(window.location.hash.slice(1)).get('session');
+        setupSessionToken = new URLSearchParams(window.location.hash.slice(1)).get('session') || window.sessionStorage?.getItem('mail-agent-setup-session');
         if (!setupSessionToken) throw new Error('Open the private setup link printed by the local terminal.');
+        window.sessionStorage?.setItem('mail-agent-setup-session', setupSessionToken);
         window.history.replaceState(null, '', window.location.pathname);
     }
-    return fetch(input, { ...init, headers: { ...(init.headers || {}), 'x-mail-agent-session': setupSessionToken } });
+    const response = await fetch(input, { ...init, headers: { ...(init.headers || {}), 'x-mail-agent-session': setupSessionToken } });
+    if (response.status === 403) {
+        window.sessionStorage?.removeItem('mail-agent-setup-session');
+        setupSessionToken = undefined;
+        throw new Error('Setup session expired. Open the latest private link from the terminal.');
+    }
+    return response;
 }
 // Email providers data
 let providers = [];

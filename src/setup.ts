@@ -123,7 +123,7 @@ async function main() {
     
     spinner.succeed('Web interface is running!');
     
-    console.log('\n' + chalk.green('✓') + ' Setup wizard available at: ' + chalk.cyan(`http://localhost:${options.port}`));
+    console.log('\n' + chalk.green('✓') + ' Private setup session: ' + chalk.cyan(server.getSetupUrl()));
     console.log('\n' + chalk.yellow('ℹ') + ' Press Ctrl+C to stop the server\n');
     
     if (!options.open) {
