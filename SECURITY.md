@@ -1,5 +1,7 @@
 # Security Policy
 
+Recent hardening binds QQ/Gmail credentials to canonical TLS endpoints, requires frozen deletion previews and confirmation, enforces setup sessions and exact origins, and serializes account-store mutations with atomic replacement. Raw MIME, attachment totals, preview retention, PDF worker runtime and search windows have resource limits. No dependency change was made for the separately deferred development-dependency advisories.
+
 Mail Agent MCP is a local stdio MCP server that gives an AI client access to configured mailboxes. Email content and mailbox-changing actions are sensitive; use the smallest tool surface that meets your needs.
 
 ## Credential storage

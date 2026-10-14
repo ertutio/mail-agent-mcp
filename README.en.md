@@ -34,6 +34,16 @@ Based on [SinoEdwards/mail-agent-mcp](https://github.com/SinoEdwards/mail-agent-
 - Attachment path confinement with a configurable local root.
 - Local stdio transport; no hosted service and no telemetry in project code.
 
+## Behavior after security hardening
+
+- Deletion tools only return a frozen preview with message samples, UIDs, counts, and permanent-deletion status. After explicit user review, call `imap_confirm_delete` with `confirmed: true`; previews expire in five minutes and changed UIDVALIDITY blocks execution. Add the confirmation tool to explicit write-enabled allowlists.
+- QQ/Gmail credentials are restricted to canonical provider hosts and secure ports; foreign endpoints and disabled certificate verification are rejected.
+- The setup API requires a temporary session and an exact same origin. Reload the setup page after upgrading.
+- Raw-message processing is capped at 25 MiB, body output at 100,000 characters, attachments at 20 per message, and outbound attachment bytes at 25 MiB total. PDF previews use isolated parsing, capped at 256 KiB, 20 pages, and five seconds; excessive input is rejected or previews are omitted.
+- Pending send previews are capped at 100 with 50 MiB retained attachment bytes; expired attachment copies are automatically cleared.
+- Account mutations use a cross-process lock and atomic replacement. After an abnormal writer exit, remove a leftover `.accounts.lock` only after verifying no configuration writer remains; never remove an active writer's lock.
+- Unified search scans at most 200 UIDs per batch and 25 batches per folder per pass. When `partial` is true, resume with returned `cursors` and identical filters, then merge and sort results across passes. Coverage is incomplete until all cursors are exhausted.
+
 ## Supported providers
 
 | Provider | Authentication | Receive | Send | Enrollment |
@@ -48,7 +58,7 @@ The hardened Credential Manager enrollment path is currently Windows-only. Gener
 
 ## MCP tools
 
-The server exposes 42 tools in full mode. The stable public prefix is imap_.
+The server exposes 43 tools in full mode. The stable public prefix is imap_.
 
 - Accounts: imap_add_account, imap_update_account, imap_list_accounts, imap_remove_account, imap_connect, imap_disconnect, imap_test_account.
 - Read/search: imap_search_all_accounts, imap_search_emails, imap_get_email, imap_get_latest_emails, imap_find_thread_messages, imap_find_email_by_message_id.
@@ -126,7 +136,7 @@ For a stricter read-only profile, use this 13-tool allowlist, excluding download
 }
 ```
 
-The built-in 17-tool read-only set additionally permits attachment downloads and three spam analysis/list tools. Without restrictions the server registers 42 tools, including state-changing operations.
+The built-in 17-tool read-only set additionally permits attachment downloads and three spam analysis/list tools. Without restrictions the server registers 43 tools, including state-changing operations.
 ## Unified search and NetEase setup
 
 Configure any number of QQ, Gmail, NetEase personal, and NetEase enterprise accounts with unique names. Gmail keeps its existing OAuth flow. On Windows, add NetEase accounts in a trusted interactive terminal:
@@ -144,7 +154,7 @@ The enterprise preset uses `imaphz.qiye.163.com:993` and `smtphz.qiye.163.com:99
 
 Use `imap_search_all_accounts` for requests such as “Search all my mailboxes for project emails from the past week and summarize them with the source mailbox indicated.” The assistant converts the request into `query`, date and sender filters. Omit `accountNames` to include all configured accounts, or supply exact names for a subset. Accounts are scheduled with up to three workers, with a 15-second per-account and 40-second overall deadline; additional accounts are queued, not excluded by a fixed account-count limit. A deadline can yield partial coverage, which is always reported.
 
-Results are sorted newest first with a global limit (default 50, maximum 200). Each result includes `accountId`, `accountName`, `folder`, and `uid`; equal Message-IDs in separate mailboxes retain their provenance. Default cross-folder searches skip Trash, Spam and Drafts, including Chinese folder names. The `accounts` field reports successful folders, failed folders, timeouts, and known match counts. `partial` indicates incomplete coverage and `truncated` indicates the global result cap. `totalFound` counts matches in completed folders only, not the entire mailbox when coverage is partial.
+Results are sorted newest first with a global limit (default 50, maximum 200). Each result includes `accountId`, `accountName`, `folder`, and `uid`; equal Message-IDs in separate mailboxes retain their provenance. Default cross-folder searches skip Trash, Spam and Drafts, including Chinese folder names. The `accounts` field reports successful folders, failed folders, timeouts, and known match counts. `partial` indicates incomplete coverage and `truncated` indicates the global result cap. `totalFound` counts matches in completed UID pages for the current pass, not the entire mailbox when coverage is partial.
 
 Search results contain metadata only. Before summarizing full message content, use `imap_get_email` with each result's account/folder/UID. The new tool is available in mailbox-read-only mode; add `imap_search_all_accounts` to any explicit tool allowlist. Adding it does not enable sending or mailbox mutation. Reading work mail sends returned information to the connected AI client/model under that client's data policy.
 
