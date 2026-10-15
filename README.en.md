@@ -34,6 +34,16 @@ Based on [SinoEdwards/mail-agent-mcp](https://github.com/SinoEdwards/mail-agent-
 - Attachment path confinement with a configurable local root.
 - Local stdio transport; no hosted service and no telemetry in project code.
 
+## Behavior after security hardening
+
+- Deletion tools only return a frozen preview with message samples, UIDs, counts, and permanent-deletion status. After explicit user review, call `imap_confirm_delete` with `confirmed: true`; previews expire in five minutes and changed UIDVALIDITY blocks execution. Add the confirmation tool to explicit write-enabled allowlists.
+- QQ/Gmail credentials are restricted to canonical provider hosts and secure ports; foreign endpoints and disabled certificate verification are rejected.
+- The setup API requires a temporary session and an exact same origin. Use the private launch link printed in the terminal; tab reloads retain its session, but a restarted server requires a new link. Do not share the link.
+- Raw-message processing is capped at 25 MiB, body output at 100,000 characters, attachments at 20 per message, and outbound attachment bytes at 25 MiB total. PDF previews use isolated parsing, capped at 256 KiB, 20 pages, and five seconds; excessive input is rejected or previews are omitted.
+- Pending send previews are capped at 100 with 50 MiB retained attachment bytes; expired attachment copies are automatically cleared.
+- Account mutations use a cross-process lock and atomic replacement. After an abnormal writer exit, remove a leftover `.accounts.lock` only after verifying no configuration writer remains; never remove an active writer's lock.
+- Unified search obtains matching UID lists and fetches at most 200 message records per batch, with 25 batches per folder per pass; it does not walk empty UID gaps. Lists over 100,000 matches require narrower filters. When `partial` is true, resume with returned `cursors`, identical filters and the same result limit, then merge and sort results across passes. Coverage is incomplete until all cursors are exhausted.
+
 ## Supported providers
 
 | Provider | Authentication | Receive | Send | Enrollment |
@@ -48,9 +58,9 @@ The hardened Credential Manager enrollment path is currently Windows-only. Gener
 
 ## MCP tools
 
-The server exposes 42 tools in full mode. The stable public prefix is imap_.
+The server exposes 40 tools in full mode. The stable public prefix is imap_.
 
-- Accounts: imap_add_account, imap_update_account, imap_list_accounts, imap_remove_account, imap_connect, imap_disconnect, imap_test_account.
+- Accounts: imap_list_accounts, imap_connect, imap_disconnect, imap_test_account. Account creation, modification and removal have no MCP handlers and cannot be enabled through an allowlist.
 - Read/search: imap_search_all_accounts, imap_search_emails, imap_get_email, imap_get_latest_emails, imap_find_thread_messages, imap_find_email_by_message_id.
 - Folders and state: imap_list_folders, imap_folder_status, imap_create_folder, imap_get_unread_count, mark/read, flags, keywords, move and guarded delete tools.
 - Attachments and drafts: imap_upload_file, imap_download_attachment, imap_save_draft.
@@ -83,7 +93,21 @@ Requirements: Windows 10/11 and Node.js 22.12 or newer for hardened Gmail/QQ/Net
    node dist/enroll.js --help
    ```
 
-4. Enroll at least one provider in an interactive PowerShell terminal:
+4. Open the local account form in your OS default browser (the current UI is Chinese):
+
+   ```powershell
+   node dist/setup.js --skip-claude
+   ```
+
+   Select QQ, 163, 126, yeah.net, NetEase Hangzhou enterprise, or Gmail / Google Workspace. Enter the address, optional unique name and client authorization code. Gmail accepts a Google Cloud **desktop-app OAuth JSON** or manually entered client ID/secret, then opens Google consent in the default browser. The setup page reports success only after token exchange, IMAP authentication and local persistence succeed. Failed authentication rolls back newly written vault credentials. Multiple accounts of the same provider are supported.
+
+   The page uses only local assets, an ephemeral loopback port, a private session link and exact-origin checks. Idle sessions close after 15 minutes. JSON files are parsed locally; credential fields are never persisted to browser storage or sent to the chat model. Domestic providers connect directly and Gmail uses the configured proxy. Use the same profile directory as your MCP server; running processes refresh account configuration on subsequent account queries and operations.
+
+   Add and remove accounts in this local browser interface. The sidebar's “移除” action opens a confirmation showing the account name and address. Confirming removes only the local account and its associated vault entries, with rollback attempted on failure; it does not delete mail or close the provider account. A changed identity requires a fresh confirmation. Removed accounts cannot be used for subsequent cached IMAP operations; already running operations may finish. Provider-side grant revocation is separate.
+
+   The MCP names `imap_add_account`, `imap_update_account` and `imap_remove_account` no longer have tool definitions, even in unrestricted mode or an explicit allowlist. Agents must never request passwords, authorization codes or OAuth secrets in chat. Local maintenance CLI commands and startup environment overrides remain available outside chat.
+
+   The interactive CLI remains available:
 
    ```powershell
    node dist/enroll.js gmail
@@ -126,7 +150,7 @@ For a stricter read-only profile, use this 13-tool allowlist, excluding download
 }
 ```
 
-The built-in 17-tool read-only set additionally permits attachment downloads and three spam analysis/list tools. Without restrictions the server registers 42 tools, including state-changing operations.
+The built-in 17-tool read-only set additionally permits attachment downloads and three spam analysis/list tools. Without restrictions the server registers 40 tools, including state-changing operations.
 ## Unified search and NetEase setup
 
 Configure any number of QQ, Gmail, NetEase personal, and NetEase enterprise accounts with unique names. Gmail keeps its existing OAuth flow. On Windows, add NetEase accounts in a trusted interactive terminal:
@@ -144,7 +168,7 @@ The enterprise preset uses `imaphz.qiye.163.com:993` and `smtphz.qiye.163.com:99
 
 Use `imap_search_all_accounts` for requests such as “Search all my mailboxes for project emails from the past week and summarize them with the source mailbox indicated.” The assistant converts the request into `query`, date and sender filters. Omit `accountNames` to include all configured accounts, or supply exact names for a subset. Accounts are scheduled with up to three workers, with a 15-second per-account and 40-second overall deadline; additional accounts are queued, not excluded by a fixed account-count limit. A deadline can yield partial coverage, which is always reported.
 
-Results are sorted newest first with a global limit (default 50, maximum 200). Each result includes `accountId`, `accountName`, `folder`, and `uid`; equal Message-IDs in separate mailboxes retain their provenance. Default cross-folder searches skip Trash, Spam and Drafts, including Chinese folder names. The `accounts` field reports successful folders, failed folders, timeouts, and known match counts. `partial` indicates incomplete coverage and `truncated` indicates the global result cap. `totalFound` counts matches in completed folders only, not the entire mailbox when coverage is partial.
+Results are sorted newest first with a global limit (default 50, maximum 200). Each result includes `accountId`, `accountName`, `folder`, and `uid`; equal Message-IDs in separate mailboxes retain their provenance. Default cross-folder searches skip Trash, Spam and Drafts, including Chinese folder names. The `accounts` field reports successful folders, failed folders, timeouts, and known match counts. `partial` indicates incomplete coverage and `truncated` indicates the global result cap. `totalFound` counts matches in completed UID pages for the current pass, not the entire mailbox when coverage is partial.
 
 Search results contain metadata only. Before summarizing full message content, use `imap_get_email` with each result's account/folder/UID. The new tool is available in mailbox-read-only mode; add `imap_search_all_accounts` to any explicit tool allowlist. Adding it does not enable sending or mailbox mutation. Reading work mail sends returned information to the connected AI client/model under that client's data policy.
 
@@ -157,7 +181,7 @@ Search results contain metadata only. Before summarizing full message content, u
 5. Enter the Gmail address, local account name, client ID, and client secret when prompted. The secret prompt is hidden.
 6. Complete the browser consent flow. The callback binds to a random 127.0.0.1 port and the same redirect URI and PKCE verifier are used for token exchange.
 
-The browser callback confirms receipt of authorization, not completed enrollment. Wait for `Gmail account enrolled` in the terminal; token exchange or local persistence can still fail. Browser and Node proxy settings may differ.
+The OAuth callback confirms receipt of authorization, not completed enrollment. Wait for verified success in the local setup page, or `Gmail account enrolled` when using the CLI. Token exchange, authentication or local persistence can still fail. Browser and Node proxy settings may differ.
 
 The refresh token and client secret are stored under provider/account-bound Windows Credential Manager targets. accounts.json stores only non-secret metadata and target references. Gmail never falls back to password authentication.
 
@@ -199,9 +223,9 @@ Providers without a supported secure enrollment preset use the inherited generic
 
     node dist/setup.js --skip-claude --no-open
 
-Open the localhost URL printed by the command, enter the provider's IMAP/SMTP hosts, ports, TLS settings, username, and provider-issued password or app password, then stop the setup process. The UI binds only to 127.0.0.1: do not expose it through LAN binding, port forwarding, tunnels, or a reverse proxy. It is a local setup aid, not a remote administration panel. The `imap_add_account` and `imap_update_account` tools can also configure this path, but doing so sends credentials through the MCP client/model; the local setup UI or startup environment overrides are safer.
+Open the private localhost URL, select “其他 IMAP 邮箱” and enter the provider's hosts, address and app password. The form uses IMAP 993 / SMTP 465 with TLS. The UI binds only to 127.0.0.1: do not expose it through LAN binding, port forwarding, tunnels, or a reverse proxy. It is a local setup aid, not a remote administration panel. There are no model-facing account write tools; use local configuration or startup environment overrides.
 
-This compatibility path does not use Windows Credential Manager. Its password may be AES-encrypted in `~/.imap-mcp/accounts.json` with a key stored under the same directory, so an attacker who can read both files can recover it. Gmail, QQ and supported NetEase users should use `dist/enroll.js` instead.
+Select “其他 IMAP 邮箱” for the compatibility path (IMAP 993 / SMTP 465 with TLS). This path does not use Windows Credential Manager. Its password may be AES-encrypted in `~/.imap-mcp/accounts.json` with a colocated key, so an attacker who can read both files can recover it. Gmail, QQ and supported NetEase presets in the browser form use the secure vault enrollment service; the CLI is also available.
 
 ## Proxy setup
 
@@ -333,7 +357,7 @@ npm pack --dry-run
 git diff --check
 ```
 
-The code update passed 589 tests (one skipped), covering 25-account mixed search, partial failures/timeouts and varied proxy configurations. Production dependency audit found no vulnerabilities; this does not certify development dependencies or the entire system as secure. Separate local read-only checks covered QQ, 163, 126, NetEase enterprise and Gmail, with successful five-account unified search. Other enterprise deployments and networks may differ. No personal credentials or mail content are included in the repository.
+The code update passed 633 tests (one skipped), covering 25-account mixed search, partial failures/timeouts and varied proxy configurations. Production dependency audit found no vulnerabilities; this does not certify development dependencies or the entire system as secure. Separate local read-only checks covered QQ, 163, 126, NetEase enterprise and Gmail, with successful five-account unified search. Other enterprise deployments and networks may differ. No personal credentials or mail content are included in the repository.
 
 ## Roadmap
 

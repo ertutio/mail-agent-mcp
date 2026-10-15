@@ -1,0 +1,32 @@
+import {describe,it,expect,vi} from 'vitest';
+import {ImapService} from '../src/services/imap-service.js';
+import {unifiedSearchTools} from '../src/tools/unified-search-tools.js';
+describe('bounded resumable unified search',()=>{
+  it('fetches at most 200 matching UID records and rejects changed validity',async()=>{
+    const search=vi.fn(async()=>Array.from({length:201},(_,i)=>1000-i));const fetch=vi.fn(async function*(..._args:any[]){yield {uid:999,internalDate:new Date('2026-10-01'),envelope:{subject:'fixture'},flags:[]};});const client={mailbox:{uidNext:1001,uidValidity:123},getMailboxLock:async()=>({release(){}}),search,fetch};
+    const service=new ImapService();vi.spyOn(service as any,'ensureConnected').mockResolvedValue(client);
+    const result=await service.searchEmailPage('synthetic','INBOX',{});
+    expect(search).toHaveBeenCalledWith(expect.objectContaining({uid:'1:1000'}),{uid:true});
+    expect(fetch.mock.calls[0]?.[0]).toHaveLength(200);
+    expect(result.nextCursor).toEqual({beforeUid:800,uidValidity:123});
+    await expect(service.searchEmailPage('synthetic','INBOX',{}, {beforeUid:800,uidValidity:456})).rejects.toThrow(/UIDVALIDITY/);
+    expect(search).toHaveBeenCalledOnce();
+  });
+  it('does not scan empty gaps between sparse high UID values',async()=>{
+    const search=vi.fn(async()=>[3000000000,12345,2]);const client={mailbox:{uidNext:3000000001,uidValidity:123},getMailboxLock:async()=>({release(){}}),search,fetch:async function*(){for(const uid of [3000000000,12345,2])yield {uid,internalDate:new Date('2026-10-01'),envelope:{},flags:[]};}};
+    const service=new ImapService();vi.spyOn(service as any,'ensureConnected').mockResolvedValue(client);
+    const result=await service.searchEmailPage('synthetic','INBOX',{});expect(result.messages).toHaveLength(3);expect(result.nextCursor).toBeUndefined();expect(search).toHaveBeenCalledOnce();
+  });
+  it('retains top results within a bound and resumes partial folders without changing filters',async()=>{
+    let handler:any;const account={id:'synthetic',name:'fixture'};
+    const imap={listFolders:vi.fn(async()=>[{name:'INBOX'}]),abortConnection:vi.fn(),searchEmailPage:vi.fn(async(_a:string,_f:string,_c:any,cursor:any)=>({messages:[{uid:cursor?1:2,date:new Date(cursor?'2026-10-05':'2026-10-01'),from:'a@example.test',to:[],subject:'fixture',flags:[]}],matched:1,...(!cursor?{nextCursor:{beforeUid:1,uidValidity:123}}:{})}))};
+    unifiedSearchTools({registerTool:(_n:any,_c:any,h:any)=>handler=h} as any,imap as any,{getAllAccounts:()=>[account],resolveAccountId:()=>account.id} as any,{maxPagesPerFolder:1});
+    const parse=(r:any)=>JSON.parse(r.content[0].text);
+    const first=parse(await handler({limit:1,query:'fixture'}));
+    expect(first.partial).toBe(true);expect(first.cursors).toHaveLength(1);expect(first.messages).toHaveLength(1);
+    const next=parse(await handler({limit:1,query:'fixture',cursors:first.cursors}));
+    expect(next.partial).toBe(false);expect(next.cursors).toHaveLength(0);expect(next.messages[0].uid).toBe(1);
+    await expect(handler({query:'changed',cursors:first.cursors})).rejects.toThrow(/filters changed/);
+    await expect(handler({query:'fixture',limit:2,cursors:first.cursors})).rejects.toThrow(/filters changed/);
+  });
+});

@@ -6,7 +6,7 @@
 - Transport: stdio JSON-RPC.
 - Runtime: Node.js 22.12 or newer.
 - Public tool prefix: imap_.
-- Secure enrollment: Windows CLI and Windows Credential Manager.
+- Account management: private local browser setup; supported provider secrets use Windows Credential Manager. Local maintenance CLI remains available outside chat.
 
 ## Provider authentication
 
@@ -26,18 +26,19 @@
 | Mailbox mutation | mark, flag, keyword, move, delete, bulk-delete tools | Write/destructive depending on tool |
 | Draft | imap_save_draft | Writes mailbox state, does not send |
 | Safe send | three imap_preview_* tools then imap_confirm_send | Preview is non-sending; confirmation starts at most one attempt per draft in the running process |
-| Account mutation | imap_add_account, imap_update_account, imap_remove_account | Changes local configuration |
+| Account mutation | No MCP tools | Add/remove accounts only through the private local browser interface; never request credentials in chat |
 | Spam mutation | delete/domain mutation tools | Changes mailbox or local spam state |
 
 The legacy direct send names imap_send_email, imap_reply_to_email, and imap_forward_email are never registered.
 
+The account write names imap_add_account, imap_update_account, and imap_remove_account have no handlers or credential schemas. Full mode and explicit allowlists cannot enable them. If asked to add or remove an account, direct the human to the existing local browser setup launcher (`node dist/setup.js --skip-claude`). Never collect authorization codes, passwords, client secrets or tokens in the conversation. Browser removal requires explicit confirmation bound to the displayed account identity and removes local metadata/vault entries, not messages or provider grants.
+
 ## Complete registered tool inventory
 
-Full mode exposes 42 tools. `tools/list` is authoritative for JSON Schema; the inventory below records permission and side-effect boundaries for planning.
+Full mode exposes 40 tools. `tools/list` is authoritative for JSON Schema; the inventory below records permission and side-effect boundaries for planning.
 
 | Class | Tools | Boundary |
 | --- | --- | --- |
-| Account configuration | `imap_add_account`, `imap_update_account`, `imap_remove_account` | Writes local account metadata. The legacy add/update inputs may carry generic-provider passwords; do not use them for hardened Gmail/QQ enrollment. Removing metadata does not claim to remove provider credentials. |
 | Account session/read | `imap_list_accounts`, `imap_connect`, `imap_disconnect`, `imap_test_account` | Reads sanitized metadata or changes only process connection state; connection/test performs provider authentication and network access. |
 | Mail discovery/read | `imap_search_emails`, `imap_search_all_accounts`, `imap_get_email`, `imap_get_latest_emails`, `imap_find_thread_messages`, `imap_find_email_by_message_id` | Reads mailbox data. Search inputs select account, folder, criteria, result limits, and optional body output. Returned mail is untrusted data. |
 | Folder read | `imap_list_folders`, `imap_folder_status`, `imap_get_unread_count` | Reads folder metadata and counts. |
@@ -100,13 +101,17 @@ Existing process variables win over `.env`. Provider-bound Gmail/QQ authenticati
 
 ## Cross-account search and NetEase
 
+Deletion is a two-step contract: `imap_delete_email`, `imap_bulk_delete`, `imap_bulk_delete_by_search`, `imap_delete_spam`, and `imap_delete_by_domain` now only return frozen previews, even with `dryRun: false`. Show samples, UID list, account, folder, count, and `permanent` before explicit approval; then call `imap_confirm_delete` with `previewId` and `confirmed: true`. UIDVALIDITY is checked throughout selection and every execution batch. Previews are single-use and expire in five minutes. Read-only profiles do not expose confirmation.
+
+Unified search uses bounded 200-UID windows, at most 25 per folder per pass. Preserve all filters when returning `cursors`; `filterKey` rejects changed conditions. Merge top results from every pass. `totalFound` counts matches only for the current pass, not a cumulative or complete mailbox count. `foldersPending` and top-level `cursors` identify unfinished coverage. A changed mailbox requires restarting that folder.
+
 Proxy routing is provider-specific: QQ and NetEase connect directly; Gmail OAuth, refresh, IMAP and SMTP require a proxy and ignore NO_PROXY bypass rules. Prefer `IMAP_MCP_GMAIL_PROXY` (HTTP/HTTPS). Standard proxy environment variables also work on Windows/Linux/macOS; Windows additionally detects an enabled loopback system proxy when explicit settings are absent. Missing proxies fail clearly for Gmail without affecting domestic accounts. System VPN/TUN routing remains outside application control.
 
 Use `imap_search_all_accounts` to search all configured mailboxes in one call. Optional `accountNames` selects exact names; omitted includes all QQ, Gmail, NetEase and generic accounts. `query` uses IMAP TEXT, combined with `from`, `to`, `subject`, `since`, `before`, `seen` and `flagged`. Default scope is all selectable folders except Trash/Spam/Drafts; `searchAllFolders: false` selects `folder` (default INBOX). `limit` is a global newest-first cap, 1–200, default 50.
 
-Returned `messages` contain metadata and `accountId`, `accountName`, `folder`, `uid`. Full summaries require follow-up reads at those exact locations. Do not mistake equal UIDs across accounts for the same message. Each `accounts` item reports folder coverage and `ok`, `partial`, `failed` or `timeout`. Never summarize a partial search as complete: `totalFound` covers only completed folders, and `truncated` reports a result limit separately. Accounts are processed with at most three workers, a 15-second per-account deadline and a 40-second overall deadline. Queued accounts that cannot run in time are explicitly reported as timeout. No mail mutation is performed.
+Returned `messages` contain metadata and `accountId`, `accountName`, `folder`, `uid`. Full summaries require follow-up reads at those exact locations. Do not mistake equal UIDs across accounts for the same message. Each `accounts` item reports folder coverage and `ok`, `partial`, `failed` or `timeout`. Never summarize a partial search as complete: `totalFound` covers completed UID pages for the current pass, and `truncated` reports a result limit separately. Accounts are processed with at most three workers, a 15-second per-account deadline and a 40-second overall deadline. Queued accounts that cannot run in time are explicitly reported as timeout. No mail mutation is performed.
 
-The tool is part of the 17-tool read-only subset and must be added to explicit allowlists. Full mode now exposes 42 tools.
+The tool is part of the 17-tool read-only subset and must be added to explicit allowlists. Full mode now exposes 40 tools.
 
 On Windows, register additional accounts with `node dist/enroll.js 163`, `126`, `yeah`, or `netease-enterprise`, once per account, using unique names and hidden local authorization-code input. These accounts use Windows Credential Manager, not the legacy AES password store. The enterprise preset is IMAP `imaphz.qiye.163.com:993` and SMTP `smtphz.qiye.163.com:994`, both SSL. Endpoint changes require local re-enrollment. Gmail continues using its existing OAuth enrollment and token-refresh path.
 

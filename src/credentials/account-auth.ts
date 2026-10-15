@@ -44,6 +44,29 @@ export function assertCredentialTarget(account: ImapAccount): void {
   }
 }
 
+export function assertProviderEndpoints(account: ImapAccount): void {
+  if (!account.auth) return;
+  const normalize = (host: string) => host.trim().toLowerCase().replace(/\.$/, '');
+  const provider = account.auth.provider;
+  if (provider === 'qq' || provider === 'gmail') {
+    if (normalize(account.host) !== `imap.${provider}.com` || account.port !== 993 || account.tls !== true) {
+      throw new Error('Credential endpoint mismatch: provider IMAP requires its canonical host and TLS port 993');
+    }
+    if (account.smtp && (normalize(account.smtp.host) !== `smtp.${provider}.com`
+      || ![465,587].includes(account.smtp.port)
+      || (account.smtp.port === 465 && account.smtp.secure !== true))) {
+      throw new Error('Credential endpoint mismatch: provider SMTP requires its canonical TLS endpoint');
+    }
+  } else if (provider === 'netease' && account.auth.kind === 'credential') {
+    const binding = account.auth.endpoints;
+    if (!binding || account.host !== binding.imapHost || account.port !== binding.imapPort || account.tls !== true
+      || (account.smtp && (account.smtp.host !== binding.smtpHost || account.smtp.port !== binding.smtpPort || account.smtp.secure !== true))) {
+      throw new Error('Credential endpoint mismatch; re-enroll locally to change servers');
+    }
+  }
+  if (account.smtp?.tls?.rejectUnauthorized === false) throw new Error('Provider TLS verification cannot be disabled');
+}
+
 export class AccountAuthResolver {
   constructor(
     private readonly backend?: CredentialBackend,
@@ -59,6 +82,7 @@ export class AccountAuthResolver {
       return { kind: 'password', user: smtp?.user || account.user, password: smtp?.password || account.password };
     }
     assertCredentialTarget(account);
+    assertProviderEndpoints(account);
     if (account.auth.kind === 'credential' && account.auth.provider === 'netease') {
       const binding = account.auth.endpoints;
       const endpoint = protocol === 'imap' ? { host: account.host, port: account.port, secure: account.tls }
@@ -103,6 +127,7 @@ export function buildSmtpAuth(auth: ResolvedAccountAuth):
 export function accountForPersistence(account: ImapAccount): ImapAccount {
   if (!account.auth) return account;
   assertCredentialTarget(account);
+  assertProviderEndpoints(account);
   const stored: ImapAccount = { ...account, password: '' };
   if (account.smtp) {
     const { password: _secret, ...smtp } = account.smtp;

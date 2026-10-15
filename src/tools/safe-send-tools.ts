@@ -9,6 +9,7 @@ import { SafeSendService, type SafeSendExecutionResult, type SafeSendServiceOpti
 import type { SmtpService } from '../services/smtp-service.js';
 import type { Attachment, EmailAttachment, EmailComposer, EmailContent, ImapAccount } from '../types/index.js';
 import { resolveAttachmentInputPath } from '../utils/attachment-root.js';
+import {materializeBoundedAttachments,MAX_BODY_CHARS} from '../utils/mail-resource-limits.js';
 
 const DOWNLOAD_DIR = process.env.IMAP_DOWNLOAD_DIR || join(homedir(), 'Downloads', 'imap-attachments');
 const addressList = z.union([z.string(), z.array(z.string())]);
@@ -30,11 +31,11 @@ function mergeBcc(defaults: string | string[] | undefined, explicit: string | st
 
 async function materializeAttachments(inputs?: AttachmentInput[]): Promise<EmailAttachment[] | undefined> {
   if (!inputs) return undefined;
-  return Promise.all(inputs.map(async (input) => {
+  const prepared=inputs.map(input=>{
     if ((input.content === undefined) === (input.path === undefined)) throw new Error('Each attachment must provide exactly one of content or path');
-    const content = input.path ? await readFile(resolveAttachmentInputPath(DOWNLOAD_DIR, input.path)) : Buffer.from(input.content!, 'base64');
-    return { filename: input.filename, content, contentType: input.contentType, contentDisposition: input.contentDisposition, cid: input.cid };
-  }));
+    return {...input,path:input.path?resolveAttachmentInputPath(DOWNLOAD_DIR,input.path):undefined};
+  });
+  return materializeBoundedAttachments(prepared);
 }
 
 async function materializeOriginalAttachments(

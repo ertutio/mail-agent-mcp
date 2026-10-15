@@ -5,6 +5,7 @@ import { parseSerializedArray } from '../utils/array-input.js';
 import { assertCredentialsResolved } from '../utils/env-credentials.js';
 import { AccountAuthResolver, buildSmtpAuth } from '../credentials/account-auth.js';
 import { resolveMailProxy } from '../utils/mail-proxy.js';
+import {materializeBoundedAttachments,MAX_BODY_CHARS} from '../utils/mail-resource-limits.js';
 
 export class SmtpService {
   private transporters: Map<string, Transporter> = new Map();
@@ -150,7 +151,9 @@ export class SmtpService {
 
   // Build the raw RFC 822 message without sending. Used for drafts and Sent-folder copies.
   async composeRaw(account: ImapAccount, email: EmailComposer): Promise<Buffer> {
-    const compiled = new MailComposer(this.toMailOptions(account, email));
+    if((email.text?.length??0)>MAX_BODY_CHARS||(email.html?.length??0)>MAX_BODY_CHARS)throw new Error('Message body exceeds the processing limit');
+    const attachments=email.attachments?await materializeBoundedAttachments(email.attachments):undefined;
+    const compiled = new MailComposer(this.toMailOptions(account, {...email,attachments}));
     return compiled.compile().build();
   }
 

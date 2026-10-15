@@ -1,3 +1,5 @@
+import {MAX_MESSAGE_BYTES,MAX_BODY_CHARS,MAX_ATTACHMENT_COUNT,boundedSource,assertMessageSize} from '../utils/mail-resource-limits.js';
+import {extractPdfPreview} from '../utils/pdf-preview.js';
 import { ImapFlow } from 'imapflow';
 import { simpleParser } from 'mailparser';
 import { ImapAccount, EmailMessage, EmailContent, EmailBodyFormat, EmailLocation, Folder, SearchCriteria, SearchOptions, SentSaveResult, DEFAULT_BODY_MAX_LENGTH, DEFAULT_BODY_FORMAT, isSystemFlag } from '../types/index.js';
@@ -130,6 +132,7 @@ export interface MoveEmailBatchResult {
  * callers use it for plain string/regex matching (spam header analysis).
  */
 export function parseRawHeaders(raw: Buffer | string): Record<string, string> {
+  if(Buffer.byteLength(raw)>64*1024)throw new Error('Header processing limit exceeded');
   const text = typeof raw === 'string' ? raw : raw.toString('utf8');
   const headers: Record<string, string> = {};
   let current: { key: string; value: string } | null = null;
@@ -186,7 +189,7 @@ export class ImapService {
     const resolvedAuth = await this.authResolver.resolve(account, 'imap');
     const proxy = resolveMailProxy(process.env, account.host, account.auth?.provider);
 
-    const client = new ImapFlow({
+    const client = new ImapFlow({ maxLiteralSize: MAX_MESSAGE_BYTES + 1,
       host: account.host,
       port: account.port,
       secure: account.tls,
@@ -273,11 +276,17 @@ export class ImapService {
   }
 
   private async ensureConnected(accountId: string): Promise<ImapFlow> {
+    // A browser session can remove an account while this process has a live client.
+    const configuredAccount = this.accountManager?.getAccount(accountId);
+    if (this.accountManager && !configuredAccount) {
+      this.abortConnection(accountId);
+      throw new Error(`Account ${accountId} was removed or not found. Open the local browser setup to manage accounts.`);
+    }
     let state = this.connections.get(accountId);
     if (!state) {
       // Auto-connect using stored account credentials
       if (this.accountManager) {
-        const account = this.accountManager.getAccount(accountId);
+        const account = configuredAccount;
         if (account) {
           await this.connect(account);
           state = this.connections.get(accountId);
@@ -415,17 +424,18 @@ export class ImapService {
       if (!uids || uids.length === 0) {
         return [];
       }
+      if(uids.length>(includeBody?200:5000))throw new Error('Search processing limit exceeded; narrow filters or use resumable unified search');
 
       // Fetch envelopes + flags + internalDate, and — when includeBody — the
       // RFC822 source in the same round-trip (one `client.fetch` call).
-      // Including `source: true` lets us parse the body with mailparser
+      // Including `source: boundedSource, size: true` lets us parse the body with mailparser
       // without an extra fetch per message.
       const fetchQuery: any = {
         uid: true,
         envelope: true,
         flags: true,
         internalDate: true,
-        ...(includeBody ? { source: true } : {}),
+        ...(includeBody ? { source: boundedSource, size: true } : {}),
       };
 
       const messages: EmailMessage[] = [];
@@ -458,7 +468,7 @@ export class ImapService {
           messages.push(this.mergeBodyIntoMessage(base, rendered, options?.bodyFormat ?? DEFAULT_BODY_FORMAT));
         } catch {
           // Parsing one source failed — keep the headers, omit body fields.
-          messages.push(base);
+          messages.push({...base,bodyReadError: 'body_unavailable'});
         }
       }
 
@@ -476,6 +486,34 @@ export class ImapService {
    * fetch or parse message bodies — used for lightweight header analysis such
    * as spam indicator checks. UIDs with no headers returned are omitted.
    */
+  async searchEmailPage(accountId:string,folderName:string,criteria:SearchCriteria,cursor?:{beforeUid:number;uidValidity:number}):Promise<{messages:EmailMessage[];matched:number;nextCursor?:{beforeUid:number;uidValidity:number}}>{
+    const client=await this.ensureConnected(accountId);
+    const lock=await client.getMailboxLock(folderName);
+    try{
+      const mailbox=client.mailbox || undefined;
+      const status=mailbox?.uidNext&&mailbox?.uidValidity?mailbox:await client.status(folderName,{uidNext:true,uidValidity:true});
+      const validity=Number(status.uidValidity); const newest=Number(status.uidNext)-1;
+      if(!Number.isInteger(validity)||validity<=0||!Number.isInteger(newest)||newest<0)throw new Error('Missing mailbox pagination metadata');
+      if(cursor&&cursor.uidValidity!==validity)throw new Error('Mailbox UIDVALIDITY changed; restart the search');
+      const upper=cursor?.beforeUid??newest;
+      if(!Number.isInteger(upper)||upper<0||upper>0xffffffff)throw new Error('Invalid search cursor');
+      if(!upper)return {messages:[],matched:0};
+      const result=await client.search({...this.buildSearchQuery(criteria),uid:`1:${upper}`},{uid:true});
+      const candidates=result||[];
+      if(candidates.length>100000)throw new Error('Search UID processing limit exceeded; narrow filters');
+      if(candidates.some(uid=>!Number.isInteger(uid)||uid<1||uid>upper))throw new Error('Server violated bounded UID search');
+      const ordered=[...new Set(candidates)].sort((a,b)=>b-a);
+      const uids=ordered.slice(0,200);
+      const messages:EmailMessage[]=[];
+      if(uids.length){for await(const msg of client.fetch(uids,{uid:true,envelope:true,flags:true,internalDate:true},{uid:true})){
+        if(messages.length>=200)throw new Error('Server violated bounded message fetch');
+        const flags=Array.from(msg.flags||[]) as string[];
+        messages.push({uid:msg.uid,date:new Date(msg.internalDate||msg.envelope?.date||0),from:msg.envelope?.from?.[0]?this.formatAddress(msg.envelope.from[0]).slice(0,2048):'',to:(msg.envelope?.to||[]).slice(0,100).map(a=>this.formatAddress(a).slice(0,2048)),subject:(msg.envelope?.subject||'').slice(0,2000),messageId:(msg.envelope?.messageId||'').slice(0,2048),flags,customKeywords:flags.filter(f=>!isSystemFlag(f))});
+      }}
+      return {messages,matched:uids.length,...(ordered.length>uids.length?{nextCursor:{beforeUid:uids[uids.length-1]!-1,uidValidity:validity}}:{})};
+    }finally{lock.release();}
+  }
+
   async fetchHeadersForUids(
     accountId: string,
     folderName: string,
@@ -562,7 +600,7 @@ export class ImapService {
         envelope: true,
         flags: true,
         internalDate: true,
-        ...(includeBody ? { source: true } : {}),
+        ...(includeBody ? { source: boundedSource, size: true } : {}),
       };
 
       // Opening the mailbox already told us how many messages it holds, and
@@ -606,7 +644,7 @@ export class ImapService {
           messages.push(this.mergeBodyIntoMessage(base, rendered, options?.bodyFormat ?? DEFAULT_BODY_FORMAT));
         } catch {
           // One source failed to parse — keep the headers, drop the body.
-          messages.push(base);
+          messages.push({...base,bodyReadError: 'body_unavailable'});
         }
       }
 
@@ -638,12 +676,13 @@ export class ImapService {
     try {
       lock = await client.getMailboxLock(folderName);
 
-      const source = await client.fetchOne(uid, { source: true, flags: true }, { uid: true });
+      const source = await client.fetchOne(uid, { source: boundedSource, size: true, flags: true }, { uid: true });
 
       if (!source || !source.source) {
         throw new Error(`Email with UID ${uid} not found`);
       }
 
+      assertMessageSize(source.source,source.size);
       return await this.buildEmailContentFromSource(uid, source.source, source.flags, options);
     } finally {
       if (lock) {
@@ -679,7 +718,9 @@ export class ImapService {
       bodyMaxLength,
     } = options;
 
-    const parsed = await simpleParser(source);
+    assertMessageSize(source);
+    const parsed = await simpleParser(source,{skipHtmlToText:true,skipTextToHtml:true,maxHtmlLengthToParse:1024*1024});
+    if((parsed.attachments?.length??0)>MAX_ATTACHMENT_COUNT)throw new Error('Too many message attachments');
     const flagArray = Array.from(flags || []) as string[];
 
     const cap = (s: string | undefined): string | undefined => {
@@ -690,8 +731,9 @@ export class ImapService {
 
     // Body assembly per bodyFormat. The point is that raw HTML never crosses the boundary
     // unless explicitly requested via bodyFormat: 'html'.
-    const rawText = parsed.text || undefined;
+    const rawText = parsed.text?.slice(0,MAX_BODY_CHARS) || undefined;
     const rawHtml = parsed.html || undefined;
+    if(rawHtml&&(rawHtml.length>1024*1024||(rawHtml.match(/</g)?.length??0)>10000))throw new Error('HTML processing limit exceeded');
     let textContent: string | undefined;
     let htmlContent: string | undefined;
     let markdownContent: string | undefined;
@@ -714,7 +756,7 @@ export class ImapService {
         markdownContent = cleanText || undefined;
       }
       // Keep textContent for backward compatibility with consumers that still read it.
-      textContent = rawText;
+      textContent = cap(rawText);
       markdownContent = cap(markdownContent);
     }
 
@@ -759,6 +801,7 @@ export class ImapService {
       htmlContent,
       markdownContent,
       bodyFormat,
+      bodyResourceTruncated: (parsed.text?.length??0)>MAX_BODY_CHARS || undefined,
       attachments: await Promise.all((parsed.attachments || []).map(async (att: any) => {
         const filename = att.filename || 'unknown';
         const contentType = att.contentType || 'application/octet-stream';
@@ -785,20 +828,12 @@ export class ImapService {
         // Check if this is a PDF
         const isPdf = contentTypeLower === 'application/pdf' || pdfExtensions.some(ext => filenameLower.endsWith(ext));
 
-        if (isPdf && att?.content) {
+        if (isPdf && att?.content && att.content.length <= Math.min(maxAttachmentTextBytes,256*1024)) {
           try {
-            const { PDFParse } = await import('pdf-parse');
             const contentBuffer = Buffer.isBuffer(att.content) ? att.content : Buffer.from(att.content);
-            const pdfParser = new PDFParse({ data: contentBuffer });
-            let rawText: string;
-            try {
-              const pdfData = await pdfParser.getText({ pageJoiner: '' });
-              rawText = pdfData.text;
-            } finally {
-              await pdfParser.destroy();
-            }
-            const textTruncated = rawText.length > maxAttachmentTextChars;
-            const textContent = textTruncated ? rawText.slice(0, maxAttachmentTextChars) : rawText;
+            const preview=await extractPdfPreview(contentBuffer,Math.min(maxAttachmentTextChars,MAX_BODY_CHARS));
+            const textTruncated=preview.truncated;
+            const textContent=preview.text;
 
             return {
               ...attachment,
@@ -857,6 +892,7 @@ export class ImapService {
       // result when the message happened to only carry text/plain (markdown
       // mode returns textContent populated as a side-effect — preserve it).
       markdownContent: rendered.markdownContent,
+      bodyResourceTruncated:rendered.bodyResourceTruncated,
       textContent: rendered.textContent,
       ...(bodyFormat === 'html' ? { htmlContent: rendered.htmlContent } : {}),
       bodyFormat,
@@ -875,13 +911,14 @@ export class ImapService {
     try {
       lock = await client.getMailboxLock(folderName);
 
-      const source = await client.fetchOne(uid, { source: true }, { uid: true });
+      const source = await client.fetchOne(uid, { source: boundedSource, size: true }, { uid: true });
 
       if (!source || !source.source) {
         throw new Error(`Email with UID ${uid} not found`);
       }
 
-      const parsed = await simpleParser(source.source);
+      assertMessageSize(source.source,source.size);
+      const parsed = await simpleParser(source.source,{skipHtmlToText:true,skipTextToHtml:true,maxHtmlLengthToParse:1024*1024});
       const attachment = parsed.attachments?.find(
         (att: any) => att.filename === filename || att.contentId === filename
       );
@@ -1068,7 +1105,7 @@ export class ImapService {
    * to a non-existent `Trash` folder, deleted counter incremented, but
    * messages never actually leave the source folder.
    */
-  private async resolveTrashFolder(accountId: string): Promise<string | null> {
+  async resolveTrashFolder(accountId: string): Promise<string | null> {
     const client = await this.ensureConnected(accountId);
     const connState = this.connections.get(accountId);
     const isGmail = connState?.account?.host?.includes('gmail') || connState?.account?.host?.includes('google');
@@ -1139,9 +1176,13 @@ export class ImapService {
     folderName: string,
     uids: number[],
     chunkSize: number = 50,
-    onProgress?: (deleted: number, total: number) => void
+    onProgress?: (deleted: number, total: number) => void,
+    expectedUidValidity?:number,
+    expectedPermanent?:boolean,
   ): Promise<{ deleted: number; failed: number; errors: string[] }> {
-    const client = await this.ensureConnected(accountId);
+    if (!Number.isInteger(chunkSize) || chunkSize < 1 || chunkSize > 1000) throw new Error('chunkSize must be an integer from 1 to 1000');
+    if (!uids.every(uid => Number.isInteger(uid) && uid > 0 && uid <= 0xffffffff)) throw new Error('Invalid email UID');
+    let client = await this.ensureConnected(accountId);
     const trashFolder = await this.resolveTrashFolder(accountId);
     if (!trashFolder) {
       return {
@@ -1151,6 +1192,7 @@ export class ImapService {
       };
     }
     const isAlreadyInTrash = folderName === trashFolder;
+    if(expectedPermanent!==undefined&&isAlreadyInTrash!==expectedPermanent)throw new Error('Trash mapping changed during deletion; create a new preview');
 
     let deleted = 0;
     let failed = 0;
@@ -1163,9 +1205,13 @@ export class ImapService {
       let lock;
       try {
         // Ensure we're still connected before each chunk
-        await this.ensureConnected(accountId);
+        client=await this.ensureConnected(accountId);
 
         lock = await client.getMailboxLock(folderName);
+        if(expectedUidValidity!==undefined){
+          const status=await client.status(folderName,{uidValidity:true});
+          if(Number(status.uidValidity)!==expectedUidValidity)throw new Error('Mailbox UIDVALIDITY changed during deletion');
+        }
 
         // Use sequence set for bulk operations
         const uidSet = chunk.join(',');
@@ -1181,6 +1227,9 @@ export class ImapService {
           onProgress(deleted, uids.length);
         }
       } catch (err) {
+        if(err instanceof Error&&err.message==='Mailbox UIDVALIDITY changed during deletion'){
+          failed+=uids.length-i;errors.push(err.message);break;
+        }
         failed += chunk.length;
         errors.push(`Failed to delete UIDs ${chunk[0]}-${chunk[chunk.length - 1]}: ${err instanceof Error ? err.message : 'Unknown error'}`);
 
@@ -1449,7 +1498,7 @@ export class ImapService {
         envelope: true,
         flags: true,
         internalDate: true,
-        source: true,
+        source: boundedSource, size: true,
       };
       for await (const msg of client.fetch(sortedUids, fetchQuery, { uid: true })) {
         const flags = Array.from(msg.flags || []) as string[];
@@ -1549,7 +1598,7 @@ export class ImapService {
     }
     if (!folder) {
       const error = 'No Sent folder found: the server advertises no \\Sent SPECIAL-USE folder and no folder matched the known localized names. '
-        + 'Use imap_list_folders to find the right folder and set it as the account\'s sentFolder (imap_update_account).';
+        + 'Use imap_list_folders to find the right folder and configure sentFolder locally in the browser setup API.';
       console.warn(`[IMAP] ${error} (account ${accountId}; names tried: ${sentFolderNames.join(', ')})`);
       return { saved: false, errorCategory: 'folder_not_found', error };
     }
@@ -1650,7 +1699,8 @@ export class ImapService {
     if (!account.auth) assertCredentialsResolved(account, 'imap');
     const resolvedAuth = await this.authResolver.resolve(account, 'imap');
     const proxy = resolveMailProxy(process.env, account.host, account.auth?.provider);
-    const client = new ImapFlow({
+    const client = new ImapFlow({ maxLiteralSize: MAX_MESSAGE_BYTES + 1,
+      connectionTimeout: 30_000, greetingTimeout: 15_000, socketTimeout: 30_000,
       host: account.host,
       port: account.port,
       secure: account.tls,
@@ -1679,7 +1729,7 @@ export class ImapService {
     if (!account.auth) assertCredentialsResolved(account, 'imap');
     const resolvedAuth = await this.authResolver.resolve(account, 'imap');
     const proxy = resolveMailProxy(process.env, account.host, account.auth?.provider);
-    const testClient = new ImapFlow({
+    const testClient = new ImapFlow({ maxLiteralSize: MAX_MESSAGE_BYTES + 1,
       host: account.host,
       port: account.port,
       secure: account.tls,

@@ -9,6 +9,7 @@ import { folderTools } from './folder-tools.js';
 import { spamTools } from './spam-tools.js';
 import { safeSendTools } from './safe-send-tools.js';
 import { unifiedSearchTools } from './unified-search-tools.js';
+import { guardedDeletion } from './guarded-delete-tools.js';
 
 const BLOCKED_DIRECT_SEND_TOOLS = new Set([
   'imap_send_email',
@@ -147,12 +148,13 @@ export function registerTools(
   const seen = new Set<string>();
   const registered: string[] = [];
   const target = createFilteredServer(server, enabled, seen, registered);
+  const deletion = guardedDeletion(target, imapService);
 
-  // Register account management tools
-  accountTools(target, accountManager, imapService, smtpService);
+  // Account configuration writes are browser-only and have no MCP handlers.
+  accountTools(target, accountManager, imapService);
 
   // Register email operation tools
-  emailTools(target, imapService, accountManager, smtpService);
+  emailTools(deletion.server, deletion.imap, accountManager, smtpService);
   unifiedSearchTools(target, imapService, accountManager);
 
   safeSendTools(target, imapService, accountManager, smtpService);
@@ -161,7 +163,7 @@ export function registerTools(
   folderTools(target, imapService, accountManager);
 
   // Register spam detection and management tools
-  spamTools(target, imapService, spamService);
+  spamTools(deletion.server, deletion.imap, spamService);
 
   if (enabled) {
     // Log to stderr only — stdout is the JSON-RPC channel.

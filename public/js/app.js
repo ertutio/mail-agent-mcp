@@ -1,679 +1,221 @@
-// Email providers data
-let providers = [];
-let selectedProvider = null;
-let currentStep = 1;
-
-// Initialize
-document.addEventListener('DOMContentLoaded', async () => {
-    await loadProviders();
-    renderProviders();
-    
-    // Setup form handler
-    document.getElementById('accountForm').onsubmit = handleAccountSubmit;
-    
-    // Clear test results when form fields change
-    const formFields = ['email', 'password', 'imapHost', 'imapPort'];
-    formFields.forEach(fieldId => {
-        document.getElementById(fieldId).addEventListener('input', () => {
-            document.getElementById('inlineTestResult').classList.add('hidden');
-            document.getElementById('inlineTestSuccess').classList.add('hidden');
-            document.getElementById('inlineTestError').classList.add('hidden');
-        });
-    });
-
-    // Keep the env var names shown in the "Do not save" labels in sync with the
-    // account name.
-    document.getElementById('accountName').addEventListener('input', updateEnvVarNames);
-    updateEnvVarNames();
-});
-
-// Maps each "do not save" field to its env var suffix and the label span that
-// displays the resulting variable name.
-const ENV_VAR_FIELDS = [
-    { varSpan: 'imapUsernameFromEnvVar', suffix: '_IMAP_USERNAME' },
-    { varSpan: 'imapPasswordFromEnvVar', suffix: '_IMAP_PASSWORD' },
-    { varSpan: 'smtpUsernameFromEnvVar', suffix: '_SMTP_USERNAME' },
-    { varSpan: 'smtpPasswordFromEnvVar', suffix: '_SMTP_PASSWORD' }
-];
-
-// Build the env var name for an account. This is served as a static asset, so
-// it cannot import the server module — keep it in sync with envVarName() in
-// src/utils/env-credentials.ts (uppercase, every non-alphanumeric character
-// replaced by "_"). Falls back to a <ACCOUNT_NAME> placeholder until an account
-// name is entered.
-function envVarName(accountName, suffix) {
-    const key = (accountName || '').toUpperCase().replace(/[^A-Z0-9]/g, '_') || '<ACCOUNT_NAME>';
-    return `IMAP_MCP_ACCOUNT_${key}${suffix}`;
+'use strict';
+let setupSession = '';
+try {
+  const token = new URLSearchParams(window.location.hash.slice(1)).get('session');
+  if (token) {
+    setupSession = token;
+    window.history.replaceState(null, '', window.location.pathname);
+    sessionStorage.setItem('mail-agent-setup-session', token);
+  } else setupSession = sessionStorage.getItem('mail-agent-setup-session') || '';
+} catch { /* The initial fragment still works when browser storage is disabled. */ }
+const $ = id => document.getElementById(id);
+let busy = false;
+let sessionExpired = false;
+let secureAvailable = true;
+let pendingJob = '';
+let oauthConfig;
+let selectedRemoval;
+async function setupFetch(url, options = {}) {
+  const response = await fetch(url, { ...options, headers: {
+    'content-type': 'application/json', ...options.headers, 'x-mail-agent-session': setupSession,
+  }, cache: 'no-store' });
+  if (response.status === 403) {
+    sessionExpired = true;
+    try { sessionStorage.removeItem('mail-agent-setup-session'); } catch { /* optional storage */ }
+    throw new Error('配置会话已失效。请重新打开本机新增邮箱入口。');
+  }
+  const body = await response.json();
+  if (!response.ok) throw new Error(body.error || '操作失败，请重试。');
+  return body;
 }
-
-// Fill each label's variable-name span from the current account name.
-function updateEnvVarNames() {
-    const accountName = document.getElementById('accountName').value;
-    ENV_VAR_FIELDS.forEach(({ varSpan, suffix }) => {
-        const el = document.getElementById(varSpan);
-        if (el) el.textContent = envVarName(accountName, suffix);
-    });
+function feedback(message, kind = 'info') {
+  $('feedback').textContent = message;
+  $('feedback').dataset.kind = kind;
+  $('feedback').hidden = false;
 }
-
-// Load providers from API
-async function loadProviders() {
-    try {
-        const response = await fetch('/api/providers');
-        providers = await response.json();
-    } catch (error) {
-        console.error('Failed to load providers:', error);
-    }
+function clearSecrets() {
+  $('authorization-code').value = '';
+  $('authorization-code').type = 'password';
+  $('show-secret').textContent = '显示';
+  $('show-secret').setAttribute('aria-pressed', 'false');
+  $('show-secret').setAttribute('aria-label', '显示授权码');
+  $('client-id').value = '';
+  $('client-secret').value = '';
+  $('oauth-file').value = '';
+  $('file-label').textContent = '选择桌面应用 JSON 文件';
+  oauthConfig = undefined;
 }
-
-// Render provider grid
-function renderProviders() {
-    const grid = document.getElementById('providerGrid');
-    grid.innerHTML = providers.map(provider => `
-        <div class="provider-card bg-white rounded-lg shadow p-4 cursor-pointer hover:shadow-lg border-l-4" onclick="selectProvider('${provider.id}')" style="border-left-color: ${provider.color}">
-            <div class="text-center">
-                <div class="h-12 w-12 mx-auto mb-2 rounded-lg flex items-center justify-center p-2" style="background-color: ${provider.color}15;">
-                    <img src="${provider.iconUrl}" alt="${provider.name}" class="w-full h-full object-contain" style="filter: brightness(0) saturate(100%) invert(0)" 
-                         onload="this.style.filter = 'none'" 
-                         onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-                    <div class="w-full h-full items-center justify-center text-sm font-bold text-white rounded" style="display:none; background-color: ${provider.color};">
-                        ${provider.name.charAt(0)}
-                    </div>
-                </div>
-                <h3 class="font-medium text-gray-900">${provider.displayName}</h3>
-                ${provider.domains.length > 0 ? `<p class="text-sm text-gray-500 mt-1">${provider.domains[0]}</p>` : ''}
-            </div>
-        </div>
-    `).join('');
+function updateProvider() {
+  clearSecrets();
+  const provider = $('provider').value;
+  const gmail = provider === 'gmail';
+  const other = provider === 'other';
+  $('gmail-fields').hidden = !gmail;
+  $('password-fields').hidden = gmail;
+  $('generic-fields').hidden = !other;
+  $('enterprise-hint').hidden = provider !== 'netease-enterprise';
+  $('authorization-code').required = !gmail;
+  $('imap-host').required = other;
+  $('email').placeholder = { qq: 'name@qq.com', '163': 'name@163.com', '126': 'name@126.com', yeah: 'name@yeah.net', gmail: 'name@gmail.com' }[provider] || 'name@company.com';
+  $('submit-label').textContent = gmail ? '继续 Google 授权' : '验证并添加';
+  $('privacy-text').textContent = other ? '密码加密保存在本机账号目录，不发送给聊天模型。' : '凭据保存在本机系统凭据库，不发送给聊天模型。';
+  $('password-hint').textContent = other ? '填写服务商提供的应用密码或客户端授权码。' : '在邮箱设置中开启 IMAP，并生成客户端授权码。';
+  $('submit-button').disabled = !secureAvailable && !other;
 }
-
-// Select provider
-function selectProvider(providerId) {
-    selectedProvider = providers.find(p => p.id === providerId);
-    goToStep(2);
-    
-    // Pre-fill advanced settings
-    if (selectedProvider) {
-        document.getElementById('imapHost').value = selectedProvider.imapHost;
-        document.getElementById('imapPort').value = selectedProvider.imapPort;
-        
-        // Reset SMTP settings
-        document.getElementById('enableSmtp').checked = false;
-        document.getElementById('smtpSettings').classList.add('hidden');
-        document.getElementById('smtpSameAuth').checked = true;
-        document.getElementById('smtpAuthFields').classList.add('hidden');
-        
-        // Update password help text
-        const passwordHelp = document.getElementById('passwordHelp');
-        if (selectedProvider.requiresAppPassword) {
-            passwordHelp.innerHTML = `<span class="mr-1">ℹ️</span>${selectedProvider.notes || 'This provider requires an app-specific password.'}`;
-            if (selectedProvider.helpUrl) {
-                passwordHelp.innerHTML += ` <a href="${selectedProvider.helpUrl}" target="_blank" class="text-blue-600 hover:underline">Learn more</a>`;
-            }
-        } else {
-            passwordHelp.textContent = '';
-        }
-    }
-}
-
-// Navigation
-function goToStep(step) {
-    currentStep = step;
-    
-    // Hide all steps
-    document.getElementById('providerSelection').classList.add('hidden');
-    document.getElementById('credentialsForm').classList.add('hidden');
-    document.getElementById('testConnection').classList.add('hidden');
-    document.getElementById('accountsList').classList.add('hidden');
-    
-    // Update step indicators
-    for (let i = 1; i <= 3; i++) {
-        const stepEl = document.getElementById(`step${i}`);
-        const circle = stepEl.querySelector('.step-circle');
-        
-        if (i < step) {
-            stepEl.classList.remove('step-inactive');
-            circle.classList.add('bg-green-600', 'text-white');
-            circle.classList.remove('bg-gray-300', 'text-gray-600', 'bg-blue-600');
-            circle.innerHTML = '✓';
-        } else if (i === step) {
-            stepEl.classList.remove('step-inactive');
-            circle.classList.add('bg-blue-600', 'text-white');
-            circle.classList.remove('bg-gray-300', 'text-gray-600', 'bg-green-600');
-            circle.textContent = i;
-        } else {
-            stepEl.classList.add('step-inactive');
-            circle.classList.add('bg-gray-300', 'text-gray-600');
-            circle.classList.remove('bg-blue-600', 'text-white', 'bg-green-600');
-            circle.textContent = i;
-        }
-    }
-    
-    // Show current step
-    switch(step) {
-        case 1:
-            document.getElementById('providerSelection').classList.remove('hidden');
-            break;
-        case 2:
-            document.getElementById('credentialsForm').classList.remove('hidden');
-            break;
-        case 3:
-            document.getElementById('testConnection').classList.remove('hidden');
-            break;
-    }
-}
-
-// Handle account update
-async function handleAccountUpdate(e) {
-    e.preventDefault();
-    
-    const imapUsername = document.getElementById('imapUsername').value.trim();
-    const accountData = {
-        name: document.getElementById('accountName').value,
-        email: document.getElementById('email').value,
-        password: document.getElementById('password').value,
-        host: document.getElementById('imapHost').value,
-        port: parseInt(document.getElementById('imapPort').value),
-        tls: selectedProvider?.imapSecurity !== 'STARTTLS',
-        saveToSent: document.getElementById('saveToSent').checked,
-        imapUsername: imapUsername || undefined,
-        imapUsernameFromEnv: document.getElementById('imapUsernameFromEnv').checked,
-        imapPasswordFromEnv: document.getElementById('imapPasswordFromEnv').checked
-    };
-
-    // Only include password if it was changed (unless it is env-managed, which
-    // stores an empty placeholder explicitly).
-    if (!accountData.password && !accountData.imapPasswordFromEnv) {
-        delete accountData.password;
-    }
-
-    goToStep(3);
-    await updateAndTestAccount(window.editingAccountId, accountData);
-}
-
-// Handle account form submission
-async function handleAccountSubmit(e) {
-    e.preventDefault();
-
-    const password = document.getElementById('password').value;
-    if (!password) {
-        document.getElementById('inlineTestResult').classList.remove('hidden');
-        document.getElementById('inlineTestSuccess').classList.add('hidden');
-        document.getElementById('inlineTestError').classList.remove('hidden');
-        document.getElementById('inlineErrorMessage').textContent = 'Please enter a password.';
-        return;
-    }
-
-    const imapUsername = document.getElementById('imapUsername').value.trim();
-    const accountData = {
-        name: document.getElementById('accountName').value,
-        email: document.getElementById('email').value,
-        password: document.getElementById('password').value,
-        host: document.getElementById('imapHost').value,
-        port: parseInt(document.getElementById('imapPort').value),
-        tls: selectedProvider?.imapSecurity !== 'STARTTLS',
-        saveToSent: document.getElementById('saveToSent').checked,
-        imapUsername: imapUsername || undefined,
-        // "Do not save to config" flags — the typed value is still used for the
-        // connection test, it just isn't persisted to accounts.json.
-        imapUsernameFromEnv: document.getElementById('imapUsernameFromEnv').checked,
-        imapPasswordFromEnv: document.getElementById('imapPasswordFromEnv').checked
-    };
-
-    // Add SMTP configuration if enabled
-    if (document.getElementById('enableSmtp').checked) {
-        accountData.smtp = {
-            host: document.getElementById('smtpHost').value,
-            port: parseInt(document.getElementById('smtpPort').value) || 587,
-            secure: document.getElementById('smtpSecure').checked
-        };
-
-        // Add SMTP auth if not using same credentials
-        if (!document.getElementById('smtpSameAuth').checked) {
-            accountData.smtp.user = document.getElementById('smtpUser').value;
-            accountData.smtp.password = document.getElementById('smtpPassword').value;
-            accountData.smtpUsernameFromEnv = document.getElementById('smtpUsernameFromEnv').checked;
-            accountData.smtpPasswordFromEnv = document.getElementById('smtpPasswordFromEnv').checked;
-        }
-    }
-    
-    // Auto-detect provider if not selected
-    if (!selectedProvider || selectedProvider.id === 'custom') {
-        const domain = (accountData.email || '').split('@')[1]?.toLowerCase();
-        const detectedProvider = domain
-            ? providers.find(p => p.domains.some(d => domain.endsWith(d)))
-            : undefined;
-        if (detectedProvider) {
-            accountData.host = detectedProvider.imapHost;
-            accountData.port = detectedProvider.imapPort;
-            accountData.tls = detectedProvider.imapSecurity !== 'STARTTLS';
-        }
-    }
-    
-    goToStep(3);
-    await testAndSaveAccount(accountData);
-}
-
-// Update and test account
-async function updateAndTestAccount(accountId, accountData) {
-    // Show loading
-    document.getElementById('testProgress').classList.remove('hidden');
-    document.getElementById('testSuccess').classList.add('hidden');
-    document.getElementById('testError').classList.add('hidden');
-    
-    try {
-        // Test connection with new data
-        const testResponse = await fetch('/api/test-connection', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                ...accountData,
-                // If no password provided, we need to test with existing one
-                password: accountData.password || 'use-existing'
-            })
-        });
-        
-        const testResult = await testResponse.json();
-        
-        if (!testResult.success && accountData.password) {
-            throw new Error(testResult.error || 'Connection test failed');
-        }
-        
-        // Update account
-        const updateResponse = await fetch(`/api/accounts/${accountId}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(accountData)
-        });
-        
-        const updateResult = await updateResponse.json();
-        
-        if (!updateResult.success) {
-            throw new Error(updateResult.error || 'Failed to update account');
-        }
-        
-        // Show success
-        document.getElementById('testProgress').classList.add('hidden');
-        document.getElementById('testSuccess').classList.remove('hidden');
-        
-        // Update success message
-        const successMsg = document.querySelector('#testSuccess h3');
-        successMsg.textContent = 'Account updated successfully!';
-        
-        // Reset edit mode
-        window.editingAccountId = null;
-        document.getElementById('accountForm').onsubmit = handleAccountSubmit;
-        
-    } catch (error) {
-        // Show error
-        document.getElementById('testProgress').classList.add('hidden');
-        document.getElementById('testError').classList.remove('hidden');
-        document.getElementById('errorMessage').textContent = error.message;
-    }
-}
-
-// Test and save account
-async function testAndSaveAccount(accountData) {
-    // Show loading
-    document.getElementById('testProgress').classList.remove('hidden');
-    document.getElementById('testSuccess').classList.add('hidden');
-    document.getElementById('testError').classList.add('hidden');
-    
-    try {
-        // Test connection
-        const testResponse = await fetch('/api/test-connection', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(accountData)
-        });
-        
-        const testResult = await testResponse.json();
-        
-        if (!testResult.success) {
-            throw new Error(testResult.error || 'Connection test failed');
-        }
-        
-        // Save account
-        const saveResponse = await fetch('/api/accounts', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(accountData)
-        });
-        
-        const saveResult = await saveResponse.json();
-        
-        if (!saveResult.success) {
-            throw new Error(saveResult.error || 'Failed to save account');
-        }
-        
-        // Show success
-        document.getElementById('testProgress').classList.add('hidden');
-        document.getElementById('testSuccess').classList.remove('hidden');
-        
-    } catch (error) {
-        // Show error
-        document.getElementById('testProgress').classList.add('hidden');
-        document.getElementById('testError').classList.remove('hidden');
-        document.getElementById('errorMessage').textContent = error.message;
-    }
-}
-
-// View accounts
 async function viewAccounts() {
-    document.getElementById('providerSelection').classList.add('hidden');
-    document.getElementById('credentialsForm').classList.add('hidden');
-    document.getElementById('testConnection').classList.add('hidden');
-    document.getElementById('accountsList').classList.remove('hidden');
-    
-    try {
-        const response = await fetch('/api/accounts');
-        const accounts = await response.json();
-        
-        const table = document.getElementById('accountsTable');
-        if (accounts.length === 0) {
-            table.innerHTML = '<p class="text-gray-500 text-center py-8">No accounts configured yet.</p>';
-        } else {
-            table.innerHTML = `
-                <table class="w-full">
-                    <thead>
-                        <tr class="border-b">
-                            <th class="text-left pb-2">Name</th>
-                            <th class="text-left pb-2">Email</th>
-                            <th class="text-left pb-2">Server</th>
-                            <th class="text-left pb-2">Status</th>
-                            <th class="text-right pb-2">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${accounts.map(account => `
-                            <tr class="border-b">
-                                <td class="py-3">${account.name}</td>
-                                <td class="py-3">${account.user}</td>
-                                <td class="py-3">${account.host}</td>
-                                <td class="py-3">
-                                    <span class="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">Active</span>
-                                </td>
-                                <td class="py-3 text-right">
-                                    <button onclick="editAccount('${account.id}')" class="text-blue-600 hover:text-blue-800 mr-2">
-                                        ✏️
-                                    </button>
-                                    <button onclick="removeAccount('${account.id}')" class="text-red-600 hover:text-red-800">
-                                        🗑️
-                                    </button>
-                                </td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-            `;
-        }
-    } catch (error) {
-        console.error('Failed to load accounts:', error);
-    }
+  const accounts = await setupFetch('/api/accounts');
+  const list = $('account-list');
+  list.replaceChildren();
+  $('account-count').textContent = String(accounts.length);
+  if (!accounts.length) {
+    const empty = document.createElement('p'); empty.className = 'empty';
+    empty.textContent = '还没有添加邮箱。\n从左侧开始连接第一个账号。'; list.append(empty);
+    return;
+  }
+  for (const account of accounts) {
+    const row = document.createElement('div'); row.className = 'account-row';
+    const avatar = document.createElement('span'); avatar.className = 'account-avatar'; avatar.setAttribute('aria-hidden', 'true');
+    avatar.textContent = account.auth?.provider === 'gmail' ? 'G' : account.host?.includes('qq.com') ? 'QQ' : account.auth?.provider === 'netease' ? 'N' : '@';
+    const copy = document.createElement('div'); copy.className = 'account-copy';
+    const name = document.createElement('p'); name.className = 'account-name'; name.textContent = account.name; name.title = account.name;
+    const email = document.createElement('p'); email.className = 'account-email'; email.textContent = account.email || account.user; email.title = email.textContent;
+    const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'remove-account';
+    remove.textContent = '移除'; remove.setAttribute('aria-label', '移除邮箱连接：' + account.name);
+    remove.disabled = busy || sessionExpired;
+    remove.addEventListener('click', () => showRemoval(account));
+    copy.append(name, email); row.append(avatar, copy, remove); list.append(row);
+  }
 }
-
-// Edit account
-async function editAccount(accountId) {
-    try {
-        // Get account details
-        const response = await fetch(`/api/accounts/${accountId}`);
-        const result = await response.json();
-        
-        if (!result.success) {
-            throw new Error(result.error || 'Failed to load account');
-        }
-        
-        const account = result.account;
-        
-        // Store editing account ID
-        window.editingAccountId = accountId;
-        
-        // Clear any stale validation messages
-        document.getElementById('inlineTestResult').classList.add('hidden');
-        document.getElementById('inlineTestSuccess').classList.add('hidden');
-        document.getElementById('inlineTestError').classList.add('hidden');
-
-        // Pre-fill form with account data
-        document.getElementById('accountName').value = account.name || '';
-        document.getElementById('email').value = account.email || account.user || '';
-        document.getElementById('password').value = ''; // Don't pre-fill password
-        document.getElementById('password').placeholder = 'Leave blank to keep current password';
-        document.getElementById('imapHost').value = account.host || '';
-        document.getElementById('imapPort').value = account.port || 993;
-        document.getElementById('imapUsername').value = account.email ? account.user : '';
-        document.getElementById('saveToSent').checked = account.saveToSent !== false;
-
-        // Pre-fill SMTP settings if available
-        if (account.smtp) {
-            document.getElementById('enableSmtp').checked = true;
-            document.getElementById('smtpSettings').classList.remove('hidden');
-            document.getElementById('smtpHost').value = account.smtp.host || '';
-            document.getElementById('smtpPort').value = account.smtp.port || 587;
-            document.getElementById('smtpSecure').checked = account.smtp.secure || false;
-            
-            // Check if using different auth
-            if (account.smtp.user && account.smtp.user !== account.user) {
-                document.getElementById('smtpSameAuth').checked = false;
-                document.getElementById('smtpAuthFields').classList.remove('hidden');
-                document.getElementById('smtpUser').value = account.smtp.user;
-                document.getElementById('smtpPassword').value = '';
-                document.getElementById('smtpPassword').placeholder = 'Leave blank to keep current password';
-            } else {
-                document.getElementById('smtpSameAuth').checked = true;
-                document.getElementById('smtpAuthFields').classList.add('hidden');
-            }
-        } else {
-            document.getElementById('enableSmtp').checked = false;
-            document.getElementById('smtpSettings').classList.add('hidden');
-        }
-        
-        // Try to detect provider (use email; fall back to user, which may not contain a domain)
-        const detectEmail = account.email || account.user || '';
-        const domain = detectEmail.split('@')[1]?.toLowerCase();
-        const detectedProvider = domain
-            ? providers.find(p => p.domains.some(d => domain.endsWith(d)))
-            : undefined;
-        selectedProvider = detectedProvider || providers.find(p => p.id === 'custom');
-        
-        // Show credentials form
-        goToStep(2);
-        
-        // Update form submit handler for edit mode
-        document.getElementById('accountForm').onsubmit = handleAccountUpdate;
-        
-        // Add a visual indicator that we're editing
-        const formTitle = document.querySelector('#credentialsForm h2');
-        formTitle.textContent = 'Edit account details';
-        
-        // Show test button in edit mode
-        document.getElementById('testButton').classList.remove('hidden');
-        
-        // Update submit button text
-        const submitButton = document.querySelector('#accountForm button[type="submit"]');
-        submitButton.innerHTML = 'Save Changes<span class="ml-2">→</span>';
-        
-        // Add cancel edit button
-        const backButton = document.querySelector('#credentialsForm button[onclick="goToStep(1)"]');
-        backButton.innerHTML = '<span class="mr-2">✕</span>Cancel';
-        backButton.onclick = () => {
-            window.editingAccountId = null;
-            document.getElementById('accountForm').onsubmit = handleAccountSubmit;
-            viewAccounts();
-        };
-        
-    } catch (error) {
-        alert('Failed to load account: ' + error.message);
-    }
+function showRemoval(account) {
+  if (busy || sessionExpired) return;
+  selectedRemoval = { id: account.id, name: account.name, email: account.email || account.user };
+  $('remove-name').textContent = selectedRemoval.name;
+  $('remove-email').textContent = selectedRemoval.email;
+  $('remove-error').hidden = true;
+  $('remove-dialog').showModal();
 }
-
-// Remove account
-async function removeAccount(accountId) {
-    if (!confirm('Are you sure you want to remove this account?')) return;
-    
-    try {
-        await fetch(`/api/accounts/${accountId}`, { method: 'DELETE' });
-        viewAccounts(); // Refresh list
-    } catch (error) {
-        alert('Failed to remove account: ' + error.message);
-    }
+async function confirmRemoval() {
+  if (busy || sessionExpired || !selectedRemoval) return;
+  const account = selectedRemoval;
+  setBusy(true);
+  $('remove-error').hidden = true;
+  $('confirm-remove').textContent = '正在移除…';
+  try {
+    await setupFetch('/api/accounts/' + encodeURIComponent(account.id), { method: 'DELETE', body: JSON.stringify({ confirmed: true, name: account.name, email: account.email }) });
+    $('remove-dialog').close(); selectedRemoval = undefined;
+    feedback('邮箱连接及对应凭据已移除，邮箱中的邮件未改动。', 'success');
+    try { await viewAccounts(); } catch { feedback('邮箱连接已移除，但列表刷新失败。请重新打开配置入口。', 'success'); }
+    ($('enrollment-form').hidden ? $('add-another') : $('provider')).focus();
+  } catch (error) {
+    $('remove-error').textContent = error.message === 'Failed to fetch' ? '无法连接本机服务，请重新打开配置入口。' : error.message;
+    $('remove-error').hidden = false;
+  } finally { setBusy(false); $('confirm-remove').textContent = '确认移除'; }
 }
-
-// Test current settings
-async function testCurrentSettings() {
-    // Hide previous results
-    document.getElementById('inlineTestResult').classList.remove('hidden');
-    document.getElementById('inlineTestSuccess').classList.add('hidden');
-    document.getElementById('inlineTestError').classList.add('hidden');
-    
-    // Get current form values
-    const imapUsername = document.getElementById('imapUsername').value.trim();
-    const accountData = {
-        name: document.getElementById('accountName').value,
-        email: document.getElementById('email').value,
-        password: document.getElementById('password').value,
-        host: document.getElementById('imapHost').value,
-        port: parseInt(document.getElementById('imapPort').value),
-        tls: selectedProvider?.imapSecurity !== 'STARTTLS',
-        imapUsername: imapUsername || undefined
-    };
-    
-    // If editing and no password provided, we can't test
-    if (window.editingAccountId && !accountData.password) {
-        document.getElementById('inlineTestError').classList.remove('hidden');
-        document.getElementById('inlineErrorMessage').textContent = '❌ Please enter a password to test the connection';
-        return;
-    }
-    
-    // Disable test button during test
-    const testButton = document.getElementById('testButton');
-    const originalText = testButton.innerHTML;
-    testButton.disabled = true;
-    testButton.innerHTML = '<span class="mr-2">⏳</span>Testing...';
-    
-    try {
-        const response = await fetch('/api/test-connection', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(accountData)
-        });
-        
-        const result = await response.json();
-        
-        if (result.success) {
-            document.getElementById('inlineTestSuccess').classList.remove('hidden');
-        } else {
-            document.getElementById('inlineTestError').classList.remove('hidden');
-            document.getElementById('inlineErrorMessage').textContent = '❌ ' + (result.error || 'Connection failed');
-        }
-    } catch (error) {
-        document.getElementById('inlineTestError').classList.remove('hidden');
-        document.getElementById('inlineErrorMessage').textContent = '❌ ' + error.message;
-    } finally {
-        // Re-enable test button
-        testButton.disabled = false;
-        testButton.innerHTML = originalText;
-    }
+function setBusy(value) {
+  busy = value;
+  $('fields').disabled = value || sessionExpired;
+  document.querySelectorAll('.remove-account').forEach(button => { button.disabled = value || sessionExpired; });
+  $('add-another').disabled = value || sessionExpired;
+  $('confirm-remove').disabled = value || sessionExpired;
+  $('cancel-remove').disabled = value;
+  $('enrollment-form').setAttribute('aria-busy', String(value));
+  $('submit-label').textContent = value ? '正在验证…' : $('provider').value === 'gmail' ? '继续 Google 授权' : '验证并添加';
 }
-
-// UI helpers
-function togglePassword() {
-    const input = document.getElementById('password');
-    const icon = document.getElementById('passwordToggle');
-    
-    if (input.type === 'password') {
-        input.type = 'text';
-        icon.textContent = '🙈';
+async function finishEnrollment() {
+  clearSecrets();
+  feedback('邮箱已验证并添加。现在可以在聊天中搜索这个邮箱。', 'success');
+  $('enrollment-form').hidden = true;
+  $('add-another').hidden = false;
+  $('add-another').focus();
+  try { await viewAccounts(); } catch { feedback('邮箱已添加，但账号列表刷新失败。请重新打开配置入口。', 'success'); }
+}
+async function pollGmail(id) {
+  pendingJob = id;
+  for (let attempt = 0; attempt < 240; attempt++) {
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    const job = await setupFetch('/api/enroll/gmail/' + encodeURIComponent(id));
+    if (job.status === 'success') { pendingJob = ''; await finishEnrollment(); return; }
+    if (job.status === 'error') { pendingJob = ''; throw new Error(job.message); }
+    feedback(job.message);
+  }
+  pendingJob = '';
+  throw new Error('等待授权超时，请完成 Google 授权后重新打开配置入口检查账号列表。');
+}
+async function submit(event) {
+  event.preventDefault();
+  if (busy || sessionExpired) return;
+  $('feedback').hidden = true;
+  const provider = $('provider').value;
+  const identity = { email: $('email').value.trim(), ...($('name').value.trim() ? { name: $('name').value.trim() } : {}) };
+  setBusy(true);
+  try {
+    if (provider === 'gmail') {
+      const config = oauthConfig || { clientId: $('client-id').value.trim(), clientSecret: $('client-secret').value.trim() };
+      if (!config.clientId || !config.clientSecret) throw new Error('请先选择 Google OAuth 桌面应用 JSON 文件，或手动填写配置。');
+      const job = await setupFetch('/api/enroll/gmail/start', { method: 'POST', body: JSON.stringify({ ...identity, ...config }) });
+      clearSecrets();
+      feedback('请在 Google 页面完成授权，然后返回此页等待验证。');
+      $('submit-label').textContent = '等待 Google 授权…';
+      await pollGmail(job.id);
+    } else if (provider === 'other') {
+      const host = $('imap-host').value.trim();
+      const smtpHost = $('smtp-host').value.trim();
+      if (!host || /[\s/:]/.test(host) || (smtpHost && /[\s/:]/.test(smtpHost))) throw new Error('请填写服务器主机名，不包含协议、路径或端口。');
+      const account = { ...identity, name: identity.name || identity.email, host, port: 993, tls: true, password: $('authorization-code').value,
+        ...(smtpHost ? { smtp: { host: smtpHost, port: 465, secure: true, user: identity.email, password: $('authorization-code').value } } : {}) };
+      const test = await setupFetch('/api/test-connection', { method: 'POST', body: JSON.stringify({ ...account, user: identity.email }) });
+      if (!test.success) throw new Error('连接验证失败，请检查服务器和应用密码。');
+      await setupFetch('/api/accounts', { method: 'POST', body: JSON.stringify(account) });
+      await finishEnrollment();
     } else {
-        input.type = 'password';
-        icon.textContent = '👁️';
+      await setupFetch('/api/enroll', { method: 'POST', body: JSON.stringify({ ...identity, provider, authorizationCode: $('authorization-code').value }) });
+      await finishEnrollment();
     }
+  } catch (error) { feedback(error.message === 'Failed to fetch' ? '无法连接本机配置服务。请重新打开新增邮箱入口。' : error.message, 'error'); }
+  finally { pendingJob = ''; setBusy(false); }
 }
-
-function toggleAdvanced() {
-    const advanced = document.getElementById('advancedSettings');
-    advanced.classList.toggle('hidden');
+async function importOAuthFile(file) {
+  oauthConfig = undefined;
+  if (!file) return;
+  if (file.size > 1024 * 1024) throw new Error('文件过大，请选择 Google Cloud 下载的 OAuth JSON 文件。');
+  let config;
+  try { config = JSON.parse(await file.text()).installed; }
+  catch { throw new Error('无法读取 JSON 配置，请重新选择 Google Cloud 下载的文件。'); }
+  if (!config || typeof config.client_id !== 'string' || typeof config.client_secret !== 'string') throw new Error('请选择“桌面应用”类型的 OAuth JSON 配置。');
+  oauthConfig = { clientId: config.client_id, clientSecret: config.client_secret };
+  $('file-label').textContent = file.name;
+  $('client-id').value = ''; $('client-secret').value = '';
+  $('feedback').hidden = true;
 }
-
-function toggleSmtpSettings() {
-    const enabled = document.getElementById('enableSmtp').checked;
-    const smtpSettings = document.getElementById('smtpSettings');
-    
-    if (enabled) {
-        smtpSettings.classList.remove('hidden');
-        // Auto-fill SMTP settings based on IMAP if provider is selected
-        if (selectedProvider) {
-            const smtpHost = document.getElementById('smtpHost');
-            const smtpPort = document.getElementById('smtpPort');
-            
-            if (!smtpHost.value) {
-                // Convert IMAP host to SMTP host
-                smtpHost.value = selectedProvider.imapHost.replace('imap.', 'smtp.').replace('imap-', 'smtp-');
-            }
-            if (!smtpPort.value) {
-                smtpPort.value = '587'; // Default SMTP port
-            }
-        }
-    } else {
-        smtpSettings.classList.add('hidden');
-    }
-}
-
-function toggleSmtpAuth() {
-    const sameAuth = document.getElementById('smtpSameAuth').checked;
-    const authFields = document.getElementById('smtpAuthFields');
-    
-    if (sameAuth) {
-        authFields.classList.add('hidden');
-    } else {
-        authFields.classList.remove('hidden');
-    }
-}
-
-function showProviderSelection() {
-    // Reset form and edit mode
-    document.getElementById('accountForm').reset();
-    document.getElementById('password').placeholder = '';
-    window.editingAccountId = null;
-    document.getElementById('accountForm').onsubmit = handleAccountSubmit;
-    selectedProvider = null;
-    
-    // Reset form title
-    const formTitle = document.querySelector('#credentialsForm h2');
-    formTitle.textContent = 'Enter your account details';
-    
-    // Reset back button
-    const backButton = document.querySelector('#credentialsForm button[onclick*="goToStep"]');
-    if (backButton) {
-        backButton.innerHTML = '<span class="mr-2">←</span>Back';
-        backButton.onclick = () => goToStep(1);
-    }
-    
-    // Reset submit button text
-    const submitButton = document.querySelector('#accountForm button[type="submit"]');
-    if (submitButton) {
-        submitButton.innerHTML = 'Continue<span class="ml-2">→</span>';
-    }
-    
-    // Hide test button and results
-    document.getElementById('testButton').classList.add('hidden');
-    document.getElementById('inlineTestResult').classList.add('hidden');
-    document.getElementById('inlineTestSuccess').classList.add('hidden');
-    document.getElementById('inlineTestError').classList.add('hidden');
-    
-    currentStep = 1;
-    goToStep(1);
-}
-
-function addAnotherAccount() {
-    // Reset form
-    document.getElementById('accountForm').reset();
-    selectedProvider = null;
-    goToStep(1);
-}
-
-function closeWindow() {
-    if (window.close) {
-        window.close();
-    } else {
-        alert('Account added successfully! You can close this window.');
-    }
-}
+function manualOAuthChanged() { oauthConfig = undefined; $('oauth-file').value = ''; $('file-label').textContent = '选择桌面应用 JSON 文件'; }
+document.addEventListener('DOMContentLoaded', async () => {
+  $('confirm-remove').addEventListener('click', confirmRemoval);
+  $('cancel-remove').addEventListener('click', () => { if (!busy) { $('remove-dialog').close(); selectedRemoval = undefined; } });
+  $('remove-dialog').addEventListener('cancel', event => { if (busy) event.preventDefault(); else selectedRemoval = undefined; });
+  $('provider').addEventListener('change', updateProvider);
+  $('enrollment-form').addEventListener('submit', submit);
+  $('client-id').addEventListener('input', manualOAuthChanged);
+  $('client-secret').addEventListener('input', manualOAuthChanged);
+  $('show-secret').addEventListener('click', () => {
+    const visible = $('authorization-code').type === 'password';
+    $('authorization-code').type = visible ? 'text' : 'password';
+    $('show-secret').textContent = visible ? '隐藏' : '显示';
+    $('show-secret').setAttribute('aria-label', visible ? '隐藏授权码' : '显示授权码');
+    $('show-secret').setAttribute('aria-pressed', String(visible));
+  });
+  $('oauth-file').addEventListener('change', async () => {
+    try { await importOAuthFile($('oauth-file').files[0]); }
+    catch (error) { $('oauth-file').value = ''; $('file-label').textContent = '选择桌面应用 JSON 文件'; feedback(error.message, 'error'); }
+  });
+  $('add-another').addEventListener('click', () => {
+    $('enrollment-form').reset(); clearSecrets(); updateProvider();
+    $('enrollment-form').hidden = false; $('add-another').hidden = true; $('feedback').hidden = true; $('email').focus();
+  });
+  window.addEventListener('beforeunload', event => { if (busy || pendingJob) { event.preventDefault(); event.returnValue = ''; } });
+  updateProvider();
+  try {
+    const info = await setupFetch('/api/setup-info'); secureAvailable = info.secureEnrollmentAvailable;
+    updateProvider(); await viewAccounts();
+    if (!secureAvailable) feedback('当前系统不支持安全凭据库注册。QQ、网易和 Gmail 请在 Windows 上配置。', 'error');
+  } catch (error) { feedback(error.message, 'error'); $('fields').disabled = true; $('account-list').textContent = '账号列表暂不可用'; }
+});

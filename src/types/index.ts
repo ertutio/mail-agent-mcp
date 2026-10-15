@@ -51,6 +51,8 @@ export interface SmtpConfig {
 }
 
 export interface EmailMessage {
+  bodyReadError?: 'body_unavailable';
+  bodyResourceTruncated?: boolean;
   uid: number;
   date: Date;
   from: string;

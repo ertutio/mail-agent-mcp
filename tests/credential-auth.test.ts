@@ -144,6 +144,7 @@ describe('credential backend contract', () => {
     const resolver = new AccountAuthResolver(backend, exchange);
     const account = base({
       host: 'imap.gmail.com', user: 'person@example.test', password: SYNTHETIC_PASSWORD_3,
+      smtp: { host: 'smtp.gmail.com', port: 465, secure: true },
       auth: { kind: 'oauth2', provider: 'gmail', credentialTarget: target, clientId: 'client-id' },
     });
     await expect(resolver.resolve(account)).resolves.toEqual({

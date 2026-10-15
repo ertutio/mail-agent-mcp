@@ -7,7 +7,9 @@ const read = (path: string): string => readFileSync(join(root, path), 'utf8');
 
 describe('public release surface', () => {
   it('documents the supported providers, safe-send boundary, and clone-first setup', () => {
-    const readme = read('README.md');
+    const readme = read('README.en.md');
+    expect(read('README.md')).toContain('[English](README.en.md)');
+    expect(readme).toContain('[中文](README.md)');
     for (const heading of [
       '## Features',
       '## Supported providers',

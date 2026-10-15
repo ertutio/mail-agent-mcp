@@ -206,7 +206,7 @@ export function emailTools(
       limit: z.coerce.number().optional().default(50).describe('Maximum number of results'),
       includeBody: z.boolean().default(false).describe('If true, also fetch the parsed message body in the same round-trip and return it alongside headers (avoids the N+1 cost of calling imap_get_email per match). Body is rendered per `bodyFormat` and capped at `bodyMaxLength` characters per field. Off by default to preserve lightweight behavior.'),
       bodyFormat: z.enum(['markdown', 'text', 'html', 'auto']).default('markdown').describe('How to render the body when `includeBody` is true. Mirrors `imap_get_email` — "markdown" (default) returns clean Markdown and omits raw HTML so it never crosses the MCP boundary; "text" returns plain text; "html" returns raw HTML; "auto" prefers substantive text/plain, else Markdown.'),
-      bodyMaxLength: z.coerce.number().default(10000).describe('Per-message cap (in characters) for each rendered body field when `includeBody` is true. Defaults to 10000 to match `imap_get_email`.'),
+      bodyMaxLength: z.coerce.number().int().min(1).max(100000).default(10000).describe('Per-message cap (in characters) for each rendered body field when `includeBody` is true. Defaults to 10000 to match `imap_get_email`.'),
     }
   }, async ({ accountId: rawAccountId, accountName, folder, limit, searchAllFolders, includeTrash, includeSpam, includeDrafts, includeBody = false, bodyFormat = 'markdown', bodyMaxLength = 10000, ...searchCriteria }) => {
     const accountId = accountManager.resolveAccountId(rawAccountId, accountName);
@@ -389,10 +389,10 @@ export function emailTools(
       ...accountSelector,
       folder: z.string().default('INBOX').describe('Folder name'),
       uid: z.coerce.number().describe('Email UID'),
-      maxContentLength: z.coerce.number().default(10000).describe('Maximum characters to return for each body field (text/markdown/html)'),
+      maxContentLength: z.coerce.number().int().min(1).max(100000).default(10000).describe('Maximum characters to return for each body field (text/markdown/html)'),
       bodyFormat: z.enum(['markdown', 'text', 'html', 'auto']).default('markdown').describe('How to return the body. "markdown" (default): clean Markdown via Turndown in markdownContent, raw htmlContent omitted so HTML never crosses the boundary. "text": plain text only in textContent. "html": legacy raw htmlContent. "auto": substantive text/plain if available, else Markdown.'),
       includeAttachmentText: z.boolean().default(true).describe('Include text attachment previews when available'),
-      maxAttachmentTextChars: z.coerce.number().default(100000).describe('Maximum characters to return per text attachment'),
+      maxAttachmentTextChars: z.coerce.number().int().min(1).max(100000).default(100000).describe('Maximum characters to return per text attachment'),
       includeHeaders: z.boolean().default(false).describe('Include raw email headers (e.g. List-Unsubscribe, List-Unsubscribe-Post)'),
     }
   }, async ({ accountId: rawAccountId, accountName, folder, uid, maxContentLength, bodyFormat, includeAttachmentText, maxAttachmentTextChars, includeHeaders }) => {
@@ -867,7 +867,7 @@ export function emailTools(
       ...accountSelector,
       folder: z.string().default('INBOX').describe('Folder name'),
       uids: z.array(z.coerce.number()).describe('Array of email UIDs to delete'),
-      chunkSize: z.coerce.number().default(50).describe('Number of emails to delete per batch (default: 50)'),
+      chunkSize: z.coerce.number().int().min(1).max(1000).default(50).describe('Number of emails to delete per batch (default: 50)'),
     }
   }, async ({ accountId: rawAccountId, accountName, folder, uids, chunkSize }) => {
     const accountId = accountManager.resolveAccountId(rawAccountId, accountName);
@@ -901,7 +901,7 @@ export function emailTools(
       subject: z.string().optional().describe('Delete emails with this subject'),
       before: z.string().optional().describe('Delete emails before this date (YYYY-MM-DD)'),
       since: z.string().optional().describe('Delete emails since this date (YYYY-MM-DD)'),
-      chunkSize: z.coerce.number().default(50).describe('Number of emails to delete per batch'),
+      chunkSize: z.coerce.number().int().min(1).max(1000).default(50).describe('Number of emails to delete per batch'),
       dryRun: z.boolean().default(false).describe('If true, only return what would be deleted without actually deleting'),
     }
   }, async ({ accountId: rawAccountId, accountName, folder, from, to, subject, before, since, chunkSize, dryRun }) => {
@@ -996,10 +996,10 @@ export function emailTools(
     inputSchema: {
       ...accountSelector,
       folder: z.string().default('INBOX').describe('Folder name'),
-      count: z.coerce.number().default(10).describe('Number of emails to retrieve'),
+      count: z.coerce.number().int().min(1).max(200).default(10).describe('Number of emails to retrieve'),
       includeBody: z.boolean().default(false).describe('If true, also fetch the parsed message body in the same round-trip and return it alongside headers (avoids the N+1 cost of calling imap_get_email per message). Body is rendered per `bodyFormat` and capped at `bodyMaxLength` characters per field. Off by default to preserve lightweight behavior.'),
       bodyFormat: z.enum(['markdown', 'text', 'html', 'auto']).default('markdown').describe('How to render the body when `includeBody` is true. Mirrors `imap_get_email` — "markdown" (default) returns clean Markdown; "text" returns plain text; "html" returns raw HTML; "auto" prefers substantive text/plain, else Markdown.'),
-      bodyMaxLength: z.coerce.number().default(10000).describe('Per-message cap (in characters) for each rendered body field when `includeBody` is true. Defaults to 10000 to match `imap_get_email`.'),
+      bodyMaxLength: z.coerce.number().int().min(1).max(100000).default(10000).describe('Per-message cap (in characters) for each rendered body field when `includeBody` is true. Defaults to 10000 to match `imap_get_email`.'),
     }
   }, async ({ accountId: rawAccountId, accountName, folder, count, includeBody = false, bodyFormat = 'markdown', bodyMaxLength = 10000 }) => {
     const accountId = accountManager.resolveAccountId(rawAccountId, accountName);
@@ -1276,7 +1276,7 @@ export function emailTools(
       searchReferences: z.boolean().optional().describe('Also search the References header for multi-level threads (default: true)'),
       includeBody: z.boolean().default(false).describe('If true, also fetch the parsed message body for each found thread message in the same round-trip and return it alongside headers (avoids the N+1 cost of calling imap_get_email per thread member). Body is rendered per `bodyFormat` and capped at `bodyMaxLength` characters per field.'),
       bodyFormat: z.enum(['markdown', 'text', 'html', 'auto']).default('markdown').describe('How to render the body when `includeBody` is true. Mirrors `imap_get_email` — "markdown" (default) returns clean Markdown; "text" returns plain text; "html" returns raw HTML; "auto" prefers substantive text/plain, else Markdown.'),
-      bodyMaxLength: z.coerce.number().default(10000).describe('Per-message cap (in characters) for each rendered body field when `includeBody` is true. Defaults to 10000 to match `imap_get_email`.'),
+      bodyMaxLength: z.coerce.number().int().min(1).max(100000).default(10000).describe('Per-message cap (in characters) for each rendered body field when `includeBody` is true. Defaults to 10000 to match `imap_get_email`.'),
     }
   }, async ({ accountId: rawAccountId, accountName, sourceFolder, searchFolder, searchReferences = true, includeBody = false, bodyFormat = 'markdown', bodyMaxLength = 10000 }) => {
     const accountId = accountManager.resolveAccountId(rawAccountId, accountName);

@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { EmailAttachment, EmailComposer } from '../types/index.js';
+import {MAX_BODY_CHARS,MAX_ATTACHMENT_COUNT} from '../utils/mail-resource-limits.js';
 
 export type SafeSendState = 'pending' | 'sending' | 'sent' | 'ambiguous' | 'expired';
 
@@ -46,6 +47,8 @@ export type SafeSendConfirmation =
   | { status: 'already_sent' };
 
 export interface SafeSendServiceOptions {
+  maxPendingDrafts?: number;
+  maxRetainedAttachmentBytes?: number;
   executor: SafeSendExecutor;
   ttlMs?: number;
   clock?: () => number;
@@ -119,6 +122,9 @@ export class SafeSendService {
   private readonly clock: () => number;
   private readonly id: () => string;
   private readonly drafts = new Map<string, DraftEntry>();
+  private readonly maxPendingDrafts:number;
+  private readonly maxRetainedAttachmentBytes:number;
+  private cleanupTimer?:ReturnType<typeof setTimeout>;
 
   constructor(options: SafeSendServiceOptions) {
     if (!Number.isFinite(options.ttlMs ?? 300_000) || (options.ttlMs ?? 300_000) <= 0) {
@@ -128,14 +134,27 @@ export class SafeSendService {
     this.ttlMs = options.ttlMs ?? 300_000;
     this.clock = options.clock ?? Date.now;
     this.id = options.id ?? randomUUID;
+    this.maxPendingDrafts=options.maxPendingDrafts??100;
+    this.maxRetainedAttachmentBytes=options.maxRetainedAttachmentBytes??50*1024*1024;
+    if(!Number.isInteger(this.maxPendingDrafts)||this.maxPendingDrafts<1||!Number.isSafeInteger(this.maxRetainedAttachmentBytes)||this.maxRetainedAttachmentBytes<1) throw new Error('Invalid preview capacity');
   }
 
   preview(input: SafeSendInput): SafeSendPreview {
+    if((input.composer.text?.length??0)>MAX_BODY_CHARS||(input.composer.html?.length??0)>MAX_BODY_CHARS||(input.composer.attachments?.length??0)>MAX_ATTACHMENT_COUNT) throw new Error('Message preview processing limit exceeded');
+    this.expireDrafts();
+    const active=[...this.drafts.values()].filter(entry=>entry.payload);
+    const bytes=(composer:Readonly<EmailComposer>)=>(composer.attachments??[]).reduce((sum,a)=>sum+(Buffer.isBuffer(a.content)?a.content.length:Buffer.byteLength(a.content??'')),0);
+    if(active.length>=this.maxPendingDrafts||active.reduce((sum,e)=>sum+bytes(e.payload!.composer),0)+bytes(input.composer)>this.maxRetainedAttachmentBytes) throw new Error('Pending preview capacity limit exceeded');
+    // Terminal IDs retain deduplication briefly, with a hard bound on metadata.
+    if(this.drafts.size>=this.maxPendingDrafts+1000) {
+      for(const [id,entry] of this.drafts) {if(!entry.payload){this.drafts.delete(id);break;}}
+    }
     const draftId = this.id();
     if (!draftId || this.drafts.has(draftId)) throw new Error('Safe-send draft id collision');
     const payload = freezePayload(input);
     const expiresAt = this.clock() + this.ttlMs;
     this.drafts.set(draftId, { state: 'pending', expiresAt, payload });
+    this.scheduleCleanup();
     const summary = Object.freeze({
       accountId: payload.accountId,
       from: payload.composer.from,
@@ -158,8 +177,17 @@ export class SafeSendService {
     let expired = 0;
     for (const [draftId, entry] of this.drafts) {
       if (this.expireIfNeeded(draftId, entry)) expired += 1;
+      else if(!entry.payload&&entry.expiresAt<=this.clock()) this.drafts.delete(draftId);
     }
     return expired;
+  }
+
+  private scheduleCleanup():void {
+    if(this.cleanupTimer) clearTimeout(this.cleanupTimer);
+    const times=[...this.drafts.values()].filter(e=>e.state!=='sending').map(e=>e.expiresAt);
+    if(!times.length) return;
+    this.cleanupTimer=setTimeout(()=>{this.cleanupTimer=undefined;this.expireDrafts();this.scheduleCleanup();},Math.max(1,Math.min(...times)-this.clock()));
+    this.cleanupTimer.unref?.();
   }
 
   async confirm(draftId: string, confirmed: boolean): Promise<SafeSendConfirmation> {
@@ -230,6 +258,7 @@ export class SafeSendService {
     entry.state = state;
     entry.payload = undefined;
     entry.inFlight = undefined;
-    this.drafts.set(draftId, { state, expiresAt: entry.expiresAt });
+    this.drafts.set(draftId, { state, expiresAt: this.clock()+this.ttlMs });
+    this.scheduleCleanup();
   }
 }

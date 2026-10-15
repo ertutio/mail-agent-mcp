@@ -131,6 +131,12 @@ describe('READ_ONLY_TOOLS subset', () => {
 });
 
 describe('registerTools gating', () => {
+  it.each([{}, { IMAP_MCP_ENABLED_TOOLS: 'imap_add_account,imap_update_account,imap_remove_account' }])(
+    'never exposes account writes, even through an explicit allowlist: %j', env => {
+      const names = registeredToolsFor(env);
+      for (const name of ['imap_add_account', 'imap_update_account', 'imap_remove_account']) expect(names).not.toContain(name);
+    },
+  );
   afterEach(() => {
     delete process.env.IMAP_MCP_ENABLED_TOOLS;
     delete process.env.IMAP_MCP_READ_ONLY;

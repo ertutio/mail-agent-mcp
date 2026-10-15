@@ -3,9 +3,9 @@ import { createServer, type Server, type ServerResponse } from 'node:http';
 import { createProxyAwareFetch } from './proxy-fetch.js';
 
 export const GMAIL_OAUTH_SUCCESS_TEXT =
-  'Authorization response received. You can close this window and return to the terminal. Token exchange and local account registration are still in progress; check the terminal for the final result.';
+  'Authorization response received. You can close this window and return to the Mail Agent setup page or terminal. Token exchange and local account registration are still in progress; check the setup page or terminal for the final result.';
 export const GMAIL_OAUTH_FAILURE_TEXT =
-  'Authorization failed. You can close this window and return to the terminal.';
+  'Authorization failed. You can close this window and return to the Mail Agent setup page or terminal.';
 
 const AUTHORIZATION_ENDPOINT = 'https://accounts.google.com/o/oauth2/v2/auth';
 const TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token';
