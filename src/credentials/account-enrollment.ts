@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { AccountManager } from '../services/account-manager.js';
 import type { ImapAccount } from '../types/index.js';
 import type { CredentialBackend } from './credential-backend.js';
@@ -17,7 +18,7 @@ export interface GmailEnrollmentInput {
   refreshToken: string;
 }
 
-type EnrollmentAccountManager = Pick<AccountManager, 'addAccount'> & Partial<Pick<AccountManager,'withStoreTransaction'>>;
+type EnrollmentAccountManager = Pick<AccountManager, 'addAccount'> & Partial<Pick<AccountManager,'withStoreTransaction' | 'getAllAccounts'>>;
 export const NETEASE_ENDPOINTS = {
   '163': { imapHost: 'imap.163.com', smtpHost: 'smtp.163.com', smtpPort: 465 },
   '126': { imapHost: 'imap.126.com', smtpHost: 'smtp.126.com', smtpPort: 465 },
@@ -34,6 +35,7 @@ export class AccountEnrollmentService {
   constructor(
     private readonly credentials: CredentialBackend,
     private readonly accounts: EnrollmentAccountManager,
+    private readonly verify?: (account: ImapAccount) => Promise<void>,
   ) {}
 
   async enrollNetease(input: QqEnrollmentInput & { provider: keyof typeof NETEASE_ENDPOINTS }): Promise<ImapAccount> {
@@ -125,6 +127,11 @@ export class AccountEnrollmentService {
     return this.persistUnlocked(credentials,account);
   }
   private async persistUnlocked(credentials:Array<{target:string;secret:string}>,account:Omit<ImapAccount,'id'>):Promise<ImapAccount>{
+    // Recheck under the cross-process store lock, before replacing any vault value.
+    if (this.accounts.getAllAccounts?.().some(existing => existing.name.toLowerCase() === account.name.toLowerCase()
+      || (existing.auth?.provider === account.auth?.provider && existing.user.toLowerCase() === account.user.toLowerCase()))) {
+      throw new Error('Account already exists; repair it instead of enrolling twice');
+    }
     const snapshots = credentials.map(({ target, secret }) => ({
       ...this.snapshot(target),
       target,
@@ -137,6 +144,7 @@ export class AccountEnrollmentService {
         this.credentials.write(snapshot.target, snapshot.secret);
         written.push(snapshot);
       }
+      if (this.verify) await this.verify({ ...account, id: `enrollment-${randomUUID()}` });
       return await this.accounts.addAccount(account);
     } catch (cause) {
       let rollbackFailed = false;

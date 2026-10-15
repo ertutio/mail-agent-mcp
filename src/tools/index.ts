@@ -150,8 +150,8 @@ export function registerTools(
   const target = createFilteredServer(server, enabled, seen, registered);
   const deletion = guardedDeletion(target, imapService);
 
-  // Register account management tools
-  accountTools(target, accountManager, imapService, smtpService);
+  // Account configuration writes are browser-only and have no MCP handlers.
+  accountTools(target, accountManager, imapService);
 
   // Register email operation tools
   emailTools(deletion.server, deletion.imap, accountManager, smtpService);

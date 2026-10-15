@@ -276,11 +276,17 @@ export class ImapService {
   }
 
   private async ensureConnected(accountId: string): Promise<ImapFlow> {
+    // A browser session can remove an account while this process has a live client.
+    const configuredAccount = this.accountManager?.getAccount(accountId);
+    if (this.accountManager && !configuredAccount) {
+      this.abortConnection(accountId);
+      throw new Error(`Account ${accountId} was removed or not found. Open the local browser setup to manage accounts.`);
+    }
     let state = this.connections.get(accountId);
     if (!state) {
       // Auto-connect using stored account credentials
       if (this.accountManager) {
-        const account = this.accountManager.getAccount(accountId);
+        const account = configuredAccount;
         if (account) {
           await this.connect(account);
           state = this.connections.get(accountId);
@@ -1592,7 +1598,7 @@ export class ImapService {
     }
     if (!folder) {
       const error = 'No Sent folder found: the server advertises no \\Sent SPECIAL-USE folder and no folder matched the known localized names. '
-        + 'Use imap_list_folders to find the right folder and set it as the account\'s sentFolder (imap_update_account).';
+        + 'Use imap_list_folders to find the right folder and configure sentFolder locally in the browser setup API.';
       console.warn(`[IMAP] ${error} (account ${accountId}; names tried: ${sentFolderNames.join(', ')})`);
       return { saved: false, errorCategory: 'folder_not_found', error };
     }
@@ -1694,6 +1700,7 @@ export class ImapService {
     const resolvedAuth = await this.authResolver.resolve(account, 'imap');
     const proxy = resolveMailProxy(process.env, account.host, account.auth?.provider);
     const client = new ImapFlow({ maxLiteralSize: MAX_MESSAGE_BYTES + 1,
+      connectionTimeout: 30_000, greetingTimeout: 15_000, socketTimeout: 30_000,
       host: account.host,
       port: account.port,
       secure: account.tls,

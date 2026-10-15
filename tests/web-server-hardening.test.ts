@@ -105,14 +105,14 @@ describe('Web wizard — loopback / cross-origin guard', () => {
       accountManager: fakeAccountManager as any,
       imapService: {} as any,
     });
-    const fakeServer = { close: vi.fn() };
+    const fakeServer = { close: vi.fn(), on: vi.fn(), address: () => ({ port: 45678 }) };
     const listen = vi.spyOn(wizard.getApp(), 'listen').mockImplementation((
       (_port: number, _host: string, callback: () => void) => {
         callback();
         return fakeServer;
       }
     ) as any);
-    const processOn = vi.spyOn(process, 'on').mockReturnValue(process);
+    const processOn = vi.spyOn(process, 'once').mockReturnValue(process);
 
     try {
       await wizard.start(false);

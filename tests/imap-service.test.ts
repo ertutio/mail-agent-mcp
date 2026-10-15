@@ -124,11 +124,14 @@ describe('ImapService', () => {
     });
 
     it('should not append IMAP enable hint for unrelated Gmail auth failures', async () => {
+      // This is an IMAP mock test, independent of the machine's system proxy.
+      vi.stubEnv('IMAP_MCP_GMAIL_PROXY', 'http://127.0.0.1:9');
       mockAccount.host = 'imap.gmail.com';
       mockInstance.connectMock.mockRejectedValue(new Error('Authentication failed'));
-
-      await expect(imapService.connect(mockAccount)).rejects.toThrow('Authentication failed');
-      await expect(imapService.connect(mockAccount)).rejects.not.toThrow(/Enable IMAP|Forwarding and POP\/IMAP/);
+      try {
+        await expect(imapService.connect(mockAccount)).rejects.toThrow('Authentication failed');
+        await expect(imapService.connect(mockAccount)).rejects.not.toThrow(/Enable IMAP|Forwarding and POP\/IMAP/);
+      } finally { vi.unstubAllEnvs(); }
     });
   });
 

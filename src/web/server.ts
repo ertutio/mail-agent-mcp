@@ -12,13 +12,19 @@ import { AccountAuthResolver } from '../credentials/account-auth.js';
 import { createGmailAccessTokenExchange } from '../credentials/gmail-token-exchange.js';
 import { UnavailableCredentialBackend, WindowsCredentialBackend } from '../credentials/windows-credential-backend.js';
 import { ImapAccount } from '../types/index.js';
+import type { CredentialBackend } from '../credentials/credential-backend.js';
+import { AccountEnrollmentService } from '../credentials/account-enrollment.js';
+import { runGmailOAuthLoopback } from '../credentials/gmail-oauth-loopback.js';
+import { enrollmentRouter } from './enrollment-router.js';
+import type { Server } from 'node:http';
+import { z } from 'zod';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Strip credentials before an account crosses the wizard's HTTP boundary. The
-// API is unauthenticated and CORS-open, so any local page could otherwise read
-// plaintext IMAP/SMTP passwords out of a response. Returns a shallow copy with
+// API uses a private local session. It still must never return credentials.
+// Returns a shallow copy with
 // `password` and `smtp.password` removed.
 function stripAccountSecrets<T extends Record<string, any>>(account: T): Omit<T, 'password'> {
   const { password: _password, ...rest } = account;
@@ -36,16 +42,20 @@ export class WebUIServer {
   private accountManager: AccountManager;
   private imapService: ImapService;
   private port: number;
+  private httpServer?: Server;
+  private idleTimer?: ReturnType<typeof setTimeout>;
+  private readonly onInterrupt = () => { void this.stop(); };
 
   constructor(
     port: number = 3000,
-    deps: { accountManager?: AccountManager; imapService?: ImapService } = {},
+    deps: { accountManager?: AccountManager; imapService?: ImapService; credentials?: CredentialBackend;
+      runGmailOAuth?: typeof runGmailOAuthLoopback; openBrowser?: (url: string) => Promise<void> | void } = {},
   ) {
     this.app = express();
     this.port = port;
-    const credentialBackend = process.platform === 'win32'
+    const credentialBackend = deps.credentials ?? (process.platform === 'win32'
       ? new WindowsCredentialBackend()
-      : new UnavailableCredentialBackend();
+      : new UnavailableCredentialBackend());
     const authResolver = new AccountAuthResolver(
       credentialBackend,
       createGmailAccessTokenExchange({ credentials: credentialBackend }),
@@ -54,6 +64,13 @@ export class WebUIServer {
     this.imapService = deps.imapService ?? new ImapService(authResolver);
 
     this.setupMiddleware();
+    this.app.use('/api', enrollmentRouter({
+      accounts: this.accountManager,
+      enrollment: new AccountEnrollmentService(credentialBackend, this.accountManager, account => this.imapService.authenticateOnly(account)),
+      available: !!deps.credentials || process.platform === 'win32',
+      runOAuth: deps.runGmailOAuth,
+      openBrowser: deps.openBrowser || (async url => { await open(url); }),
+    }));
     this.setupRoutes();
   }
 
@@ -63,14 +80,19 @@ export class WebUIServer {
   }
 
   private setupMiddleware(): void {
-    // The setup wizard is unauthenticated and CORS-open, so it must never be
-    // reachable by anything other than the local user's own browser. Reject
+    // The setup wizard must only be reachable by the local user's browser. Reject
     // any request whose Host is not a loopback name (blocks DNS-rebinding, where
     // a malicious site points its own domain at 127.0.0.1) and any cross-origin
     // browser request (Origin set to a non-loopback origin). Together with
     // stripAccountSecrets this closes the "any open page can read/modify the
     // local accounts API" vector.
     this.app.use(this.loopbackOnly());
+    this.app.use((_req, res, next) => {
+      res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
+      res.setHeader('Referrer-Policy', 'no-referrer');
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      next();
+    });
     this.app.use((req,res,next)=>{
       if (!req.path.startsWith('/api/')) return next();
       res.setHeader('cache-control','no-store');
@@ -78,9 +100,14 @@ export class WebUIServer {
       if(typeof token!=='string'||!/^[a-f0-9]{64}$/.test(token)||!timingSafeEqual(Buffer.from(token),Buffer.from(this.sessionToken))) {
         res.status(403).json({error:'Forbidden: invalid setup session'});return;
       }
+      if (this.httpServer) this.resetIdleTimer();
       next();
     });
-    this.app.use(bodyParser.json());
+    this.app.use(bodyParser.json({ limit: '32kb' }));
+    this.app.use((error: unknown, _req: express.Request, res: express.Response, next: express.NextFunction) => {
+      if (error) { res.status(400).json({ error: '请求格式无效或内容过大。' }); return; }
+      next();
+    });
     this.app.use(express.static(this.resolvePublicDir()));
   }
 
@@ -249,15 +276,29 @@ export class WebUIServer {
       }
     });
 
-    // Remove account
+    // Browser-only removal: bind explicit confirmation to the displayed identity.
     this.app.delete('/api/accounts/:id', async (req, res) => {
+      const confirmation = z.object({ confirmed: z.literal(true), name: z.string().max(320), email: z.string().max(320) }).strict().safeParse(req.body);
+      if (!confirmation.success) { res.status(400).json({ success: false, error: '请在浏览器中确认要移除的邮箱。' }); return; }
       try {
-        await this.accountManager.removeAccount(req.params.id);
+        const remove = async () => {
+          const account = this.accountManager.getAccount(req.params.id);
+          if (!account) return { status: 404, error: '该邮箱连接不存在，请刷新账号列表。' };
+          if (account.name !== confirmation.data.name || (account.email || account.user) !== confirmation.data.email) {
+            return { status: 409, error: '账号信息已变化，请刷新列表后重新确认。' };
+          }
+          await this.accountManager.removeAccount(account.id);
+          return { status: 200 };
+        };
+        const result = this.accountManager.withStoreTransaction
+          ? await this.accountManager.withStoreTransaction(remove) : await remove();
+        if (result.status !== 200) { res.status(result.status).json({ success: false, error: result.error }); return; }
+        this.imapService.abortConnection(req.params.id);
         res.json({ success: true });
-      } catch (error) {
+      } catch {
         res.status(400).json({ 
           success: false, 
-          error: error instanceof Error ? error.message : 'Failed to remove account' 
+          error: '移除失败。请确认系统凭据库可用，且没有其他账号配置进程正在运行；原有配置会尽可能回滚。'
         });
       }
     });
@@ -376,28 +417,42 @@ export class WebUIServer {
     });
   }
 
+  private resetIdleTimer(): void {
+    clearTimeout(this.idleTimer);
+    this.idleTimer = setTimeout(() => { void this.stop(); }, 15 * 60_000);
+    this.idleTimer.unref();
+  }
+
+  async stop(): Promise<void> {
+    clearTimeout(this.idleTimer);
+    const server = this.httpServer;
+    this.httpServer = undefined;
+    if (server) { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); }
+    process.removeListener('SIGINT', this.onInterrupt);
+  }
+
   async start(autoOpen: boolean = true): Promise<void> {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       const server = this.app.listen(this.port, '127.0.0.1', () => {
+        const address = this.httpServer?.address();
+        if (address && typeof address !== 'string') this.port = address.port;
         console.log(`🌐 Open this private local setup session: ${this.getSetupUrl()}`);
+        this.resetIdleTimer();
         
         if (autoOpen) {
           // Open browser after a short delay
           setTimeout(() => {
-            open(this.getSetupUrl());
+            void open(this.getSetupUrl()).catch(() => console.error('Could not open the default browser. Open the private setup URL manually.'));
           }, 1000);
         }
         
         resolve();
       });
+      this.httpServer = server;
+      server.on('error', reject);
 
       // Handle graceful shutdown
-      process.on('SIGINT', () => {
-        console.log('\nShutting down web server...');
-        server.close(() => {
-          process.exit(0);
-        });
-      });
+      process.once('SIGINT', this.onInterrupt);
     });
   }
 }

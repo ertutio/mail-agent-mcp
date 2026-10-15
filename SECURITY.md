@@ -35,13 +35,15 @@ Tests use explicitly named `SYNTHETIC_*` fixtures assembled from harmless runtim
 
 The project contains no telemetry. Expected outbound connections are to configured IMAP/SMTP providers and Gmail OAuth endpoints. A browser is opened for Gmail authorization. `HTTP_PROXY`, `HTTPS_PROXY`, and `NO_PROXY` are inherited by Gmail token HTTP requests and as the default proxy policy for IMAP/SMTP transports. `IMAP_MCP_MAIL_PROXY` optionally overrides the mail transport proxy with a supported HTTP CONNECT, HTTPS, or SOCKS URL. A proxy is a trusted network intermediary: never commit credential-bearing proxy URLs, and keep end-to-end TLS validation enabled.
 
-The optional setup UI binds only to 127.0.0.1. Do not expose it through a LAN bind, port forwarding, tunneling, or a reverse proxy. It has not been designed as a remote administration surface; remote access would require a separate authentication, authorization, CSRF, and session-security design.
+The setup UI binds only to 127.0.0.1 and requires a private per-process session header with exact Host/Origin checks. Account add/update/remove tools are removed from MCP entirely, including unrestricted mode and explicit allowlists. Browser account removal additionally requires literal confirmation and the displayed account identity, checked under the account-store lock; it cleans the selected local metadata and referenced vault entries, attempting rollback on failure. It neither deletes mail nor revokes grants at the provider. Running IMAP operations may finish, but subsequent operations reject a removed account and discard its cached connection.
+
+Do not expose the local UI through a LAN bind, port forwarding, tunneling, or a reverse proxy. It has not been designed as a remote administration surface; remote access would require a separate authentication, authorization, CSRF, and session-security design.
 
 The server does not intentionally write mail bodies to persistent storage. Pending safe-send content is held in process memory; account metadata and local spam-domain state are persisted. Your operating system, MCP client, logs outside this project, and mailbox provider have their own retention behavior.
 
 ## Operational recommendations
 
-- Use the Windows enrollment CLI for Gmail and QQ Mail; never send secrets through an agent prompt or MCP tool arguments.
+- Use the private local browser account interface; the Windows CLI remains a local maintenance fallback. Never send secrets through an agent prompt or MCP tool arguments.
 - Keep 127.0.0.1 and localhost in NO_PROXY for the OAuth callback.
 - Start with IMAP_MCP_READ_ONLY=true.
 - Review previews before confirmation and use delete dry-run where available.

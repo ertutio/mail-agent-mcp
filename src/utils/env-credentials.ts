@@ -66,6 +66,6 @@ export function assertCredentialsResolved(account: ImapAccount, channel: 'imap' 
     `Account "${account.name}" has ${label} credentials marked as environment-managed, ` +
     `but ${missing.length === 1 ? 'this variable was' : 'these variables were'} not set when ` +
     `the server started: ${missing.join(', ')}. Set ${missing.length === 1 ? 'it' : 'them'} ` +
-    `and restart the server, or store the credentials on the account via imap_update_account.`
+    `and restart the server, or configure the account in the local browser setup. Never enter credentials in chat.`
   );
 }

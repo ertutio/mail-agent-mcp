@@ -83,6 +83,7 @@ describe('runGmailOAuthLoopback', () => {
   it('rejects an OAuth error callback without exposing its value', async () => {
     await expect(runGmailOAuthLoopback({
       clientId: 'client-id',
+      fetch: vi.fn(),
       timeoutMs: 2_000,
       openBrowser: async (value) => {
         const auth = new URL(value);

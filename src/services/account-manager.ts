@@ -362,6 +362,7 @@ export class AccountManager {
   }
 
   getAllAccounts(): ImapAccount[] {
+    this.loadAccountsSync();
     return Array.from(this.accounts.values()).map(account => {
       const decrypted: ImapAccount = {
         ...account,
@@ -409,7 +410,7 @@ export class AccountManager {
       return all[0].id;
     }
     if (all.length === 0) {
-      throw new Error('No accounts configured. Add one with imap_add_account (or run the setup wizard).');
+      throw new Error('No accounts configured. Open the local browser setup with node dist/setup.js --skip-claude to add one. Never enter credentials in chat.');
     }
     throw new Error(
       `Multiple accounts are configured (${all.length}). Specify accountId or accountName. Use imap_list_accounts to see them.`
@@ -417,6 +418,7 @@ export class AccountManager {
   }
 
   getAccountByName(name: string): ImapAccount | undefined {
+    this.loadAccountsSync();
     const account = Array.from(this.accounts.values()).find(acc => acc.name === name);
     if (!account) return undefined;
 

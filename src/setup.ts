@@ -9,7 +9,7 @@ import os from 'os';
 program
   .name('mail-agent-setup')
   .description('Mail Agent MCP Setup Wizard')
-  .option('-p, --port <port>', 'Port for web UI', '3000')
+  .option('-p, --port <port>', 'Port for web UI (0 chooses an available local port)', '0')
   .option('--no-open', 'Do not open browser automatically')
   .option('--claude-setup', 'Setup Claude Desktop integration')
   .option('--skip-claude', 'Skip Claude Desktop integration')
@@ -131,10 +131,9 @@ async function main() {
     }
     
     console.log('\n' + chalk.blue('📧') + ' After configuring your email accounts:');
-    console.log('  1. Restart Claude Desktop');
-    console.log('  2. Try: "Show me my latest emails"');
-    console.log('  3. Try: "Add a new email account"');
-    console.log('  4. Try: "List all my email accounts"');
+    console.log('  Complete enrollment in your default browser and wait for verified success.');
+    console.log('  Restart or reconnect your MCP client to load the newly saved accounts.');
+    console.log('  Try: "Search all my mailboxes" or "List all my email accounts".');
     
   } catch (error) {
     spinner.fail('Failed to start web interface');
