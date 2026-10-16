@@ -86,6 +86,10 @@ export class WebUIServer {
     // browser request (Origin set to a non-loopback origin). Together with
     // stripAccountSecrets this closes the "any open page can read/modify the
     // local accounts API" vector.
+    this.app.use('/api', (_req, res, next) => {
+      res.setHeader('cache-control', 'no-store');
+      next();
+    });
     this.app.use(this.loopbackOnly());
     this.app.use((_req, res, next) => {
       res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
@@ -93,9 +97,7 @@ export class WebUIServer {
       res.setHeader('X-Content-Type-Options', 'nosniff');
       next();
     });
-    this.app.use((req,res,next)=>{
-      if (!req.path.startsWith('/api/')) return next();
-      res.setHeader('cache-control','no-store');
+    this.app.use('/api', (req, res, next) => {
       const token=req.headers['x-mail-agent-session'];
       if(typeof token!=='string'||!/^[a-f0-9]{64}$/.test(token)||!timingSafeEqual(Buffer.from(token),Buffer.from(this.sessionToken))) {
         res.status(403).json({error:'Forbidden: invalid setup session'});return;
