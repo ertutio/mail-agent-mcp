@@ -38,11 +38,12 @@ Based on [SinoEdwards/mail-agent-mcp](https://github.com/SinoEdwards/mail-agent-
 
 - Deletion tools only return a frozen preview with message samples, UIDs, counts, and permanent-deletion status. After explicit user review, call `imap_confirm_delete` with `confirmed: true`; previews expire in five minutes and changed UIDVALIDITY blocks execution. Add the confirmation tool to explicit write-enabled allowlists.
 - QQ/Gmail credentials are restricted to canonical provider hosts and secure ports; foreign endpoints and disabled certificate verification are rejected.
-- The setup API requires a temporary session and an exact same origin. Use the private launch link printed in the terminal; tab reloads retain its session, but a restarted server requires a new link. Do not share the link.
+- The setup API requires a temporary session and an exact same origin. Authentication uses the same route matching rules as the API, so case variants such as `/API` also require a valid session. Use the private launch link printed in the terminal; tab reloads retain its session, but a restarted server requires a new link. Do not share the link.
 - Raw-message processing is capped at 25 MiB, body output at 100,000 characters, attachments at 20 per message, and outbound attachment bytes at 25 MiB total. PDF previews use isolated parsing, capped at 256 KiB, 20 pages, and five seconds; excessive input is rejected or previews are omitted.
 - Pending send previews are capped at 100 with 50 MiB retained attachment bytes; expired attachment copies are automatically cleared.
 - Account mutations use a cross-process lock and atomic replacement. After an abnormal writer exit, remove a leftover `.accounts.lock` only after verifying no configuration writer remains; never remove an active writer's lock.
 - Unified search obtains matching UID lists and fetches at most 200 message records per batch, with 25 batches per folder per pass; it does not walk empty UID gaps. Lists over 100,000 matches require narrower filters. When `partial` is true, resume with returned `cursors`, identical filters and the same result limit, then merge and sort results across passes. Coverage is incomplete until all cursors are exhausted.
+- When a server such as NetEase omits `UIDNEXT`, pagination starts from actual matching UIDs. Valid `UIDVALIDITY` remains mandatory and a changed value rejects old cursors. Search filters and the page/candidate limits are preserved.
 
 ## Supported providers
 
@@ -357,7 +358,7 @@ npm pack --dry-run
 git diff --check
 ```
 
-The code update passed 633 tests (one skipped), covering 25-account mixed search, partial failures/timeouts and varied proxy configurations. Production dependency audit found no vulnerabilities; this does not certify development dependencies or the entire system as secure. Separate local read-only checks covered QQ, 163, 126, NetEase enterprise and Gmail, with successful five-account unified search. Other enterprise deployments and networks may differ. No personal credentials or mail content are included in the repository.
+The SA-08 / SEC-01 fixes passed 662 tests (one skipped), including missing-UIDNEXT global pagination, case-variant API session boundaries and existing search regressions; line coverage is 81.93%. Production dependency audit reports zero findings. The full audit still reports six affected development-tool package entries (three high, three moderate), tracked under deferred ENG-01. This batch used synthetic data and isolated environments; real mailboxes and the installed local service were not changed. Historical provider checks do not replace live verification of this batch.
 
 ## Roadmap
 

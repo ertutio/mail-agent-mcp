@@ -1,0 +1,53 @@
+{
+  "title": "网易全局分页搜索交接问题增补",
+  "date": "2026-10-15",
+  "repository": "https://github.com/ertutio/mail-agent-mcp",
+  "baselineCommit": "e47a74c6375c54a4af3b8e2e522262b4c156f3ef",
+  "planReviewCommit": "c97ee1b508ed3dcc8c3ee63ee7e9fdaf36e62ef9",
+  "source": {
+    "file": "mail-agent-netease-pagination-handoff-20261015-204258.md",
+    "sha256": "7ff5692a78474416e70d56627aacb850b0eb0aed469b6609c22ea4cb84f865e2",
+    "verificationBoundary": "真实邮箱只读复现来自交接记录；本次仅对照当前 PR 清单和源码核对，未重新连接邮箱或执行交接命令。"
+  },
+  "counts": { "P1": 1, "P2": 0, "P3": 0 },
+  "findings": [
+    {
+      "id": "SA-08",
+      "priority": "P1",
+      "implementationTask": "A0",
+      "group": "连接与检索",
+      "title": "网易 163/126 缺少 UIDNEXT 导致全局搜索分页失败",
+      "status": "交接记录已作真实邮箱只读复现；当前代码路径静态核对一致，待正式回归测试验收",
+      "priorityReason": "已影响现有常用邮箱的一句话全局搜索，普通查询可用而核心统一查询持续失败。按维护者要求列为 P1 优先修复的功能兼容性故障，不据此宣称新的凭据泄露或远程攻击。",
+      "locations": [
+        "src/services/imap-service.ts:489-515",
+        "src/services/imap-service.ts:373-394",
+        "src/services/imap-service.ts:407-481",
+        "src/tools/unified-search-tools.ts:110-114",
+        "tests/unified-search-pagination.test.ts",
+        "tests/unified-search.test.ts"
+      ],
+      "precondition": "服务器 SELECT 和 STATUS 结果都缺少 UIDNEXT，但具有有效 UIDVALIDITY 且能正常执行 UID SEARCH；交接中的网易 163 和 126 满足此条件。",
+      "rootCause": "searchEmailPage 将 Number(status.uidNext)-1 作为分页起点；UIDNEXT 缺失时 newest 为 NaN，直接抛 Missing mailbox pagination metadata，尚未执行 UID 查询。普通 searchEmails 不依赖 UIDNEXT，因此同条件查询成功。全局搜索将该错误统一包装为 folder_error，掩盖具体原因。",
+      "evidence": "交接记录以相同 since=2026-09-15、单账号 INBOX 串行查询对比：163/126 的 SELECT、STATUS uidNext 均缺失，uidValidity 均为 1；普通搜索当时分别返回 6、15 条，分页搜索均报 Missing mailbox pagination metadata。计数仅为交接当时快照。状态工具显示 uidnext=0 来自缺失值归零，不能视为服务器实际返回 0；该问题不能归因为代理、授权失败或其他账号的 timeout。",
+      "impact": "网易邮箱连接、普通搜索和读取可用，但 imap_search_all_accounts 对该账号的文件夹报告 failed/folder_error，一句话全邮箱汇总无法覆盖该账号。当前具体报错不会因重新录入凭据得到修复。",
+      "relatedFindings": [
+        {
+          "id": "SA-04",
+          "relationship": "相关但不重复：SA-04 是 listFolders 发现阶段失败后不生成续查游标；SA-08 是文件夹已知后、分页方法因 UIDNEXT 缺失拒绝执行查询。必须独立登记和验收，不能只提高 SA-04 优先级后认为已覆盖。"
+        }
+      ],
+      "fix": "为缺少 UIDNEXT 的服务器提供基于可验证实际 UID 信息的有界分页起点，保持有效 UIDNEXT 的既有路径。保留有效 UIDVALIDITY、变化时拒绝旧游标、锁释放、每页最多 200 条、候选 UID 上限、UID 范围校验、超时和部分结果契约；不得假定 UID 连续、取消范围检查或无限抓取。若补充错误分类，仅返回脱敏的分页元数据不可用等明确类别，不回传提供商原始响应，也不扩展通用错误框架。",
+      "tests": [
+        "SELECT 和 STATUS 均缺 UIDNEXT，但 UIDVALIDITY 有效、邮箱非空时，真实 searchEmailPage 返回消息；超过 200 个匹配 UID 时产生并正确消费续查游标，单页 FETCH 不超过 200 条。",
+        "同样缺失 UIDNEXT 的空邮箱、稀疏高 UID 邮箱，以及正常提供 UIDNEXT 的服务器均正确处理，不通过逐个扫描 UID 空隙或无限量抓取实现。",
+        "UIDVALIDITY 缺失时保持明确拒绝；UIDVALIDITY 变化拒绝旧游标；保留非法 UID、搜索上界、候选数量上限及锁在成功/失败时释放的断言。",
+        "通过 imap_search_all_accounts 调用链模拟 163/126 缺元数据条件，证明全局合并、部分失败、超时及续查契约有效；不能只证明普通搜索正常，也不能把分页方法完全 mock 掉来验证核心兼容行为。",
+        "若调整错误分类，验证可区分分页元数据缺失且不泄露敏感内容；若调整状态字段输出，验证缺失 UIDNEXT 不再被误解为服务器实际返回 0，同时检查现有消费者兼容性。",
+        "未来完成实现后，按仓库要求核对构建产物及 MCP 加载版本；真实邮箱复测须另行授权，不重新录入或更换现有凭据。"
+      ],
+      "runtimeModelImpact": "分页和脱敏错误分类由确定性代码完成；正常、重试、回退均不新增运行时模型请求。缺 UIDNEXT 的回退可能增加 IMAP 协议往返，具体次数和延迟由实现后的定点测试测量。",
+      "outOfScope": "本次仅更新当前草稿 PR 的问题登记和优先级；不实施修复、不修改本机权限或配置、不处理交接中另行出现的其他账号 timeout，也不将沙箱 CredReadW 权限问题当作邮箱故障。"
+    }
+  ]
+}

@@ -1,0 +1,836 @@
+{
+  "title": "Mail Agent MCP 安全与代码审计及后续开发方案",
+  "date": "2026-10-15",
+  "repository": "https://github.com/ertutio/mail-agent-mcp",
+  "commit": "e47a74c6375c54a4af3b8e2e522262b4c156f3ef",
+  "counts": {
+    "P1": 7,
+    "P2": 22,
+    "P3": 2
+  },
+  "findings": [
+    {
+      "id": "SEC-01",
+      "priority": "P1",
+      "group": "安全与账号入口",
+      "title": "API路径大小写差异绕过setup session鉴权",
+      "status": "本地HTTP实测确认",
+      "locations": [
+        "src/web/server.ts:96-105",
+        "src/web/server.ts:174-180",
+        "src/web/server.ts:307-359",
+        "src/web/server.ts:72-78"
+      ],
+      "precondition": "setup进程正在运行；攻击者能连接这台机器的loopback端口（例如同机不同OS用户、本地不可信客户端）。仍需通过既有Host、Origin、Sec-Fetch-Site限制。未证明普通恶意外站能够跨浏览器Origin校验，也不是公网任意远程接管。",
+      "rootCause": "鉴权中间件用req.path.startsWith('/api/')进行大小写敏感判断，Express app及Router默认大小写不敏感；/API/accounts、/Api/accounts会跳过token校验但命中真实API。",
+      "evidence": "work/security-repro.mts：无token GET /api/accounts=403；GET /API/accounts及/Api/accounts=200；无token PUT /API/accounts/synthetic=200且updateAccount记录到host变更。",
+      "impact": "无session读取账号元数据、修改配置和调用注册/删除/连接测试等API；删除确认字段可从无session账号列表获得。对legacy通用账号，还能把host改为攻击者服务器，再触发测试，使现有密码发往攻击者端点；此链路未连接真实邮箱，仅确认写入口可达。标准provider endpoint绑定仍阻止QQ/Gmail/网易端点改写。",
+      "fix": "将session校验直接挂到统一的app.use('/api', requireSetupSession)或统一受保护Router，确保框架路由与鉴权使用同一匹配规则；可再启用case sensitive routing并统一URL。不要仅保护部分字符串前缀。所有API响应应统一no-store。",
+      "tests": [
+        "对所有API读/写入口测试/api、/API、/Api及尾斜杠变体，无token/错token均不能调用handler",
+        "保留正确token、exact-origin、DNS rebinding和Sec-Fetch-Site拒绝测试",
+        "证明无token无法从账号列表获取身份或触发删除/端点变更"
+      ]
+    },
+    {
+      "id": "SEC-02",
+      "priority": "P1",
+      "group": "安全与账号入口",
+      "title": "通用IMAP的STARTTLS仅为机会式升级，缺失时仍发送可还原密码",
+      "status": "本地TCP协议实测确认",
+      "locations": [
+        "src/services/imap-service.ts:192-205",
+        "src/services/imap-service.ts:1702-1711",
+        "src/services/imap-service.ts:1732-1741",
+        "src/web/server.ts:200-205"
+      ],
+      "precondition": "legacy/自定义账号使用tls:false（如143/STARTTLS配置）；对端不广告STARTTLS或网络中间人剥离该能力。当前浏览器默认其他账号993/TLS和provider专用QQ/Gmail/网易隐式TLS流程不受此问题影响。",
+      "rootCause": "connect/authenticateOnly/testConnection将account.tls传给ImapFlow.secure，却都未设置doSTARTTLS:true。锁定版本imapflow的说明及实现明确表示secure:false、doSTARTTLS未定义时，服务器不支持STARTTLS会继续明文认证。",
+      "evidence": "work/security-extra-repro.mts启动127.0.0.1假IMAP服务，仅广告IMAP4rev1 AUTH=PLAIN，无STARTTLS；调用实际ImapService.authenticateOnly(tls:false)，服务器在未建立TLS的socket收到AUTHENTICATE后的base64字符串，解码确实含合成密码。输出sawAuth=true, plaintextContainedPassword=true。",
+      "impact": "SASL PLAIN/LOGIN的邮箱密码或授权码可被网络中间人直接还原，随后可能导致邮箱接管；期待STARTTLS的配置不能保证加密。",
+      "fix": "建模明确的implicitTLS/requiredSTARTTLS传输模式；secure:false时默认doSTARTTLS:true，升级失败或能力缺失必须在发送任何凭据之前终止。若本地bridge确实需要明文，单独显式开关并限制loopback，不能作为所有自定义服务器的默认降级。三种连接入口共享同一个安全配置构造器。",
+      "tests": [
+        "本地假IMAP不广告STARTTLS时必须拒绝且socket从未收到认证数据",
+        "广告STARTTLS但返回NO、TLS证书错误均拒绝且不发送认证",
+        "合法STARTTLS和隐式TLS均能成功",
+        "如保留bridge例外，非loopback无法启用"
+      ]
+    },
+    {
+      "id": "SA-01",
+      "priority": "P1",
+      "group": "连接与检索",
+      "title": "账号修改后 IMAP 沿用旧连接，重连仍使用旧身份与服务器",
+      "status": "本地合成数据或离线 mock 复现确认",
+      "locations": [
+        "src/services/imap-service.ts:278-300",
+        "src/services/imap-service.ts:314-327",
+        "src/web/server.ts:355-359"
+      ],
+      "precondition": "MCP 已连接某账号；浏览器或另一配置进程修改同一 ID 的 user、host、password、OAuth clientId 等连接属性；运行中的 MCP 未重启。",
+      "rootCause": "ensureConnected 虽读取 configuredAccount，却只检查账号是否还存在；健康连接不检查配置变化；断线后从 state.account 取旧快照重连。浏览器 PUT 也不使缓存失效。",
+      "evidence": "mock manager 返回 user=b@example.test/host=changed.example.test，而 connections 缓存 user=a@example.test；第一次 listFolders 使用旧 client，模拟断线后 connect 捕获的参数仍是 a@example.test。",
+      "impact": "浏览器展示的新身份与实际读写邮箱不一致；可能继续读取/标记/移动原邮箱邮件；密码或 OAuth 参数修复后仍失败。这里的高优先级基于错误邮箱操作风险，并非未经授权远程攻击。",
+      "fix": "为连接关键字段建立稳定指纹/版本；每次 ensureConnected 将最新配置与 connection snapshot 比较，变化时原子失效旧连接并用 configuredAccount 重连；跨进程也通过配置版本检测；涉及身份变化时使相关发送/删除预览失效。",
+      "tests": [
+        "两个 AccountManager 共享隔离 profile，首次连接后通过另一实例修改 host/user/密码；断言下一次操作关闭旧 client且只使用新身份；另覆盖 idle reconnect、OAuth clientId 改变、只改显示名称无需重连。"
+      ]
+    },
+    {
+      "id": "MAIL-01",
+      "priority": "P1",
+      "group": "邮件操作与附件",
+      "title": "folder_status 绕过邮箱锁，可将并发 UID 删除/移动执行在错误文件夹",
+      "status": "本地合成数据或离线 mock 复现确认",
+      "locations": [
+        "src/services/imap-service.ts:368-370",
+        "src/tools/folder-tools.ts:60-61",
+        "src/services/imap-service.ts:1210-1221"
+      ],
+      "precondition": "同一账号的批量删除、标记或读取在持有 getMailboxLock(A) 时，另一个并发 imap_folder_status 调用 selectFolder(B)。",
+      "rootCause": "selectFolder 直接 mailboxOpen，不参与 getMailboxLock 队列；IMAP UID 命令操作当前选中的 mailbox。getFolderStatus(A) 检查的是命名邮箱A，无法阻止随后 UID MOVE 落在B。依赖自身文档 node_modules/imapflow/lib/imap-flow.js:4341-4344 明确 mailboxOpen 不提供锁保证。",
+      "evidence": "模拟 bulkDelete(INBOX,[7],expectedValidity=123)，在其 STATUS await 间调用 selectFolder(Archive)，最终记录 messageMove 的 selected=Archive，uid=7。",
+      "impact": "可能读取/标记/移动/永久删除非用户选择文件夹里的同UID邮件；冻结删除清单及UIDVALIDITY保护被破坏。需要并发时序，不是每次必现。",
+      "fix": "将状态+旗标读取实现为单个持锁方法；通过 getMailboxLock(folder) 读取 client.mailbox 的快照后在 finally 释放，禁止业务层裸 mailboxOpen。所有 SELECT 路径统一遵守同一把锁。",
+      "tests": [
+        "用闸门测试并发 folder_status(B) 与 A 的 delete/read/flags：B 必须等A释放锁，操作路径和UID始终来自A；包括两个邮箱碰巧同UID且UIDVALIDITY不同的情况。"
+      ]
+    },
+    {
+      "id": "MAIL-02",
+      "priority": "P1",
+      "group": "邮件操作与附件",
+      "title": "附件下载的 PDF 文本提取绕过受限子进程解析器",
+      "status": "本地合成数据或离线 mock 复现确认",
+      "locations": [
+        "src/tools/email-tools.ts:530-562",
+        "src/utils/pdf-preview.ts:11-41",
+        "README.md:28"
+      ],
+      "precondition": "调用默认extractText=true的 imap_download_attachment 下载PDF（此工具也在mailbox-read-only模式开放）。",
+      "rootCause": "此入口直接在MCP进程中new PDFParse并getText全部页，没有256KiB、前20页、5秒、子进程128MiB限制，也不截断返回文本；已有extractPdfPreview仅用于get_email中的附件预览。总MIME25MiB限制仍存在，不能等价限制PDF解压/解析复杂度。",
+      "evidence": "无害276061字节、21页PDF经真实download handler解析成功，response.pages=21，包含第21页文本，证明字节/页数边界未生效。未实际制造OOM或执行恶意PDF。",
+      "impact": "邮件发送者控制的压缩/复杂PDF可使主进程CPU、内存和返回内容失控，影响全部MCP工具；也与README宣称的隔离限制不一致。这里证明资源防护绕过，不宣称已复现任意代码执行。",
+      "fix": "所有PDF入口统一调用extractPdfPreview，超限/超时保存二进制并返回结构化previewUnavailable原因；统一页数、文本输出和并发预算。",
+      "tests": [
+        "下载入口也测试256KiB+1、21页、输出超100000字符、超时与并发；确认进程继续处理其他工具，并且超限PDF只保存而不主进程解析。"
+      ]
+    },
+    {
+      "id": "MAIL-09a",
+      "priority": "P1",
+      "group": "邮件操作与附件",
+      "title": "服务器无 MOVE 且 COPY 失败时，依赖仍删除源邮件",
+      "status": "本地合成数据或离线 mock 复现确认",
+      "locations": [
+        "src/services/imap-service.ts:1221",
+        "src/services/imap-service.ts:1306",
+        "node_modules/imapflow/lib/commands/move.js:34-37",
+        "node_modules/imapflow/lib/commands/copy.js:42-45",
+        "package-lock.json:3255-3256"
+      ],
+      "precondition": "服务器不支持MOVE/等效rev2，COPY到目标垃圾箱或目标文件夹失败（不存在、ACL拒绝、配额等），但源邮箱删除权限有效。",
+      "rootCause": "imapflow 1.6.5 COPY遇NO等异常返回false；MOVE回退不检查COPY结果就调用messageDelete。应用直接使用该回退，不能通过事后检查结果撤销已发生删除。",
+      "evidence": "执行锁定依赖真实 move.js，能力IMAP4rev1+UIDPLUS，messageCopy返回false；动作序列为 COPY returned false -> DELETE source UID。",
+      "impact": "原本希望可恢复的移到垃圾箱/普通移动，变成没有副本的源邮件永久删除。仅影响缺少MOVE且COPY失败条件；不声称所有服务器必现。",
+      "fix": "优先要求原生MOVE；否则应用实现受控COPY->确认成功->精确UID删除，任何false/undefined都必须中止。核验上游修复并固定已验证版本，或提供最小补丁；单纯更新到未知最新版不是验证。",
+      "tests": [
+        "无MOVE且COPY返回false、undefined、抛错时，messageDelete调用次数必须为0；COPY成功且UIDPLUS可用才允许删除。覆盖垃圾箱不存在、配额不足及ACL拒绝。"
+      ]
+    },
+    {
+      "id": "MAIL-09b",
+      "priority": "P1",
+      "group": "邮件操作与附件",
+      "title": "服务器无 UIDPLUS 时，确认单个 UID 会 EXPUNGE 其它已标删除邮件",
+      "status": "本地合成数据或离线 mock 复现确认",
+      "locations": [
+        "src/services/imap-service.ts:1217-1221",
+        "node_modules/imapflow/lib/commands/expunge.js:24-36",
+        "package-lock.json:3255-3256"
+      ],
+      "precondition": "服务器不支持 UIDPLUS（亦无等效IMAP4rev2能力），目标邮箱已有其他邮件携带 \\Deleted；确认删除Trash中一个UID，或走缺少MOVE的移动回退。",
+      "rootCause": "应用未检查精确删除能力；锁定依赖 imapflow 1.6.5 在 options.uid=true 但无UIDPLUS时回退普通 EXPUNGE，后者清除整个当前邮箱的全部 \\Deleted。",
+      "evidence": "调用真实依赖 expunge.js，模拟能力仅IMAP4rev1，range=7；记录先标记UID7，随后 exec('EXPUNGE',false)，没有UID范围。",
+      "impact": "用户只确认清单中UID7，邮箱中其它预先标记删除的UID也永久消失；属于超出确认范围的不可逆操作。仅影响满足缺少能力条件的服务器，不推定Gmail/QQ必现。",
+      "fix": "永久删除必须要求UIDPLUS/等效rev2；不支持时拒绝精确删除并说明原因。非MOVE回退同样不得调用全邮箱EXPUNGE；可只复制到垃圾箱并返回未删除，或直接禁用不安全回退。不能靠先临时清除其它Deleted标记解决跨客户端竞争。",
+      "tests": [
+        "构造UID7待删、UID9已Deleted，缺UIDPLUS时必须拒绝或保留UID9；覆盖有UIDPLUS时 UID EXPUNGE 7、原生MOVE以及rev2等效能力。"
+      ]
+    },
+    {
+      "id": "BUG-SEC-04",
+      "priority": "P2",
+      "group": "安全与账号入口",
+      "title": "CLI新注册绕过登录验证，错误凭据也持久化并报告成功",
+      "status": "CLI注入验证回调实测确认",
+      "locations": [
+        "src/enroll.ts:302-305",
+        "src/enroll.ts:307-323",
+        "src/enroll.ts:332-345",
+        "src/credentials/account-enrollment.ts:143-149",
+        "src/web/server.ts:72-78"
+      ],
+      "precondition": "通过mail-agent-enroll新注册QQ/网易/Gmail，输入错误授权码、IMAP未启用，或Gmail授权时选中与填写email不一致的Google账户。",
+      "rootCause": "CLI创建AccountEnrollmentService仅传credentials和AccountManager，未传可选verify；该service只有存在verify才做authenticateOnly。浏览器注册正确传入验证，两入口安全/可用性契约不一致。",
+      "evidence": "work/security-extra-repro.mts为runEnrollmentCli(['qq'])注入必定抛错的authenticateOnly，但verificationCalls=0；successReported=true且persisted=true。",
+      "impact": "持久化不可用账号及秘密并显示enrolled成功，直到MCP使用时才失败；Gmail把正确token记在错误账号标识下；重复注册检查阻止简单重试，用户需要修复/删除重建。不是直接的远程凭据泄漏。",
+      "fix": "CLI共用浏览器的resolver和authenticateOnly注册服务，只有登录验证成功再写账号元数据，失败应回滚vault值；将验证依赖设为生产构造必填，允许离线导入时使用明确不同命令/未验证状态。",
+      "tests": [
+        "QQ/各网易预设错误授权码不得留账号或新vault值",
+        "Gmail选择不同账号时IMAP验证失败并回滚",
+        "成功路径必须认证一次后才报告success",
+        "原vault值存在时失败应保留旧值"
+      ]
+    },
+    {
+      "id": "BUG-SEC-05",
+      "priority": "P2",
+      "group": "安全与账号入口",
+      "title": "OAuth token交换超时只覆盖响应头，响应体可长期占用注册任务",
+      "status": "本地HTTP延迟响应体实测确认",
+      "locations": [
+        "src/credentials/gmail-oauth-loopback.ts:256-290",
+        "src/credentials/gmail-oauth-loopback.ts:293-306",
+        "src/web/enrollment-router.ts:74-84"
+      ],
+      "precondition": "OAuth token服务或经TLS验证的连接在响应头之后非常缓慢、持续少量传输或卡住。无需真实攻击；不声称普通代理能够篡改TLS内容。",
+      "rootCause": "fetch收到headers后立即进入finally清理tokenTimer，后续成功response.json以及错误readSafeTokenError(response)都在超时范围之外。callback已settled，早先callbackTimer也不能再中止。",
+      "evidence": "work/security-repro.mts设置timeoutMs=100，本地tokenEndpoint立即flush headers、300ms后才发送JSON；实际结果323ms后仍成功，不曾超时。",
+      "impact": "超过timeoutMs仍未结束，循环注册的busy保持true且loopback listener/dispatcher存活；网页后续添加账号被阻塞，错误响应也同样有问题。",
+      "fix": "让AbortController定时器覆盖整个fetch+受限响应体读取+JSON解析；在外层finally中清除。给token JSON设置小的总字节限制；统一区分timeout/invalid JSON，确保busy及listener/dispatcher始终释放。",
+      "tests": [
+        "2xx响应头及时、body超过截止时间必须超时",
+        "4xx错误响应体卡住也必须超时",
+        "持续drip-feed不能无限延长总期限",
+        "超时后无活动listener，后续注册可以开始"
+      ]
+    },
+    {
+      "id": "BUG-SEC-06",
+      "priority": "P2",
+      "group": "安全与账号入口",
+      "title": "通用账号写API缺少运行时schema，合法JSON可持久损坏账号列表",
+      "status": "合法session、本地HTTP和真实临时账号文件实测确认",
+      "locations": [
+        "src/web/server.ts:187-230",
+        "src/web/server.ts:309-358",
+        "src/services/account-manager.ts:187-239",
+        "src/utils/env-credentials.ts:19-24"
+      ],
+      "precondition": "调用合法通用配置API的客户端发出错误类型，如PUT现有账号{name:null}；SEC-01存在时同机无session客户端同样可触发。",
+      "rootCause": "新provider enrollment和delete使用Zod，但generic POST/PUT直接把req.body任意类型放进ImapAccount；TS接口没有运行时约束。AccountManager也未校验最终候选记录。",
+      "evidence": "work/security-repro.mts在工作区临时profile创建正常账号，再带合法session PUT {name:null}：updateStatus=200；紧接GET /api/accounts：listStatus=500。",
+      "impact": "PUT返回200并保存name:null，随后getAllAccounts应用环境变量名规则时抛异常，使整个/api/accounts返回500，浏览器列表不可用；MCP枚举账号亦受影响，通常需手工修复文件。",
+      "fix": "所有HTTP变更使用严格schema校验类型、长度、端口范围、邮箱和host；AccountManager持久化前再次校验完整候选对象，并在加载账号文件时校验版本及每条记录。schema拒绝必须发生在任何vault或文件写入前；损坏单条记录不应静默破坏整个列表。",
+      "tests": [
+        "name:null/object、host数组、port越界、tls非布尔、smtp未知结构均4xx且文件不变",
+        "有效空占位/env-managed语义仍受支持",
+        "损坏文件应明确拒绝写入并能诊断具体记录",
+        "正常API和CLI共享相同字段约束"
+      ]
+    },
+    {
+      "id": "BUG-SEC-A1",
+      "priority": "P2",
+      "group": "安全与账号入口",
+      "title": "连接测试失败路径未保证关闭IMAP连接",
+      "status": "静态确认清理缺口，未跑实际socket泄露实验",
+      "locations": [
+        "src/web/server.ts:259-277",
+        "src/web/server.ts:426-432",
+        "src/services/imap-service.ts:1743-1772"
+      ],
+      "precondition": "临时 IMAP 连接已认证成功，后续 LIST 或连接清理失败。",
+      "rootCause": "Web /api/test-connection只有listFolders成功后才disconnect，失败catch无finally；Web stop也只关闭HTTP server。ImapService.testConnection的logout同样仅在成功路径。连接认证成功而LIST失败时连接可能保留到服务商超时，影响重复测试和idle退出。",
+      "evidence": "Web /api/test-connection只有listFolders成功后才disconnect，失败catch无finally；Web stop也只关闭HTTP server。ImapService.testConnection的logout同样仅在成功路径。连接认证成功而LIST失败时连接可能保留到服务商超时，影响重复测试和idle退出。",
+      "impact": "连接可能保留到远端超时，重复测试累积连接，关闭设置界面后仍可能有活动句柄。",
+      "fix": "临时连接的创建、使用、logout/close放进统一try/finally；失败清理不能覆盖原始异常；setup stop明确清理其持有的临时IMAP连接。",
+      "tests": [
+        "mock connect成功、listFolders失败仍disconnect",
+        "logout失败仍强制close",
+        "stop后无临时连接和活动句柄"
+      ]
+    },
+    {
+      "id": "SEC-03",
+      "priority": "P2",
+      "group": "安全与账号入口",
+      "title": "CLI凭据修复未参与跨进程事务，失败回滚可复活已删除凭据",
+      "status": "共享内存vault与真实临时AccountManager交错实测确认",
+      "locations": [
+        "src/enroll.ts:171-193",
+        "src/enroll.ts:242-279",
+        "src/credentials/credential-rotation.ts:33-48",
+        "src/services/account-manager.ts:113-179"
+      ],
+      "precondition": "修复的异步认证进行中，另一个setup/CLI进程删除账号或对同一credential target修复；多进程竞争通常由用户正常并行操作触发，无需攻击者。",
+      "rootCause": "qq-repair/gmail-repair只使用模块内Set防同进程重入；rotateCredential写新值、等待网络验证、失败写回旧快照，没有使用账号store跨进程锁，也不确认目标仍属于现存账号。浏览器删除/注册虽有锁，修复不遵守同一协议。",
+      "evidence": "work/security-extra-repro.mts：runEnrollmentCli qq-repair在authenticateOnly等待；manager.removeAccount删除元数据及vault值；解除等待并使验证失败；最终accountExists=false、credentialRestoredAfterDeletion=true。没有调用真实Windows凭据API。",
+      "impact": "用户看到账号及凭据已删除后，迟到的修复回滚重新写回旧secret，留下无账号元数据引用的孤儿凭据。两个修复交错还可能让失败操作覆盖另一成功修复，导致成功提示与实际密码不一致。",
+      "fix": "将轮换纳入AccountManager.withStoreTransaction/同一跨进程锁，锁内重新读取账号并校验target后再快照、写入、验证、回滚。Google浏览器授权和人工输入可在锁外完成，但提交时必须重验账号版本。更长期可用版本化凭据或比较并交换，避免旧快照覆盖新状态。",
+      "tests": [
+        "跨实例repair与remove交错，删除成功后不得复活secret",
+        "两个repair交错：失败回滚不能覆盖已提交的新secret",
+        "账号在授权期间已删/重注册时，修复提交失败且不写vault",
+        "验证与回滚失败均给出准确状态"
+      ]
+    },
+    {
+      "id": "ENG-01",
+      "priority": "P2",
+      "group": "工程与发布",
+      "title": "开发依赖存在两组已知漏洞，当前全量依赖CI门禁无法通过",
+      "status": "npm官方审计接口及公开公告确认；未尝试利用开发服务器",
+      "locations": [
+        "package.json:62-70",
+        "package-lock.json:1995",
+        "package-lock.json:2293",
+        "package-lock.json:4137",
+        "package-lock.json:5481",
+        ".github/workflows/ci.yml:59-60"
+      ],
+      "precondition": "开发环境安装完整依赖；利用还需要不可信嵌套glob输入或可到达的相关mock开发服务。当前stdio生产邮件路径未证明可达这些漏洞。",
+      "rootCause": "锁定vitest/@vitest/mocker 4.1.10和nodemon→chokidar→braces 3.0.3。npm audit把传播到父包的影响分成6条，并不是6个独立漏洞。",
+      "evidence": "2026-10-15 npm audit --json：3 high、3 moderate、0 critical；--omit=dev为0。上游公告GHSA-82fw-gwwq-j7x9与GHSA-vfj7-8cjw-p6xm。CI执行全量npm audit --audit-level=high；当前high依赖链会触发失败。rg表明nodemon只在package.json出现，dev脚本实际使用tsx watch。",
+      "impact": "已知开发工具风险和CI阻塞；不能等同生产服务有6个高危漏洞。",
+      "fix": "同步更新vitest、@vitest/coverage-v8及相关锁文件到至少4.1.11的修复版本；删除未使用nodemon以移除braces链（若保留需替换到无漏洞依赖链）。不要盲目audit fix --force降级nodemon到1.x。保留生产及全量门禁，重新验证构建、测试和打包。",
+      "tests": [
+        "完整依赖audit不再报告两组漏洞；633项基线和新增回归均通过；确认tsx watch开发流程不依赖nodemon。"
+      ]
+    },
+    {
+      "id": "ENG-02",
+      "priority": "P2",
+      "group": "工程与发布",
+      "title": "Claude配置解析失败时被当成不存在，随后覆盖整个文件",
+      "status": "静态代码确认，未操作真实客户端配置",
+      "locations": [
+        "src/setup.ts:48-56",
+        "src/setup.ts:63-70"
+      ],
+      "precondition": "用户运行集成向导时，现有claude_desktop_config.json存在语法错误、意外截断或其他读取异常；目标文件仍可写。",
+      "rootCause": "readFile和JSON.parse的所有异常被统一catch成config={}；随后writeFile直接覆写，没有备份、原子替换或仅ENOENT例外处理。",
+      "evidence": "源码分支确定：JSON.parse抛错→config={}→只写mcpServers.imap。未对真实用户客户端配置运行此实验。",
+      "impact": "覆盖用户其他MCP服务和客户端设置，丢失可恢复的原内容。",
+      "fix": "仅ENOENT允许初始化；格式错误应报告并保留原文件。解析及schema校验通过后备份，使用临时文件和原子替换；现存同名imap条目需显式选择替换或新名称。",
+      "tests": [
+        "用临时配置目录验证坏JSON、权限错误、错误结构不写盘；有效配置保留其他服务；写失败仍保留原文件。"
+      ]
+    },
+    {
+      "id": "ENG-03",
+      "priority": "P2",
+      "group": "工程与发布",
+      "title": "从非仓库目录运行安装向导时写入错误MCP可执行路径",
+      "status": "静态代码确认",
+      "locations": [
+        "src/setup.ts:44-45",
+        "src/setup.ts:64-67"
+      ],
+      "precondition": "通过绝对路径node /repo/dist/setup.js或全局bin在另一个工作目录启动，并选择Claude集成。",
+      "rootCause": "serverPath取process.cwd()/dist/index.js，未从当前模块安装位置定位。",
+      "evidence": "源码确定路径依赖启动目录；package.json同时提供mail-agent-setup bin，因此入口不限于仓库cwd。未改写真实客户端配置。",
+      "impact": "向导报告配置成功，客户端重启后找不到服务器模块。",
+      "fix": "基于import.meta.url/fileURLToPath定位安装目录内dist/index.js，验证文件存在再写配置；source/dev与bundled入口分别覆盖。",
+      "tests": [
+        "在与项目无关的临时cwd启动编译版setup，生成配置指向真实dist/index.js，并能完成MCP初始化。"
+      ]
+    },
+    {
+      "id": "SA-02",
+      "priority": "P2",
+      "group": "连接与检索",
+      "title": "同账号并发首次连接互相中止",
+      "status": "本地合成数据或离线 mock 复现确认",
+      "locations": [
+        "src/services/imap-service.ts:180-189",
+        "src/services/imap-service.ts:223-235",
+        "src/services/imap-service.ts:285-292"
+      ],
+      "precondition": "两个工具同时访问尚未连接或需要重连的同一账号；普通 MCP 并行调用即可触发。",
+      "rootCause": "只缓存已完成连接；pendingConnections 保存 client但不共享连接 promise。两个 connect 都通过 existing 检查，后一个覆盖 pending key，先完成者在身份检查时被认定为 aborted。",
+      "evidence": "Promise.allSettled([service.connect(account),service.connect(account)])，transport connect 全部用 deferred promise模拟；创建2个client，关闭1个，结果1 rejected/1 fulfilled；错误为 IMAP connection attempt was aborted。",
+      "impact": "正常并行读操作随机失败；重复认证与连接可能消耗提供商连接配额；重试会加剧抖动。",
+      "fix": "使用每账号 inFlightConnect Promise / mutex，让同账号调用共享一次认证与连接；连接失败后清除 in-flight 状态；与配置版本和取消令牌一起实现。",
+      "tests": [
+        "并发10个 listFolders/getEmail 首次访问，断言只构造1个client、所有调用成功；覆盖同时断线重连、第一次认证失败后重试和关闭期间再次请求。"
+      ]
+    },
+    {
+      "id": "SA-03",
+      "priority": "P2",
+      "group": "连接与检索",
+      "title": "认证解析期间的取消无效，超时后仍会建立连接",
+      "status": "本地合成数据或离线 mock 复现确认",
+      "locations": [
+        "src/services/imap-service.ts:189-192",
+        "src/services/imap-service.ts:223-238",
+        "src/services/imap-service.ts:263-275",
+        "src/tools/unified-search-tools.ts:119-124"
+      ],
+      "precondition": "OAuth token刷新等 authResolver.resolve() 正在 await；统一搜索到达超时或账号被移除时调用 abortConnection。",
+      "rootCause": "pendingConnections 到认证 await结束且client构造后才登记；abort 在此之前看不到任何对象，亦未记录取消版本。之后 connect正常拨号并安装连接。",
+      "evidence": "mock resolve 保持pending，调用 connect 后立刻 abortConnection，然后resolve认证；dial计数=1，connections.size=1，connect成功。",
+      "impact": "硬超时/连接撤销不覆盖完整连接生命周期；工具返回超时或账号移除后仍发生连接及后续在途读取，遗留无用会话。不是声称任意跨账号访问。",
+      "fix": "在认证前登记按账号的 AbortController/epoch；每个 await后检查取消状态，连接完成前再核验账号版本/存在性；token HTTP支持 AbortSignal，构造前及连接后取消均 close。",
+      "tests": [
+        "分别在 auth前、auth中、IMAP握手中、握手后触发abort；断言取消后无新拨号或已建立client立即关闭、不写入缓存；账号移除与全局搜索deadline覆盖同一路径。"
+      ]
+    },
+    {
+      "id": "SA-04",
+      "priority": "P2",
+      "group": "连接与检索",
+      "title": "统一搜索的文件夹发现失败不生成续查游标",
+      "status": "本地合成数据或离线 mock 复现确认",
+      "locations": [
+        "src/tools/unified-search-tools.ts:38",
+        "src/tools/unified-search-tools.ts:91",
+        "src/tools/unified-search-tools.ts:124",
+        "src/tools/unified-search-tools.ts:140"
+      ],
+      "precondition": "部分账号 listFolders 立即失败（如瞬时断线），其他账号成功；非timeout错误。",
+      "rootCause": "外层catch仅在 cancelled=true 时向 foldersPending 添加 account placeholder；普通 listFolders 异常只有 status=failed，无cursor。",
+      "evidence": "两个synthetic账号，一者list成功、一者throw；结果 success=true, partial=true, accounts=[ok,failed], cursors=[]。",
+      "impact": "错误已由 partial/status显式呈现，不应描述为静默成功；但工具说明要求一直续查至cursors为空，失败账号无法进入标准恢复流程，调用者若只续cursor将永远漏查该账号。",
+      "fix": "发现阶段失败也返回带 accountName 的待重试cursor，或单列retryAccounts并明确终止/重试契约；为不可重试错误提供类别和重试上限，避免永久失败形成无限循环。",
+      "tests": [
+        "首轮一个账号 discovery失败，第二轮恢复并仅传上轮cursor，断言只重试失败账号且成功返回其消息；永久错误明确标记不可续查。"
+      ]
+    },
+    {
+      "id": "SA-05",
+      "priority": "P2",
+      "group": "连接与检索",
+      "title": "普通搜索接受负数limit与无效日期并返回错误语义",
+      "status": "本地合成数据或离线 mock 复现确认",
+      "locations": [
+        "src/tools/email-tools.ts:176-183",
+        "src/tools/email-tools.ts:199-206",
+        "src/tools/email-tools.ts:219-220",
+        "src/tools/email-tools.ts:348",
+        "src/tools/email-tools.ts:371"
+      ],
+      "precondition": "工具调用传入 limit=-1 / 非整数，或 since='2026-02-30' 等不存在日期；无需真实邮箱。",
+      "rootCause": "limit仅z.coerce.number，无正整数/上限约束，后续直接slice；日期直接new Date(year,month-1,day)，允许溢出归一，且没有since<before检查。统一搜索已经有更严格实现但未共享。",
+      "evidence": "schema.limit.parse(-1)成功；4条合成结果返回3条；since=2026-02-30被传给service为2026-03-02。",
+      "impact": "负值不会表达有效最大结果数量，导致过多返回；非法日期被静默换成另一日期，漏查邮件并误导分析。",
+      "fix": "提取统一的positive bounded integer、UID、dateOnly schema；limit使用int().min(1).max(200)或已约定上限；严格校验日历日期并拒绝since>=before；同类spam limits一起统一。",
+      "tests": [
+        "拒绝负数、0、小数、越界limit；闰年合法/非法日、month=13、反向日期范围；使用真实schema parse后断言无网络调用。"
+      ]
+    },
+    {
+      "id": "SA-07",
+      "priority": "P2",
+      "group": "连接与检索",
+      "title": "账号存储文件删除后继续使用旧缓存，下次新增复活旧账号",
+      "status": "本地合成数据或离线 mock 复现确认",
+      "locations": [
+        "src/services/account-manager.ts:54-58",
+        "src/services/account-manager.ts:440-455"
+      ],
+      "precondition": "账号已被当前进程加载；用户/外部工具删除accounts.json做重置，或读取发生错误。普通removeAccount写入[]的流程不受此问题影响。",
+      "rootCause": "loadAccountsSync仅成功parse后清空map；ENOENT直接忽略、strict也忽略；原Map继续保留。JSON.parse失败同样保留旧map（strict写操作会拒绝但非strict读取继续旧配置）。",
+      "evidence": "删除隔离accounts.json后getAllAccounts仍返回1个；随后addAccount fresh-account，重新创建的文件包含原账号及fresh-account两条。",
+      "impact": "配置删除无法撤销缓存账号的访问；后续新增把用户以为已移除的账号写回。需明确外部删文件场景，不能宣称标准浏览器移除失效。",
+      "fix": "读取到ENOENT视为空配置并清空map；其他读取/格式错误返回可操作的配置错误，避免悄悄使用过期权限；先解析并校验临时Map，成功后原子替换；必要时保留last-known-good仅用于显式恢复。",
+      "tests": [
+        "两个进程/manager加载后外部删除配置，下一次lookup不得返回旧账户；随后add仅有新账户；无效JSON、不可读文件、非数组JSON、恢复正常文件各自明确行为。"
+      ]
+    },
+    {
+      "id": "MAIL-03",
+      "priority": "P2",
+      "group": "邮件操作与附件",
+      "title": "Sent副本与真正发出的邮件具有不同 Message-ID",
+      "status": "本地合成数据或离线 mock 复现确认",
+      "locations": [
+        "src/services/smtp-service.ts:151-156",
+        "src/services/smtp-service.ts:163-174",
+        "src/tools/safe-send-tools.ts:140-141"
+      ],
+      "precondition": "正常发信且保存Sent副本。",
+      "rootCause": "composeRaw使用MailComposer第一次编译，sendMail(mailOptions)又独立编译一次；未固定messageId/date/raw，所以两个随机Message-ID不同。",
+      "evidence": "真实Nodemailer streamTransport（不联网）发送并用真实mailparser解析，两份MIME Message-ID不同，详见JSON结果。",
+      "impact": "收件人回复的In-Reply-To匹配不到本地Sent副本，按Message-ID查找、会话归并、去重和故障排查不可靠。提供商自动归档场景还可能形成不同身份的重复副本。",
+      "fix": "只编译一次并以明确SMTP envelope发送同一raw MIME，然后保存同一份原文；或者至少在两次编译前固定messageId/date并验证所有内容一致。必须正确处理BCC envelope与归档副本的隐私要求。",
+      "tests": [
+        "内存SMTP捕获wire MIME与IMAP APPEND MIME，断言Message-ID、Date、正文及附件一致，覆盖BCC和HTML附件。"
+      ]
+    },
+    {
+      "id": "MAIL-04",
+      "priority": "P2",
+      "group": "邮件操作与附件",
+      "title": "reply-all 漏收件人、漏CC，并忽略 Reply-To",
+      "status": "本地合成数据或离线 mock 复现确认",
+      "locations": [
+        "src/services/imap-service.ts:792-796",
+        "src/tools/safe-send-tools.ts:65-85",
+        "src/tools/safe-send-tools.ts:184-196"
+      ],
+      "precondition": "真实MIME To包含自己和他人，且带Cc或Reply-To。",
+      "rootCause": "getEmailContent将整个parsed.to.text地址列表放入单个数组元素；replyRecipients用正则只取首地址判断self，首个是自己则整个元素（含其他人）被跳过。并且代码从不纳入Cc，也始终向From而非Reply-To回复。",
+      "evidence": "真实MIME To=Me,Bob，Cc=Carol，Reply-To=Support；解析结果to=[一整段Me和Bob]，最终replyAll.to仅Alice（From），Bob/Carol/Support均缺失。现有测试手工构造拆好的to数组，未覆盖真实解析契约。",
+      "impact": "回复未到应到收件人，自动回复可能发给不可收信的From而非指定Reply-To；群发协作线程参与者丢失。",
+      "fix": "从mailparser AddressObject.value构造结构化逐地址列表，显式保留cc/replyTo；普通回复优先Reply-To，reply-all合并To+Cc并规范化去重、自身排除。",
+      "tests": [
+        "使用真实raw MIME而非仅手工EmailContent；覆盖自己排首/排尾、Reply-To、Cc、群组地址、引号显示名及大小写去重。"
+      ]
+    },
+    {
+      "id": "MAIL-05",
+      "priority": "P2",
+      "group": "邮件操作与附件",
+      "title": "HTML 转发的常见显示视图丢失用户附言和转发头",
+      "status": "本地合成数据或离线 mock 复现确认",
+      "locations": [
+        "src/tools/safe-send-tools.ts:218-224"
+      ],
+      "precondition": "转发包含HTML的邮件，并在text/body中加入说明。",
+      "rootCause": "附言和forwardHeader只拼在text MIME部分；HTML部分原封不动等于原始邮件。常见邮件客户端优先显示HTML，因此看不到附言。",
+      "evidence": "转发输入IMPORTANT FORWARD NOTE，结果text含该字串和转发头，html仅<p>Original HTML</p>。",
+      "impact": "转发说明、操作要求或上下文被收件人忽略，HTML视图看起来像没有说明的原邮件。",
+      "fix": "将用户文字和转发头转义后同时构造HTML包装，或明确仅发一致的纯文本；两种MIME alternative语义一致，避免直接拼未转义发件人/主题。",
+      "tests": [
+        "分别解析发出的text/html，二者都包含附言与转发信息；特殊字符必须HTML转义；原始HTML和CID附件仍正常。"
+      ]
+    },
+    {
+      "id": "MAIL-06",
+      "priority": "P2",
+      "group": "邮件操作与附件",
+      "title": "超过5000封未读或查询失败时，未读数被静默报告为0",
+      "status": "本地合成数据或离线 mock 复现确认",
+      "locations": [
+        "src/tools/folder-tools.ts:145-153",
+        "src/services/imap-service.ts:427"
+      ],
+      "precondition": "某文件夹未读数超过5000，或搜索发生权限/网络错误。",
+      "rootCause": "统计通过searchEmails全量取邮件，其资源上限会throw；catch将所有错误替换成0，而没有partial/error字段。",
+      "evidence": "模拟服务器搜索返回5001个未读UID，真实service触发上限，工具返回totalUnread=0,byFolder.INBOX=0。",
+      "impact": "大量未读被误报为空，破坏自动巡检/优先级提醒，同时对普通计数进行了不必要的邮件元数据下载。",
+      "fix": "改用已实现的STATUS unseen；失败返回unknown/错误条目而非0，total注明partial。",
+      "tests": [
+        "5001/100000未读计数、无权限文件夹、网络失败、空邮箱；应准确计数或明确未知，不能伪造0。"
+      ]
+    },
+    {
+      "id": "MAIL-07",
+      "priority": "P2",
+      "group": "邮件操作与附件",
+      "title": "按域删除采用 IMAP FROM 子串，冻结非目标域邮件",
+      "status": "本地合成数据或离线 mock 复现确认",
+      "locations": [
+        "src/tools/spam-tools.ts:316-319",
+        "src/tools/spam-tools.ts:358-359"
+      ],
+      "precondition": "请求删除bad.test域，邮箱存在person@bad.test.other.test或显示名含notice@bad.test但真实地址为person@good.test的邮件。",
+      "rootCause": "IMAP FROM @domain是子串匹配，查询结果未用解析后的真实邮箱域二次验证就直接提取UID。",
+      "evidence": "使用guardedDeletion真实包装器，搜索返回目标UID7和两个非目标UID8/9，预览冻结[7,8,9]。",
+      "impact": "确认后可能误删域外邮件。已有预览和样本能降低风险，但不会修正选集，尤其超过20条样本后不易看出错误。",
+      "fix": "以标准邮箱地址解析器解析From，做小写/IDNA规范化后的域精确相等；子域是否纳入应单独参数明确，不使用显示名字符串。",
+      "tests": [
+        "精确域、大小写、域后缀伪装、显示名诱导、子域、国际化域和多From地址均有测试；冻结清单只包含符合规则UID。"
+      ]
+    },
+    {
+      "id": "MAIL-08",
+      "priority": "P2",
+      "group": "邮件操作与附件",
+      "title": "bulkDelete 忽略 IMAP false 返回，删除失败仍计为成功",
+      "status": "本地合成数据或离线 mock 复现确认",
+      "locations": [
+        "src/services/imap-service.ts:1219-1224",
+        "node_modules/imapflow/lib/commands/move.js:54-58",
+        "node_modules/imapflow/lib/commands/expunge.js:51-55"
+      ],
+      "precondition": "MOVE或EXPUNGE收到服务器拒绝。依赖捕获异常并返回false；应用代码仅捕获throw。",
+      "rootCause": "不检查messageMove/messageDelete返回值，立即deleted += chunk.length。",
+      "evidence": "mock messageMove返回false，bulkDelete([7])仍返回deleted=1,failed=0,errors=[]。依赖源码确认false是实际错误契约，并非人为不可达mock。",
+      "impact": "confirm_delete报告成功且销毁预览，邮件可能未移动/删除；用户无法准确知道部分失败、重复重试或审计结果。",
+      "fix": "显式检查布尔/结构化结果，false/undefined判失败；对不存在UID和部分成功区分requested/confirmed/unknown。改动不能替代MAIL-09a对COPY失败后源删除的前置防护。",
+      "tests": [
+        "MOVE和EXPUNGE各覆盖false、undefined、throw与成功；失败不得增加deleted，且确认响应给出明确失败原因。"
+      ]
+    },
+    {
+      "id": "MAIL-10",
+      "priority": "P2",
+      "group": "邮件操作与附件",
+      "title": "SMTP 部分收件人被拒仍向用户报告 sent",
+      "status": "本地合成数据或离线 mock 复现确认",
+      "locations": [
+        "src/services/smtp-service.ts:173-174",
+        "src/tools/safe-send-tools.ts:140-141",
+        "src/services/safe-send-service.ts:219-234"
+      ],
+      "precondition": "同一封邮件至少一个收件人被SMTP接受，另一个被拒；Nodemailer按正常约定resolve accepted/rejected数组而非整体抛错。",
+      "rootCause": "sendEmail仅保留messageId/rawMessage，丢弃accepted/rejected/rejectedErrors，safe-send把任何resolve视为完整sent。",
+      "evidence": "mock SMTP accepted=[ok@example.test], rejected=[failed@example.test]，真实service与safe-send确认响应仅{status:'sent'}。",
+      "impact": "用户误以为所有收件人收到，失败收件人无从补发；盲目重新创建整封邮件又会给已接受者重复发送。",
+      "fix": "保留SMTP提交级别的accepted/rejected，增加partial状态或警告及拒收清单；保持已接受者不可自动重发，只允许为拒绝者生成新的独立预览。不要将SMTP接受表述成最终投递成功。",
+      "tests": [
+        "全部接受、部分接受、全部拒绝和结果不确定四类测试；partial不能自动重试整封消息，已接受地址不得重发。"
+      ]
+    },
+    {
+      "id": "MAIL-11",
+      "priority": "P2",
+      "group": "邮件操作与附件",
+      "title": "同名附件转发重复第一份并丢失后续附件内容",
+      "status": "本地合成数据或离线 mock 复现确认",
+      "locations": [
+        "src/tools/safe-send-tools.ts:46-60",
+        "src/services/imap-service.ts:921-925"
+      ],
+      "precondition": "同封邮件中两个附件filename相同且没有唯一contentId（合法且常见），启用默认includeAttachments。",
+      "rootCause": "转发按contentId??filename逐个重新下载，而getAttachmentContent以find选择第一个匹配文件名；附件没有稳定MIME part/index标识。",
+      "evidence": "真实multipart MIME两个report.txt内容分别FIRST/SECOND；经真实解析和safe forward后附件变成FIRST/FIRST。",
+      "impact": "附件内容静默损坏，第二份丢失；用户预览仅见同名文件列表，更难发现。逐附件重复下载和解析整封邮件也增加成本。",
+      "fix": "公开稳定附件ID（partId或本次消息解析内唯一索引），下载和转发按ID定位；转发一次读取并物化全部原始附件，绑定UIDVALIDITY。",
+      "tests": [
+        "同名不同内容、重复CID、缺文件名、内联/普通混合附件均验证字节哈希和顺序；不能只比较附件文件名。"
+      ]
+    },
+    {
+      "id": "MAIL-12",
+      "priority": "P2",
+      "group": "邮件操作与附件",
+      "title": "SMTP 缓存不刷新 OAuth token，也不响应账号配置变更",
+      "status": "缓存行为离线复现；失效 token 的后果由已安装依赖源码确认",
+      "locations": [
+        "src/services/smtp-service.ts:15-38",
+        "src/credentials/account-auth.ts:120-124",
+        "node_modules/nodemailer/dist/esm/xoauth2/index.js:83-106"
+      ],
+      "precondition": "同一 MCP 进程先建立 SMTP transporter，之后 token 过期、凭据轮换或同一 accountId 的 SMTP 服务器/身份发生变化。",
+      "rootCause": "createTransporter命中账号ID缓存直接返回；只在第一次调用authResolver.resolve。buildSmtpAuth仅给静态accessToken，没有expiry、refreshToken或provisionCallback；Nodemailer没有刷新机制时重用旧token。",
+      "evidence": "work/smtp-cache-repro.mts将网络transport替换为内存对象；两次创建（第二次改host）得到同一transporter，authCalls=1，hostReconfigured=false，hasExpiry=false、hasRefreshToken=false。未使用真实Google token等待过期。",
+      "impact": "Gmail长时间运行后持续认证失败；修复凭据或改服务器后仍使用旧配置。缓存还保留旧密码/令牌到进程终止。",
+      "fix": "与IMAP统一账号版本失效机制；支持按需OAuth provision回调或每次发送前经resolver获取有效token，保留expiry与安全提前量；账号更新/删除/重授权清理transporter。仅在确定DATA之前的认证失败可以重建，提交结果不明时绝不自动重发。",
+      "tests": [
+        "模拟时钟跨token到期并验证resolver再次调用；配置/密码轮换后使用新transport；认证拒绝只重建预提交连接；SMTP已接受或结果不明时不重发。"
+      ]
+    },
+    {
+      "id": "ENG-04",
+      "priority": "P3",
+      "group": "工程与发布",
+      "title": "fork的发布元数据和安全问题报告链接仍指向上游项目",
+      "status": "静态元数据核验",
+      "locations": [
+        "package.json:110-118",
+        "server.json:3-8",
+        "SECURITY.md:55"
+      ],
+      "precondition": "准备以ertutio fork身份发布包/Registry，或用户根据SECURITY.md报告fork特有漏洞。",
+      "rootCause": "README已经区分fork身份，package repository/homepage/bugs、MCP name、server.json和private advisory入口仍使用SinoEdwards。",
+      "evidence": "源代码元数据直接对照；未检查或推断npm/Registry名称当前所有权，也未执行发布。",
+      "impact": "报告可能发送到不维护该fork的上游；包溯源与Registry所有权校验混乱。尚未发布，因此属于发布前一致性缺陷。",
+      "fix": "维护者决定fork的正式包与MCP命名空间；统一仓库、bugs、homepage和安全报告入口，保留上游版权署名。正式发布前校验命名空间权限，自动检查所有身份字段一致。",
+      "tests": [
+        "打包清单及server.json的仓库身份一致；安全问题渠道由fork维护者控制；不改动原作者许可和署名。"
+      ]
+    },
+    {
+      "id": "SA-06",
+      "priority": "P3",
+      "group": "连接与检索",
+      "title": "空占位密码账号修改先提交后报错，破坏失败即未修改的语义",
+      "status": "本地合成数据或离线 mock 复现确认",
+      "locations": [
+        "src/services/account-manager.ts:213-215",
+        "src/services/account-manager.ts:233-239",
+        "src/services/account-manager.ts:544-551",
+        "src/services/account-manager.ts:54-61"
+      ],
+      "precondition": "已有legacy/env-managed账号 accounts.json密码字段为''（getter明确支持），只修改name等非密码字段；当前addAccount产生加密空串，不会自然触发，因此是旧数据/手工配置兼容场景。",
+      "rootCause": "getAccount使用decryptField支持空/缺失值，而updateAccount保存后直接decrypt(updatedAccount.password)；decrypt('')抛Invalid initialization vector；事务只回滚内存，磁盘已rename提交。",
+      "evidence": "隔离profile写入合法空密码占位，getAccount成功；updateAccount({name:'renamed'})抛Invalid initialization vector，但磁盘name已经是renamed，内存事务快照仍是旧name。",
+      "impact": "API报告更新失败却实际已改变；内存与磁盘短时不一致，用户重试/修复时难判断状态。",
+      "fix": "统一使用decryptField处理兼容值；在saveAccounts前完成候选验证和返回对象构造，使持久化成为最后可失败步骤；明确事务提交点与回滚语义。",
+      "tests": [
+        "加载password为空、缺失、null的兼容记录后重命名应成功；任何解密失败必须在落盘前拒绝；断言返回状态、内存、磁盘一致。"
+      ]
+    }
+  ],
+  "verification": [
+    [
+      "源码版本",
+      "main @ e47a74c6375c54a4af3b8e2e522262b4c156f3ef，提交时间2026-10-15 11:15:51 +08:00；浅克隆当前提交，未扫描全部历史。"
+    ],
+    [
+      "范围",
+      "41个src文件、68个测试文件、public界面、构建/安装脚本、CI、锁文件及关键依赖调用。"
+    ],
+    [
+      "环境",
+      "Windows，Node.js v24.17.0，npm 11.13.0；隔离配置和临时目录。"
+    ],
+    [
+      "依赖安装",
+      "npm ci --ignore-scripts 成功；未执行第三方生命周期安装脚本。"
+    ],
+    [
+      "基线测试",
+      "npm run test:coverage：67个测试文件通过、1个跳过；633个测试通过、1个跳过。初次沙箱权限/本机回环失败排除后重跑成功。"
+    ],
+    [
+      "覆盖率",
+      "语句78.65%，分支69.10%，函数81.83%，行81.75%。这是当前Vitest报告范围，未导入入口/浏览器逻辑不等于已覆盖。SMTP行39.21%，spam-tools行37.83%，account-tools行17.39%。"
+    ],
+    [
+      "构建与静态检查",
+      "npm run build、npm run lint、npm run check:secrets（143个候选文件）、git diff --check均通过。秘密扫描是当前文件规则检查，不是完整历史泄漏证明。"
+    ],
+    [
+      "打包",
+      "npm pack --dry-run成功，13个文件；未发布npm/Registry。"
+    ],
+    [
+      "真实MCP协议冒烟",
+      "编译产物经SDK stdio Client连接及listTools：完整40个、只读17个、指定白名单2个；直接发送和账号写入工具均未注册。"
+    ],
+    [
+      "依赖漏洞",
+      "生产依赖0个已知告警；完整依赖6个受影响包条目（3 high、3 moderate），来自两组公告；当前全量audit high门禁不满足。"
+    ],
+    [
+      "定向复现",
+      "本地HTTP/TCP、内存vault、合成MIME、受控Promise交错及Nodemailer streamTransport；PDF仅使用无害21页文件。未连接真实邮箱、发送邮件或删除真实邮件。"
+    ],
+    [
+      "没有覆盖的实境",
+      "真实QQ/网易/Gmail/OAuth与企业部署、实际Windows Credential Manager端到端、Linux/macOS实机、真实SMTP投递、完整Git历史和云端权限。"
+    ],
+    [
+      "源码变更",
+      "产品源码零修改，审计后git status --porcelain为空。此次交付是审计及方案，尚未实施修复。"
+    ]
+  ],
+  "designRisks": [
+    {
+      "id": "R1",
+      "title": "模型工具确认不等于可信的人类授权",
+      "text": "当前确认工具接收同一个MCP客户端可调用的confirmed:true；它能阻止误重发和预览篡改，但不能证明人类看过预览。安全发送预览按既有契约只返回摘要、BCC数量和附件名。没有复现提示注入成功，故不列为新代码漏洞。建议默认最小只读能力，按账号/操作授权；高风险操作由客户端审批或本地可信界面签发绑定draftId、payload hash、账号版本和期限的一次性授权。邮件正文始终作为不可信数据。"
+    },
+    {
+      "id": "R2",
+      "title": "通用账号的同目录密钥保护有限",
+      "text": "legacy密码的AES密文与.key同目录是SECURITY.md已披露设计，不能防同时读两者的进程。同系统用户恶意进程也不是Windows vault的隔离边界。后续为通用账号和各平台接入OS vault，提供可回滚迁移和明确的未保护状态；不把已有说明重复计成新漏洞。"
+    },
+    {
+      "id": "R3",
+      "title": "资源与附件保留仍需全局预算",
+      "text": "单封MIME和预览已有限制；线程扩展的总工作量、批次总预算、上传总磁盘额度与清理调度仍值得补齐。上传TTL清理发生在后续上传，下载文件同名覆盖/敏感保留应有产品策略。没有证明远程路径逃逸或主机沙箱突破。"
+    },
+    {
+      "id": "R4",
+      "title": "启发式垃圾域不能直接代表恶意",
+      "text": "内置列表将部分隐私别名服务视为高置信垃圾域，会产生误报。建议区分一次性地址、隐私转发、信誉信号与真正恶意证据；用户白名单优先，默认仅建议分类；任何批量动作继续预览确认。"
+    },
+    {
+      "id": "R5",
+      "title": "发布流程与测试需要按边界补强",
+      "text": "CI目前只有Ubuntu/Node 22.x和24.x；添加Windows平台与最低支持版本22.12的构建/协议验证。Actions固定commit SHA，生成SBOM与来源证明，加入依赖更新流程。以上是加固建议，不代表已发现供应链入侵。"
+    }
+  ],
+  "roadmap": [
+    {
+      "name": "立即处置",
+      "time": "修复发布前",
+      "scope": "部署侧使用README的13工具只读白名单；移除下载PDF、发送、删除、移动能力，仅在需要时启动本地设置页。通用账号要求TLS；已使用可能降级的配置且出现泄露迹象时再评估凭据轮换。保留隔离复现用于修复验收。",
+      "gate": "暂不把当前完整工具模式作为稳定、无人值守邮件代理发布；只读读取仍可能受连接/统计bug影响。",
+      "ids": "SEC-01、SEC-02、MAIL-01、MAIL-02、MAIL-09a/b、SA-01"
+    },
+    {
+      "name": "阶段A 安全与数据完整性补丁",
+      "time": "估算1–2周，10–16工程人日",
+      "scope": "统一API鉴权和schema；统一TLS连接构造器；修复所有裸SELECT；建立MOVE/UIDPLUS能力门禁和受控COPY流程；所有PDF走受限worker；连接按账号版本失效，失败返回值正确传播。",
+      "gate": "7项P1及相邻回归全部通过；无STARTTLS时绝不发送认证；COPY失败零删除；UID7确认不能影响UID9；并发状态读取不能切走事务邮箱；下载解析不能突破预算。",
+      "ids": "7项P1，加BUG-SEC-06、MAIL-08、MAIL-07"
+    },
+    {
+      "name": "阶段B 正确性与恢复能力",
+      "time": "估算2–3周，15–22工程人日",
+      "scope": "凭据新增/轮换/删除共用事务；连接single-flight和全生命周期取消；OAuth总超时、SMTP token刷新和清理；发送单一MIME、部分拒收状态；真实地址/附件模型；搜索续查及未读计数；修复配置写入/安装路径；更新开发依赖。",
+      "gate": "其余P2收敛；真实MIME金样测试通过；失败不产生未声明落盘副作用；删除账号后凭据不复活；仅向被拒收地址提供新预览；633项基线及新增集成回归通过。",
+      "ids": "SEC-03、BUG-SEC-04/05/A1、MAIL-03/04/05/06/10/11/12、SA-02/03/04/05/07、ENG-01/02/03"
+    },
+    {
+      "name": "阶段C 产品能力与可用性",
+      "time": "估算2–3周，15–25工程人日；择优实现",
+      "scope": "可信预览中心、账号健康与重授权、能力诊断、稳定附件ID/预览、跨平台凭据抽象、统一检索错误与coverage模型。同步解决兼容数据与fork发布身份。",
+      "gate": "用户能判断哪封邮件、哪个账号、哪些收件人和附件将被影响；Linux/macOS无vault时明确拒绝安全注册；可从失败账号游标恢复；建立Windows CI。",
+      "ids": "SA-06、ENG-04；功能F1–F5"
+    },
+    {
+      "name": "阶段D 增量检索与自动化扩展",
+      "time": "独立评估，通常再4–6周；不并入安全补丁",
+      "scope": "在用户明确选择后加入本地增量全文索引、可解释规则建议、跨标签去重/线程、扩展服务商OAuth。自动化默认只读/生成草稿，写操作由策略和可信确认控制。",
+      "gate": "索引可重建、加密/删除策略清晰；账号移除和UIDVALIDITY变化不会残留错误可访问记录；大邮箱有性能基准；无默认上传或遥测。",
+      "ids": "功能F6–F8"
+    }
+  ],
+  "features": [
+    [
+      "F1",
+      "可信预览与操作回执",
+      "优先",
+      "在本地界面核对冻结正文、完整收件人/BCC、附件大小/哈希和删除UID；审批与账号版本绑定。区分submitted、partial、ambiguous及副本失败。",
+      "任何字节/收件人或账号变化需重新预览；无审批不能执行；不自动重发已接受邮件。"
+    ],
+    [
+      "F2",
+      "账号健康与能力诊断",
+      "优先",
+      "显示代理路径、TLS模式、MOVE/UIDPLUS支持、token失效和重授权入口；不展示秘密。",
+      "每种失败有可执行修复指引；诊断不读正文、不改真实邮箱。"
+    ],
+    [
+      "F3",
+      "统一检索恢复与可观察状态",
+      "优先",
+      "单/多账号共用搜索引擎，使用稳定accountId游标；区分扫描完成、top-K截断、可重试错误和失败账号。",
+      "临时断线恢复不漏账号；游标变化和UIDVALIDITY可验证；无法完成不能声称完整。"
+    ],
+    [
+      "F4",
+      "附件身份和安全预览",
+      "优先",
+      "稳定partId、去重下载、同名冲突处理、可选保留期限；统一PDF与其他内容预算。",
+      "两个同名附件字节哈希保持不同；任何超限预览不会拖垮MCP。"
+    ],
+    [
+      "F5",
+      "跨平台OS凭据与迁移",
+      "高",
+      "Windows backend接口扩展至macOS Keychain、Linux Secret Service；legacy密码一键迁移，提供恢复方案。",
+      "迁移失败原账号仍可用；accounts.json无秘密；无可用vault时明确状态。"
+    ],
+    [
+      "F6",
+      "可选本地增量全文索引",
+      "中",
+      "SQLite/FTS等本地索引配合UIDVALIDITY/增量同步；默认关闭，先建隐私和保留策略。",
+      "测量1万/10万封合成邮件延迟、峰值内存、磁盘占用；用户删除账号可删除对应索引。"
+    ],
+    [
+      "F7",
+      "线程与规则建议",
+      "中",
+      "保留所有原始location的跨标签去重、线程参与人、规则dry-run；垃圾分类提供证据和反例。",
+      "不把标签去重当物理删除；规则执行前展示冻结差异，批量误分类可发现。"
+    ],
+    [
+      "F8",
+      "扩展OAuth服务商和自动化接口",
+      "后续",
+      "通过统一provider adapter支持Microsoft 365等目标服务商；可选只读通知/草稿工作流。",
+      "每个服务商先过协议及权限契约；写操作保持审批、幂等和结果不确定保护。"
+    ]
+  ]
+}
