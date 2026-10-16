@@ -491,17 +491,27 @@ export class ImapService {
     const lock=await client.getMailboxLock(folderName);
     try{
       const mailbox=client.mailbox || undefined;
-      const status=mailbox?.uidNext&&mailbox?.uidValidity?mailbox:await client.status(folderName,{uidNext:true,uidValidity:true});
-      const validity=Number(status.uidValidity); const newest=Number(status.uidNext)-1;
-      if(!Number.isInteger(validity)||validity<=0||!Number.isInteger(newest)||newest<0)throw new Error('Missing mailbox pagination metadata');
+      const needsStatus=!mailbox?.uidValidity||(!cursor&&mailbox?.uidNext==null);
+      const status=needsStatus?await client.status(folderName,{uidNext:true,uidValidity:true}):undefined;
+      const validity=Number(mailbox?.uidValidity??status?.uidValidity);
+      if(!Number.isInteger(validity)||validity<=0)throw new Error('Missing mailbox pagination metadata');
+      if(mailbox?.uidValidity!=null&&status?.uidValidity!=null&&Number(status.uidValidity)!==validity)throw new Error('Mailbox UIDVALIDITY changed; restart the search');
       if(cursor&&cursor.uidValidity!==validity)throw new Error('Mailbox UIDVALIDITY changed; restart the search');
+      const uidNext=mailbox?.uidNext??status?.uidNext;
+      const newest=uidNext==null?undefined:Number(uidNext)-1;
+      if(!cursor&&newest!==undefined&&(!Number.isInteger(newest)||newest<0))throw new Error('Missing mailbox pagination metadata');
       const upper=cursor?.beforeUid??newest;
-      if(!Number.isInteger(upper)||upper<0||upper>0xffffffff)throw new Error('Invalid search cursor');
-      if(!upper)return {messages:[],matched:0};
-      const result=await client.search({...this.buildSearchQuery(criteria),uid:`1:${upper}`},{uid:true});
+      if(upper!==undefined&&(!Number.isInteger(upper)||upper<0||upper>0xffffffff))throw new Error('Invalid search cursor');
+      if(upper===0)return {messages:[],matched:0};
+      // Some NetEase mailboxes omit UIDNEXT from both SELECT and STATUS. UID
+      // SEARCH still returns real matching UIDs; derive the first page from
+      // those, and use its lowest fetched UID to bound subsequent pages.
+      const query=this.buildSearchQuery(criteria);
+      if(upper!==undefined)query.uid=`1:${upper}`;
+      const result=await client.search(query,{uid:true});
       const candidates=result||[];
       if(candidates.length>100000)throw new Error('Search UID processing limit exceeded; narrow filters');
-      if(candidates.some(uid=>!Number.isInteger(uid)||uid<1||uid>upper))throw new Error('Server violated bounded UID search');
+      if(candidates.some(uid=>!Number.isInteger(uid)||uid<1||uid>(upper??0xffffffff)))throw new Error('Server violated bounded UID search');
       const ordered=[...new Set(candidates)].sort((a,b)=>b-a);
       const uids=ordered.slice(0,200);
       const messages:EmailMessage[]=[];
