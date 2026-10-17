@@ -1,0 +1,511 @@
+{
+  "commit": "524e1b34c89ebe2834a27b948371227f142d346d",
+  "modules": [
+    {
+      "path": "src/credentials/account-auth.ts",
+      "role": "读取 SecretHandle、校验精确 vault target/provider 端点，生成 IMAP/SMTP 认证配置。",
+      "layer": "credentials",
+      "dependencies": [
+        "src/credentials/credential-backend.ts",
+        "src/types/index.ts"
+      ],
+      "externalDependencies": "See source imports/package-lock; internal map excludes npm/system imports.",
+      "readingDepth": "full",
+      "commit": "524e1b34c89ebe2834a27b948371227f142d346d"
+    },
+    {
+      "path": "src/credentials/account-enrollment.ts",
+      "role": "provider 注册的 vault 写入、可选验证、账户提交与回滚事务。",
+      "layer": "credentials",
+      "dependencies": [
+        "src/credentials/credential-backend.ts",
+        "src/services/account-manager.ts",
+        "src/types/index.ts"
+      ],
+      "externalDependencies": "See source imports/package-lock; internal map excludes npm/system imports.",
+      "readingDepth": "full",
+      "commit": "524e1b34c89ebe2834a27b948371227f142d346d"
+    },
+    {
+      "path": "src/credentials/credential-backend.ts",
+      "role": "SecretHandle/后端契约与新/旧 target 命名规则。",
+      "layer": "credentials",
+      "dependencies": [],
+      "externalDependencies": "See source imports/package-lock; internal map excludes npm/system imports.",
+      "readingDepth": "structural+surface",
+      "commit": "524e1b34c89ebe2834a27b948371227f142d346d"
+    },
+    {
+      "path": "src/credentials/credential-rotation.ts",
+      "role": "凭据替换/验证/回滚；尚无跨进程账户版本重验。",
+      "layer": "credentials",
+      "dependencies": [
+        "src/credentials/credential-backend.ts"
+      ],
+      "externalDependencies": "See source imports/package-lock; internal map excludes npm/system imports.",
+      "readingDepth": "full",
+      "commit": "524e1b34c89ebe2834a27b948371227f142d346d"
+    },
+    {
+      "path": "src/credentials/gmail-oauth-loopback.ts",
+      "role": "回环 PKCE 浏览器授权、回调、授权码换令牌与清理。",
+      "layer": "credentials",
+      "dependencies": [
+        "src/credentials/proxy-fetch.ts"
+      ],
+      "externalDependencies": "See source imports/package-lock; internal map excludes npm/system imports.",
+      "readingDepth": "targeted:1-165,245-329;surface:callback handler",
+      "commit": "524e1b34c89ebe2834a27b948371227f142d346d"
+    },
+    {
+      "path": "src/credentials/gmail-token-exchange.ts",
+      "role": "refresh token 换 access token、网络错误分类和代理生命周期。",
+      "layer": "credentials",
+      "dependencies": [
+        "src/credentials/credential-backend.ts",
+        "src/credentials/proxy-fetch.ts",
+        "src/types/index.ts"
+      ],
+      "externalDependencies": "See source imports/package-lock; internal map excludes npm/system imports.",
+      "readingDepth": "full",
+      "commit": "524e1b34c89ebe2834a27b948371227f142d346d"
+    },
+    {
+      "path": "src/credentials/proxy-fetch.ts",
+      "role": "标准 env 代理或 Gmail 强制 dispatcher 的 HTTP fetch 封装与 close。",
+      "layer": "transport",
+      "dependencies": [
+        "src/utils/gmail-proxy.ts"
+      ],
+      "externalDependencies": "See source imports/package-lock; internal map excludes npm/system imports.",
+      "readingDepth": "full",
+      "commit": "524e1b34c89ebe2834a27b948371227f142d346d"
+    },
+    {
+      "path": "src/credentials/windows-credential-backend.ts",
+      "role": "Koffi WinCred 适配与 SecretHandle 零化；本轮未访问系统凭据。",
+      "layer": "credentials",
+      "dependencies": [
+        "src/credentials/credential-backend.ts"
+      ],
+      "externalDependencies": "See source imports/package-lock; internal map excludes npm/system imports.",
+      "readingDepth": "targeted:1-85;structural+surface:remaining",
+      "commit": "524e1b34c89ebe2834a27b948371227f142d346d"
+    },
+    {
+      "path": "src/enroll.ts",
+      "role": "可信本地 CLI 收集输入，提供 QQ/网易/Gmail 注册与 QQ/Gmail 修复。",
+      "layer": "enrollment",
+      "dependencies": [
+        "src/credentials/account-auth.ts",
+        "src/credentials/account-enrollment.ts",
+        "src/credentials/credential-backend.ts",
+        "src/credentials/credential-rotation.ts",
+        "src/credentials/gmail-oauth-loopback.ts",
+        "src/credentials/gmail-token-exchange.ts",
+        "src/credentials/windows-credential-backend.ts",
+        "src/services/account-manager.ts",
+        "src/services/imap-service.ts",
+        "src/types/index.ts"
+      ],
+      "externalDependencies": "See source imports/package-lock; internal map excludes npm/system imports.",
+      "readingDepth": "targeted:75-88,141-360",
+      "commit": "524e1b34c89ebe2834a27b948371227f142d346d"
+    },
+    {
+      "path": "src/index.ts",
+      "role": "组装 stdio MCP、账户/凭据解析器及 IMAP/SMTP 服务，注册工具。",
+      "layer": "process",
+      "dependencies": [
+        "src/credentials/account-auth.ts",
+        "src/credentials/gmail-token-exchange.ts",
+        "src/credentials/windows-credential-backend.ts",
+        "src/services/account-manager.ts",
+        "src/services/imap-service.ts",
+        "src/services/smtp-service.ts",
+        "src/services/spam-service.ts",
+        "src/tools/index.ts"
+      ],
+      "externalDependencies": "See source imports/package-lock; internal map excludes npm/system imports.",
+      "readingDepth": "full",
+      "commit": "524e1b34c89ebe2834a27b948371227f142d346d"
+    },
+    {
+      "path": "src/providers/email-providers.ts",
+      "role": "设置页服务商端点/能力提示目录与 email/host 查询；不是实际认证策略。",
+      "layer": "enrollment",
+      "dependencies": [],
+      "externalDependencies": "See source imports/package-lock; internal map excludes npm/system imports.",
+      "readingDepth": "structural+surface",
+      "commit": "524e1b34c89ebe2834a27b948371227f142d346d"
+    },
+    {
+      "path": "src/services/account-manager.ts",
+      "role": "隔离目录账户存储、加密/env 覆盖、选择、跨进程写事务与 provider 持久化约束。",
+      "layer": "account-state",
+      "dependencies": [
+        "src/credentials/account-auth.ts",
+        "src/credentials/credential-backend.ts",
+        "src/types/index.ts",
+        "src/utils/account-store-lock.ts",
+        "src/utils/env-credentials.ts"
+      ],
+      "externalDependencies": "See source imports/package-lock; internal map excludes npm/system imports.",
+      "readingDepth": "targeted:1-310,364-483,503-568;surface:311-363",
+      "commit": "524e1b34c89ebe2834a27b948371227f142d346d"
+    },
+    {
+      "path": "src/services/html-to-markdown.ts",
+      "role": "清洗 HTML 并转换 Markdown，规范正文空白。",
+      "layer": "content",
+      "dependencies": [],
+      "externalDependencies": "See source imports/package-lock; internal map excludes npm/system imports.",
+      "readingDepth": "structural+surface",
+      "commit": "524e1b34c89ebe2834a27b948371227f142d346d"
+    },
+    {
+      "path": "src/services/imap-service.ts",
+      "role": "IMAP 连接缓存/重连、锁、UID 查询、MIME 读取、旗标、移动删除和 APPEND 共用实现。",
+      "layer": "transport",
+      "dependencies": [
+        "src/credentials/account-auth.ts",
+        "src/services/account-manager.ts",
+        "src/services/html-to-markdown.ts",
+        "src/types/index.ts",
+        "src/utils/env-credentials.ts",
+        "src/utils/mail-proxy.ts",
+        "src/utils/mail-resource-limits.ts",
+        "src/utils/pdf-preview.ts"
+      ],
+      "externalDependencies": "See source imports/package-lock; internal map excludes npm/system imports.",
+      "readingDepth": "targeted:1-541,677-875,912-941,989-1085,1118-1370,1538-1783;surface:remaining",
+      "commit": "524e1b34c89ebe2834a27b948371227f142d346d"
+    },
+    {
+      "path": "src/services/safe-send-service.ts",
+      "role": "内存草稿冻结、容量/TTL、单次确认及 ambiguous 禁止重发状态机。",
+      "layer": "mutation",
+      "dependencies": [
+        "src/types/index.ts",
+        "src/utils/mail-resource-limits.ts"
+      ],
+      "externalDependencies": "See source imports/package-lock; internal map excludes npm/system imports.",
+      "readingDepth": "full",
+      "commit": "524e1b34c89ebe2834a27b948371227f142d346d"
+    },
+    {
+      "path": "src/services/smtp-service.ts",
+      "role": "按账户缓存 transporter，TLS/代理/认证，独立 MIME 编译和 SMTP 提交。",
+      "layer": "transport",
+      "dependencies": [
+        "src/credentials/account-auth.ts",
+        "src/types/index.ts",
+        "src/utils/array-input.ts",
+        "src/utils/env-credentials.ts",
+        "src/utils/mail-proxy.ts",
+        "src/utils/mail-resource-limits.ts"
+      ],
+      "externalDependencies": "See source imports/package-lock; internal map excludes npm/system imports.",
+      "readingDepth": "full",
+      "commit": "524e1b34c89ebe2834a27b948371227f142d346d"
+    },
+    {
+      "path": "src/services/spam-service.ts",
+      "role": "确定性域/头启发式、白名单优先及域统计；不执行运行时模型判断。",
+      "layer": "content",
+      "dependencies": [],
+      "externalDependencies": "See source imports/package-lock; internal map excludes npm/system imports.",
+      "readingDepth": "targeted:118-239,252-391;surface:constants and list mutators",
+      "commit": "524e1b34c89ebe2834a27b948371227f142d346d"
+    },
+    {
+      "path": "src/setup.ts",
+      "role": "设置页启动与可选 Claude Desktop 配置写入；路径/覆盖问题仍在。",
+      "layer": "enrollment",
+      "dependencies": [
+        "src/web/server.ts"
+      ],
+      "externalDependencies": "See source imports/package-lock; internal map excludes npm/system imports.",
+      "readingDepth": "full",
+      "commit": "524e1b34c89ebe2834a27b948371227f142d346d"
+    },
+    {
+      "path": "src/tools/account-tools.ts",
+      "role": "只读账户列表、连接/断开、既存账户连接测试。",
+      "layer": "tools",
+      "dependencies": [
+        "src/services/account-manager.ts",
+        "src/services/imap-service.ts"
+      ],
+      "externalDependencies": "See source imports/package-lock; internal map excludes npm/system imports.",
+      "readingDepth": "full",
+      "commit": "524e1b34c89ebe2834a27b948371227f142d346d"
+    },
+    {
+      "path": "src/tools/email-tools.ts",
+      "role": "搜索/读取/附件、旗标、移动、删除候选、草稿及已封禁旧发送处理器。",
+      "layer": "tools",
+      "dependencies": [
+        "src/services/account-manager.ts",
+        "src/services/imap-service.ts",
+        "src/services/smtp-service.ts",
+        "src/types/index.ts",
+        "src/utils/array-input.ts",
+        "src/utils/attachment-root.ts",
+        "src/utils/default-bcc.ts",
+        "src/utils/search-folders.ts"
+      ],
+      "externalDependencies": "See source imports/package-lock; internal map excludes npm/system imports.",
+      "readingDepth": "targeted:1-135,165-380,386-592,766-1018,1071-1133;surface:remaining",
+      "commit": "524e1b34c89ebe2834a27b948371227f142d346d"
+    },
+    {
+      "path": "src/tools/folder-tools.ts",
+      "role": "文件夹列表/状态/创建与未读统计；状态 SELECT 绕锁、统计错误归零待修。",
+      "layer": "tools",
+      "dependencies": [
+        "src/services/account-manager.ts",
+        "src/services/imap-service.ts",
+        "src/types/index.ts"
+      ],
+      "externalDependencies": "See source imports/package-lock; internal map excludes npm/system imports.",
+      "readingDepth": "full",
+      "commit": "524e1b34c89ebe2834a27b948371227f142d346d"
+    },
+    {
+      "path": "src/tools/guarded-delete-tools.ts",
+      "role": "截获五个删除入口，冻结 UIDVALIDITY/UID/永久性，确认后统一 bulkDelete。",
+      "layer": "mutation",
+      "dependencies": [
+        "src/services/imap-service.ts"
+      ],
+      "externalDependencies": "See source imports/package-lock; internal map excludes npm/system imports.",
+      "readingDepth": "full",
+      "commit": "524e1b34c89ebe2834a27b948371227f142d346d"
+    },
+    {
+      "path": "src/tools/index.ts",
+      "role": "统一工具白名单、只读集合、直接发送封禁和删除代理装配。",
+      "layer": "tools",
+      "dependencies": [
+        "src/services/account-manager.ts",
+        "src/services/imap-service.ts",
+        "src/services/smtp-service.ts",
+        "src/services/spam-service.ts",
+        "src/tools/account-tools.ts",
+        "src/tools/email-tools.ts",
+        "src/tools/folder-tools.ts",
+        "src/tools/guarded-delete-tools.ts",
+        "src/tools/safe-send-tools.ts",
+        "src/tools/spam-tools.ts",
+        "src/tools/unified-search-tools.ts"
+      ],
+      "externalDependencies": "See source imports/package-lock; internal map excludes npm/system imports.",
+      "readingDepth": "full",
+      "commit": "524e1b34c89ebe2834a27b948371227f142d346d"
+    },
+    {
+      "path": "src/tools/safe-send-tools.ts",
+      "role": "新信/回复/转发预览物化附件，确认触发 SMTP，Sent 副本 best effort。",
+      "layer": "mutation",
+      "dependencies": [
+        "src/services/account-manager.ts",
+        "src/services/imap-service.ts",
+        "src/services/safe-send-service.ts",
+        "src/services/smtp-service.ts",
+        "src/types/index.ts",
+        "src/utils/attachment-root.ts",
+        "src/utils/mail-resource-limits.ts"
+      ],
+      "externalDependencies": "See source imports/package-lock; internal map excludes npm/system imports.",
+      "readingDepth": "full",
+      "commit": "524e1b34c89ebe2834a27b948371227f142d346d"
+    },
+    {
+      "path": "src/tools/spam-tools.ts",
+      "role": "本地垃圾特征、域统计/名单管理及经删除代理包装的垃圾/域删除。",
+      "layer": "tools",
+      "dependencies": [
+        "src/services/imap-service.ts",
+        "src/services/spam-service.ts"
+      ],
+      "externalDependencies": "See source imports/package-lock; internal map excludes npm/system imports.",
+      "readingDepth": "targeted:92-178,308-378;surface:other registrations",
+      "commit": "524e1b34c89ebe2834a27b948371227f142d346d"
+    },
+    {
+      "path": "src/tools/unified-search-tools.ts",
+      "role": "选择任意数量账户，最多三账户并发、逐文件夹 UID 分页、全局 top-K 与覆盖/续查反馈。",
+      "layer": "search",
+      "dependencies": [
+        "src/services/account-manager.ts",
+        "src/services/imap-service.ts",
+        "src/types/index.ts",
+        "src/utils/search-folders.ts"
+      ],
+      "externalDependencies": "See source imports/package-lock; internal map excludes npm/system imports.",
+      "readingDepth": "full",
+      "commit": "524e1b34c89ebe2834a27b948371227f142d346d"
+    },
+    {
+      "path": "src/types/index.ts",
+      "role": "账户认证、邮件/附件、查询和 Sent 回执类型；无账户 revision/稳定附件 part。",
+      "layer": "contracts",
+      "dependencies": [],
+      "externalDependencies": "See source imports/package-lock; internal map excludes npm/system imports.",
+      "readingDepth": "full",
+      "commit": "524e1b34c89ebe2834a27b948371227f142d346d"
+    },
+    {
+      "path": "src/types/turndown-plugin-gfm.d.ts",
+      "role": "Turndown GFM 插件的本地 TypeScript 声明。",
+      "layer": "contracts",
+      "dependencies": [],
+      "externalDependencies": "See source imports/package-lock; internal map excludes npm/system imports.",
+      "readingDepth": "structural",
+      "commit": "524e1b34c89ebe2834a27b948371227f142d346d"
+    },
+    {
+      "path": "src/utils/account-store-lock.ts",
+      "role": "文件 wx 锁串行化跨进程账户写入，5 秒超时，异常退出需人工判定陈旧锁。",
+      "layer": "account-state",
+      "dependencies": [],
+      "externalDependencies": "See source imports/package-lock; internal map excludes npm/system imports.",
+      "readingDepth": "full",
+      "commit": "524e1b34c89ebe2834a27b948371227f142d346d"
+    },
+    {
+      "path": "src/utils/array-input.ts",
+      "role": "恢复客户端序列化数组的兼容输入。",
+      "layer": "contracts",
+      "dependencies": [],
+      "externalDependencies": "See source imports/package-lock; internal map excludes npm/system imports.",
+      "readingDepth": "structural+surface",
+      "commit": "524e1b34c89ebe2834a27b948371227f142d346d"
+    },
+    {
+      "path": "src/utils/attachment-root.ts",
+      "role": "附件读写 realpath 边界和 link/junction 检查。",
+      "layer": "content",
+      "dependencies": [],
+      "externalDependencies": "See source imports/package-lock; internal map excludes npm/system imports.",
+      "readingDepth": "full",
+      "commit": "524e1b34c89ebe2834a27b948371227f142d346d"
+    },
+    {
+      "path": "src/utils/default-bcc.ts",
+      "role": "默认与显式 BCC 的裸地址去重；safe-send 另有局部实现，属于调用者核对点。",
+      "layer": "content",
+      "dependencies": [],
+      "externalDependencies": "See source imports/package-lock; internal map excludes npm/system imports.",
+      "readingDepth": "full",
+      "commit": "524e1b34c89ebe2834a27b948371227f142d346d"
+    },
+    {
+      "path": "src/utils/env-credentials.ts",
+      "role": "账户名到 env key 的映射和空凭据拒绝；不读取系统 vault。",
+      "layer": "credentials",
+      "dependencies": [
+        "src/types/index.ts"
+      ],
+      "externalDependencies": "See source imports/package-lock; internal map excludes npm/system imports.",
+      "readingDepth": "full",
+      "commit": "524e1b34c89ebe2834a27b948371227f142d346d"
+    },
+    {
+      "path": "src/utils/gmail-proxy.ts",
+      "role": "Gmail 专用/标准代理与 Windows loopback 回退，缺代理拒绝。",
+      "layer": "transport",
+      "dependencies": [
+        "src/utils/windows-system-proxy.ts"
+      ],
+      "externalDependencies": "See source imports/package-lock; internal map excludes npm/system imports.",
+      "readingDepth": "full",
+      "commit": "524e1b34c89ebe2834a27b948371227f142d346d"
+    },
+    {
+      "path": "src/utils/mail-proxy.ts",
+      "role": "QQ/网易直连、Gmail 强制代理、其他 provider 的通用代理策略。",
+      "layer": "transport",
+      "dependencies": [
+        "src/credentials/proxy-fetch.ts",
+        "src/utils/gmail-proxy.ts"
+      ],
+      "externalDependencies": "See source imports/package-lock; internal map excludes npm/system imports.",
+      "readingDepth": "full",
+      "commit": "524e1b34c89ebe2834a27b948371227f142d346d"
+    },
+    {
+      "path": "src/utils/mail-resource-limits.ts",
+      "role": "25 MiB MIME/附件、正文/数量上限及有界文件物化。",
+      "layer": "content",
+      "dependencies": [],
+      "externalDependencies": "See source imports/package-lock; internal map excludes npm/system imports.",
+      "readingDepth": "full",
+      "commit": "524e1b34c89ebe2834a27b948371227f142d346d"
+    },
+    {
+      "path": "src/utils/pdf-preview.ts",
+      "role": "限制输入/页面/输出/并发的 PDF 子进程和 5 秒终止。",
+      "layer": "content",
+      "dependencies": [],
+      "externalDependencies": "See source imports/package-lock; internal map excludes npm/system imports.",
+      "readingDepth": "full",
+      "commit": "524e1b34c89ebe2834a27b948371227f142d346d"
+    },
+    {
+      "path": "src/utils/search-folders.ts",
+      "role": "按 selectable、SPECIAL-USE/名称过滤 Trash/Spam/Drafts 等文件夹。",
+      "layer": "search",
+      "dependencies": [
+        "src/types/index.ts"
+      ],
+      "externalDependencies": "See source imports/package-lock; internal map excludes npm/system imports.",
+      "readingDepth": "full",
+      "commit": "524e1b34c89ebe2834a27b948371227f142d346d"
+    },
+    {
+      "path": "src/utils/windows-system-proxy.ts",
+      "role": "只读 Windows 代理设置并仅接受启用的 loopback 地址。",
+      "layer": "transport",
+      "dependencies": [],
+      "externalDependencies": "See source imports/package-lock; internal map excludes npm/system imports.",
+      "readingDepth": "full",
+      "commit": "524e1b34c89ebe2834a27b948371227f142d346d"
+    },
+    {
+      "path": "src/web/enrollment-router.ts",
+      "role": "严格 provider 输入、注册互斥与 Gmail 异步 job 状态；202 不代表已注册。",
+      "layer": "enrollment",
+      "dependencies": [
+        "src/credentials/account-enrollment.ts",
+        "src/credentials/gmail-oauth-loopback.ts",
+        "src/services/account-manager.ts"
+      ],
+      "externalDependencies": "See source imports/package-lock; internal map excludes npm/system imports.",
+      "readingDepth": "full",
+      "commit": "524e1b34c89ebe2834a27b948371227f142d346d"
+    },
+    {
+      "path": "src/web/server.ts",
+      "role": "私有设置会话、同源/Host 防护、账户 CRUD/测试、HTTP 生命周期。",
+      "layer": "enrollment",
+      "dependencies": [
+        "src/credentials/account-auth.ts",
+        "src/credentials/account-enrollment.ts",
+        "src/credentials/credential-backend.ts",
+        "src/credentials/gmail-oauth-loopback.ts",
+        "src/credentials/gmail-token-exchange.ts",
+        "src/credentials/windows-credential-backend.ts",
+        "src/providers/email-providers.ts",
+        "src/services/account-manager.ts",
+        "src/services/imap-service.ts",
+        "src/types/index.ts",
+        "src/web/enrollment-router.ts"
+      ],
+      "externalDependencies": "See source imports/package-lock; internal map excludes npm/system imports.",
+      "readingDepth": "targeted:1-140,175-375,405-470;surface:remaining",
+      "commit": "524e1b34c89ebe2834a27b948371227f142d346d"
+    }
+  ]
+}

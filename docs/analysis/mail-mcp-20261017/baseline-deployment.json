@@ -1,0 +1,254 @@
+{
+  "schemaVersion": 1,
+  "collectedAtUtc": "2026-10-17T05:33:30Z",
+  "scope": {
+    "mode": "read-only evidence check",
+    "serviceStartedOrRestarted": false,
+    "mcpToolsCalled": false,
+    "realMailboxOperations": false,
+    "accountVaultMailOrTokenContentsRead": false,
+    "githubWritesOrGitRefUpdates": false,
+    "currentTurnTestsRun": false
+  },
+  "repository": {
+    "cloneRemote": "https://github.com/ertutio/mail-agent-mcp.git",
+    "publicVisibilityVerified": true,
+    "localBranch": "codex/audit-remediation-plan",
+    "localHead": "524e1b34c89ebe2834a27b948371227f142d346d",
+    "localWorkingTreeAtStart": "clean",
+    "liveMain": "96f8864fa5fb88d0d28e921ced7b8e8ad644d7ca",
+    "liveMainTreeEqualsLocalHeadTree": true,
+    "localOriginMain": "e47a74c6375c54a4af3b8e2e522262b4c156f3ef",
+    "liveMainObjectAvailableLocally": false
+  },
+  "pullRequests": [
+    {
+      "number": 1,
+      "title": "Harden mail operations and move account management to the local browser",
+      "url": "https://github.com/ertutio/mail-agent-mcp/pull/1",
+      "state": "MERGED",
+      "headSha": "9c00f19ebe71af3482b5a3a94dd62c9cd095ad2d",
+      "mergeCommitSha": "e47a74c6375c54a4af3b8e2e522262b4c156f3ef",
+      "mergedAtUtc": "2026-10-15T03:15:51Z"
+    },
+    {
+      "number": 2,
+      "title": "fix: support NetEase pagination and protect setup API sessions",
+      "url": "https://github.com/ertutio/mail-agent-mcp/pull/2",
+      "state": "MERGED",
+      "headSha": "524e1b34c89ebe2834a27b948371227f142d346d",
+      "mergeCommitSha": "96f8864fa5fb88d0d28e921ced7b8e8ad644d7ca",
+      "mergedAtUtc": "2026-10-16T06:37:49Z",
+      "containsPlanCommits": true
+    }
+  ],
+  "planEntryPoint": {
+    "kind": "repository file",
+    "file": "docs/plans/audit-remediation-2026-10-15.md",
+    "separatePlanPullRequestFound": false,
+    "deliveryAndMergeStatusSource": "PR #2 body and local-install-version.json deployment marker",
+    "stalePlanStatements": [
+      "docs/plans/audit-remediation-2026-10-15.md:3 says not deployed or merged",
+      "docs/plans/audit-remediation-2026-10-15.md:27 says no local installation or merge occurred"
+    ],
+    "noPlanBodyCopyCreated": true
+  },
+  "identity": {
+    "packageName": "mail-agent-mcp",
+    "packageVersion": "0.1.1",
+    "packageRepository": "https://github.com/SinoEdwards/mail-agent-mcp.git",
+    "mcpRegistryName": "io.github.SinoEdwards/mail-agent-mcp",
+    "gitOrigin": "https://github.com/ertutio/mail-agent-mcp.git",
+    "metadataChanged": false
+  },
+  "installedCheckout": {
+    "locationAlias": "<Codex tools>/mail-agent-mcp",
+    "type": "local checkout with copied source/build overlay; not evidence of an npm registry installation",
+    "gitHead": "aec136cf2217facaaeca41e8ff1710eabc8188c0",
+    "branch": "detached HEAD",
+    "trackedChangedCount": 42,
+    "untrackedCount": 29,
+    "marker": {
+      "file": "local-install-version.json",
+      "sourceCommit": "524e1b34c89ebe2834a27b948371227f142d346d",
+      "deployedFixes": [
+        "SA-08",
+        "SEC-01"
+      ],
+      "installedArtifactMatchesTestedBuild": true,
+      "accountProfileUnchanged": true,
+      "lastWriteUtc": "2026-10-16T06:38:39.3303094Z",
+      "sha256": "CF73F686AA47C05D997DB3BE193EF3593CA9D085C9DAD6128E32B00E1F3E4AF9"
+    },
+    "manifest": {
+      "sourceNameAndVersion": "mail-agent-mcp@0.1.1",
+      "installedNameAndVersion": "mail-agent-mcp@0.1.1",
+      "sourceSha256": "D7C0A7D2D40428C8E73A86A2F769E23D006FB73DDA9A65EC7948D7242159B8A5",
+      "installedSha256": "5D2FA3943707CEE3B248C96ABD9EC57189B593D67C8BC4766B15638FE4F60C8E",
+      "onlyDifferingTopLevelField": "files",
+      "sourcePackageFilesIncludes": [
+        "dist",
+        "public",
+        "README.md",
+        "README.en.md",
+        "SECURITY.md",
+        "LICENSE",
+        "docs/agent-integration.md"
+      ],
+      "installedPackageFilesIncludes": [
+        "dist",
+        "public",
+        "README.md",
+        "SECURITY.md",
+        "LICENSE",
+        "docs/agent-integration.md"
+      ]
+    },
+    "packageLock": {
+      "sha256": "398A3829A873E4897012800F03A3CC4729AC510BDFDC684D2A7E64D75CAE3557",
+      "sourceAndInstalledByteIdentical": true,
+      "sourceLastWriteUtc": "2026-10-14T07:49:14.7937109Z",
+      "installedLastWriteUtc": "2026-10-14T03:30:06.3763832Z"
+    },
+    "sourceDirectories": {
+      "src": {
+        "sourceFileCount": 41,
+        "installedFileCount": 41,
+        "textEqualAfterCrlfToLfNormalization": true
+      },
+      "public": {
+        "sourceFileCount": 3,
+        "installedFileCount": 3,
+        "textEqualAfterCrlfToLfNormalization": true
+      }
+    },
+    "runtimeArtifacts": [
+      {
+        "path": "dist/index.js",
+        "sha256": "DD348200BB83538EC4915AFC4340BA0D34AE7783B6BBCA9F31B3A458C2365E4D",
+        "sourceAndInstalledByteIdentical": true,
+        "length": 256552,
+        "lastWriteUtc": "2026-10-16T01:40:24.4731785Z"
+      },
+      {
+        "path": "dist/enroll.js",
+        "sha256": "B7F6E4ABDDD7A82C12DA0325B8700D8C5CD58F5A459BB5D48276C6A1D59F827C",
+        "sourceAndInstalledByteIdentical": true,
+        "length": 137614,
+        "lastWriteUtc": "2026-10-16T01:40:24.4950698Z"
+      },
+      {
+        "path": "dist/setup.js",
+        "sha256": "956C1E070747BB6B40427E55A1EAEB54567E366AED5A74FE050FC594CF9FFD98",
+        "sourceAndInstalledByteIdentical": true,
+        "length": 158213,
+        "lastWriteUtc": "2026-10-16T01:40:24.4838366Z"
+      },
+      {
+        "path": "dist/web/server.js",
+        "sha256": "75288FEF1A1DBD4462A5F0980E19DDB69613199F4C1B883EF0ED77CBE47EA7C8",
+        "sourceAndInstalledByteIdentical": true,
+        "length": 153460,
+        "lastWriteUtc": "2026-10-16T01:40:24.5063776Z"
+      },
+      {
+        "path": "src/services/imap-service.ts",
+        "sha256": "875B44BCEA06CA35E6529D0BC4456071B1DFC31D94672EB522BEB840C5B6C2F0",
+        "sourceAndInstalledByteIdentical": true,
+        "lastWriteUtc": "2026-10-16T01:37:07.9395602Z"
+      },
+      {
+        "path": "src/web/server.ts",
+        "sha256": "BEFAB3305E7500CC2034C4F2518174903BDC46265E5626D4E5B07DBA9248431C",
+        "sourceAndInstalledByteIdentical": true,
+        "lastWriteUtc": "2026-10-16T01:35:29.9769330Z"
+      }
+    ],
+    "launcher": {
+      "sourcePathAlias": "<Codex tools>/mail-agent-launcher.cjs",
+      "sha256": "A591CCF577C62E7E209D36599D8BC9F61CBC71F7F781ADDFC3B4D28B53AF4F7B",
+      "lastWriteUtc": "2026-10-14T13:01:08.5228343Z",
+      "behavior": "spawns installed checkout dist/index.js, uses an explicit full-tool allowlist, and runs in a write-capable mode"
+    }
+  },
+  "codexRegistration": {
+    "configSection": "[mcp_servers.mail-agent]",
+    "registered": true,
+    "commandBasename": "node.exe",
+    "argumentCount": 1,
+    "argumentSummary": "contains the launcher path; path redacted",
+    "configEnvKeyNames": [],
+    "registeredEntryDoesNotProveCurrentTransport": true
+  },
+  "runtimeProcesses": {
+    "observationTimeUtc": "2026-10-17T05:33:30Z",
+    "launcherProcesses": 4,
+    "serverProcesses": 4,
+    "serverCommandTarget": "installed checkout dist/index.js",
+    "startedAtRangeLocalAsiaShanghai": "2026-10-17 13:17-13:29",
+    "processCommandLinesPrinted": false,
+    "mcpToolsListCalled": false,
+    "currentTransportOrToolCallConfirmed": false,
+    "diskArtifactInference": "Server processes were observed after the installed dist files' last-write times; current installed dist hashes match the source build. This supports the launch target and disk-version association but does not directly inspect process memory or establish a successful MCP call."
+  },
+  "verification": {
+    "historicalOnly": {
+      "source": "work/mail-agent-two-fixes-review-20261016/validation.txt and PR #2 body",
+      "testEvidence": {
+        "SA-08OldImplementation": "14 failures and 5 passes in the initial 19-case suite",
+        "SA-08FinalPaginationSuite": "21 passed",
+        "SEC-01OldImplementation": "10 failures and 2 passes in the final 12-case suite",
+        "SEC-01FinalSessionSuite": "12 passed",
+        "CombinedTargetedSuites": "33 passed",
+        "FullRegression": "662 passed, 1 skipped",
+        "LineCoverage": "81.93%"
+      },
+      "otherChecks": {
+        "typeCheck": "passed",
+        "build": "passed",
+        "secretScan": "passed on 146 files",
+        "whitespaceCheck": "passed, CRLF-aware",
+        "packageDryRun": "passed",
+        "productionDependencyAudit": "0 findings",
+        "fullDependencyAudit": "retained 6 development-tool advisories (3 high, 3 moderate) under ENG-01 scope exception",
+        "compiledStdioInventory": "40 full-mode tools, 17 read-only tools, and a specific 2-tool allowlist were historically verified",
+        "compiledApiSmoke": "case variants without a session returned 403; valid session returned 200; no-store was checked",
+        "deepseekReview": "timed out without a usable conclusion; not counted as a pass"
+      }
+    },
+    "thisTurn": {
+      "testsRun": false,
+      "buildOrPackageRun": false,
+      "freshStdioOrToolsListCheck": false,
+      "realProviderSmoke": "NOT RUN",
+      "nodeVersion": "v24.20.0",
+      "npmVersion": "11.19.0",
+      "docsAcceptanceFileFound": false
+    }
+  },
+  "applicableContracts": {
+    "agentIntegration": [
+      "stdio JSON-RPC; Node.js 22.12 or newer",
+      "tools/list is authoritative",
+      "full mode has 40 tools; read-only mode has 17",
+      "safe send requires preview plus explicit confirmation",
+      "destructive mailbox actions require preview/confirmation"
+    ],
+    "release": {
+      "activeReleaseWorkflow": false,
+      "publishingRequiresExplicitMaintainerApproval": true,
+      "requiredChecks": [
+        "npm ci",
+        "npm test",
+        "npm run build",
+        "npm run lint",
+        "git diff --check",
+        "secret-free scan",
+        "npm pack --dry-run",
+        "package/lock/server name and version consistency",
+        "strict semantic tag validation"
+      ],
+      "providerSmokeChecklistIsSeparateAndRealProviderTestsWereNotRun": true
+    }
+  }
+}

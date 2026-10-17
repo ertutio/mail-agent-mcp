@@ -1,0 +1,65 @@
+{
+  "observedAt": "2026-10-17T05:36:19.167Z",
+  "sourceCommit": "524e1b34c89ebe2834a27b948371227f142d346d",
+  "kind": "executed-synthetic-observation",
+  "meaning": "Observation success means the described gap is present, not that a future safety regression passes.",
+  "sourceHashes": [
+    {
+      "file": "src/tools/unified-search-tools.ts",
+      "sha256": "ea9a5b05b0de546f61deed8c60ae9fa69b481071b4fe0862b7307d5168d555d3"
+    },
+    {
+      "file": "src/tools/safe-send-tools.ts",
+      "sha256": "e8f389fd1b5a22cbc75fa90fbc7d96035e16376b3b92338366ffe8a4f1afce88"
+    },
+    {
+      "file": "src/services/imap-service.ts",
+      "sha256": "875b44bcea06ca35e6529d0bc4456071b1dfc31d94672eb522beb840c5b6c2f0"
+    }
+  ],
+  "results": [
+    {
+      "id": "MAIL-01",
+      "observation": "unlocked-select-switches-folder-during-held-UID-operation",
+      "intendedFolder": "INBOX",
+      "actualCommandFolder": "Archive",
+      "reportedDeleted": 1,
+      "releases": 1,
+      "scope": "deterministic in-memory IMAP state/lock model; zero server commands"
+    },
+    {
+      "id": "N-02",
+      "observation": "cursor-account-name-rebinding-accepted",
+      "visited": [
+        "synthetic-b"
+      ],
+      "accepted": true,
+      "sameFilterKey": true,
+      "scope": "synthetic handler with real Zod input validation; proves no identity binding, not unauthorized account access"
+    },
+    {
+      "id": "SA-04",
+      "observation": "discovery-failure-has-no-continuation",
+      "success": false,
+      "partial": true,
+      "status": "failed",
+      "cursorCount": 0
+    },
+    {
+      "id": "N-01",
+      "observation": "preview-identity-change-still-executes",
+      "status": "sent",
+      "identityMismatch": true,
+      "scope": "all sends mocked; zero SMTP/IMAP requests"
+    },
+    {
+      "id": "N-03",
+      "observation": "append-false-is-reported-success",
+      "sentSaved": true,
+      "draftSaved": true,
+      "calls": 2,
+      "imapflowVersion": "1.6.5",
+      "scope": "mocked dependency return; reachability of false verified separately in locked dependency source"
+    }
+  ]
+}

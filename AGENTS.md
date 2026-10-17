@@ -28,6 +28,10 @@ Mail Agent MCP is a local-first TypeScript stdio MCP server for Gmail and QQ Mai
 - Keep attachment file operations inside the configured root.
 - Do not add telemetry or unrelated network calls.
 
+## Development roadmap
+
+For roadmap selection or audit remediation, start with [the current roadmap](docs/plans/development-roadmap.md), then use [the agent reading entry](docs/analysis/mail-mcp-20261017/START-HERE.md) to load only the selected task's context. Complete one maintainer-selected task and its acceptance checks per turn, report the result and suggested next task, then stop for the maintainer to choose. The earlier audit-remediation plan is historical.
+
 ## Architecture
 
 - src/index.ts: stdio MCP entry.
