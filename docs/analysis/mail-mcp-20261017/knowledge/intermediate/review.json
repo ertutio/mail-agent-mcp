@@ -1,0 +1,16 @@
+{
+  "issues": [],
+  "warnings": [
+    "Unsupported structural parser: install.ps1, public/css/setup.css, public/index.html",
+    "No whole-program call resolution or whole-file semantic audit; see per-file readingDepth."
+  ],
+  "stats": {
+    "nodes": 237,
+    "edges": 321,
+    "layers": 13,
+    "files": 143,
+    "productionModules": 41,
+    "tourSteps": 0
+  },
+  "meaning": "Deterministic structure/reference validation only; not runtime correctness."
+}

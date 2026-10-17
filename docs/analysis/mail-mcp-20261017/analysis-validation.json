@@ -1,0 +1,30 @@
+{
+  "validatedAt": "2026-10-17T05:44:12.313Z",
+  "success": true,
+  "issues": [],
+  "warnings": [
+    "Unsupported structural parser: install.ps1, public/css/setup.css, public/index.html",
+    "No whole-program call resolution or whole-file semantic audit; see per-file readingDepth."
+  ],
+  "graph": {
+    "nodes": 237,
+    "edges": 321,
+    "layers": 13,
+    "files": 143,
+    "productionModules": 41,
+    "tourSteps": 0
+  },
+  "originalFindings": 32,
+  "mappedFindings": 32,
+  "tasks": 37,
+  "dependencyCycles": [],
+  "riskFeatures": 13,
+  "testFiles": 68,
+  "snapshotBlobsCompared": 146,
+  "snapshotExactBlobMatches": 29,
+  "snapshotMatchesAfterCrlfToLfNormalization": 117,
+  "originalCheckoutClean": true,
+  "originalPlanBlob": "dba5e5a552df6e0ad3e462aeed4833b135d4c1bb",
+  "businessSourceModified": false,
+  "testsBuildAndDeploymentExecutedByValidator": false
+}

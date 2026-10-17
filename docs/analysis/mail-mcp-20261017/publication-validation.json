@@ -1,0 +1,25 @@
+{
+  "validatedAt": "2026-10-17T05:52:19.167Z",
+  "success": true,
+  "issues": [],
+  "scope": "documentation and publication-artifact checks only",
+  "originalResultFiles": 20,
+  "understandFiles": 14,
+  "all34OriginalResultsIncluded": true,
+  "originalHashesUnchanged": true,
+  "publishedHashesVerified": true,
+  "sourceAndRuntimeUnchanged": true,
+  "jsonFilesParsed": 24,
+  "relativeMarkdownLinksChecked": 40,
+  "graph": {
+    "nodes": 237,
+    "edges": 321
+  },
+  "originalFindingMappings": 32,
+  "tasks": 37,
+  "nextTask": "T01",
+  "productTestsRerun": false,
+  "servicesRestarted": false,
+  "realMailboxAccess": false,
+  "history": "Original analysis-validation remains historical; this report validates sanitized published copies. Repository secret scan and git diff --check are recorded by the Git finisher."
+}

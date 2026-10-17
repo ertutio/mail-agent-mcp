@@ -1,0 +1,22 @@
+{
+  "schema_version": 2,
+  "success": false,
+  "status": "launch_error",
+  "exit_code": null,
+  "timed_out": false,
+  "session_id": null,
+  "permission_denials": [],
+  "model": null,
+  "model_usage": {},
+  "usage": {},
+  "result": null,
+  "errors": [
+    "PermissionError: [WinError 5] 拒绝访问。: '<local-path-redacted>'"
+  ],
+  "termination_reason": "launch_error",
+  "progress": {},
+  "observed_models": [],
+  "warnings": [],
+  "review_complete": null,
+  "duration_seconds": 0
+}

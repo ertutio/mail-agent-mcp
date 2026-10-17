@@ -1,0 +1,269 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-17T05:51:40.670Z",
+  "analysisCommit": "524e1b34c89ebe2834a27b948371227f142d346d",
+  "mainCommit": "96f8864fa5fb88d0d28e921ced7b8e8ad644d7ca",
+  "sourceResultFileCount": 20,
+  "sourceKnowledgeFileCount": 14,
+  "allResultFilesIncluded": true,
+  "originalArtifactsPreservedLocally": true,
+  "publicationTransformations": [
+    "personal path redaction",
+    "JSON/line-ending normalization",
+    "portable links",
+    "current agent entry promotion",
+    "archive script note"
+  ],
+  "excludedInputs": [
+    {
+      "name": "fixed Git source snapshot and source.tar",
+      "reason": "Already represented by immutable public Git commit; duplicate input, not an analysis result"
+    },
+    {
+      "name": "node_modules, credentials and runtime configuration",
+      "reason": "Not analysis result artifacts; never included"
+    }
+  ],
+  "currentRoadmap": "docs/plans/development-roadmap.md",
+  "agentEntry": "docs/analysis/mail-mcp-20261017/START-HERE.md",
+  "entries": [
+    {
+      "source": "analysis-results/analysis-validation.json",
+      "destination": "docs/analysis/mail-mcp-20261017/analysis-validation.json",
+      "sourceSha256": "a1fa1fde89ea3f69f637d440ed0e4855e7e41212082eed56039b322f90c44222",
+      "publishedSha256": "a1fa1fde89ea3f69f637d440ed0e4855e7e41212082eed56039b322f90c44222",
+      "changedForPublication": false
+    },
+    {
+      "source": "analysis-results/baseline-deployment.json",
+      "destination": "docs/analysis/mail-mcp-20261017/baseline-deployment.json",
+      "sourceSha256": "701ccf35bdbaabd4471ae249c78ea73209cd9b564438de7b6798b8068803a176",
+      "publishedSha256": "dcc1db22a2799cc507e8daced9d961167c820ad632e427249a566b3814655588",
+      "changedForPublication": true
+    },
+    {
+      "source": "analysis-results/baseline-deployment.md",
+      "destination": "docs/analysis/mail-mcp-20261017/baseline-deployment.md",
+      "sourceSha256": "7b56c9a037217c0fc3fcd5e4dcb6109c91f9fe0d3167a6d2b88eb625507e9168",
+      "publishedSha256": "3180b45bf75b53d185a9b643b6ed646a213e0bc3057bdfb853c2d8010b71b0f3",
+      "changedForPublication": true
+    },
+    {
+      "source": "analysis-results/build-knowledge.mjs",
+      "destination": "docs/analysis/mail-mcp-20261017/build-knowledge.mjs",
+      "sourceSha256": "845b69ad71bfb99282ad28041ebad5b0ea78ef6dbfc03cee21674aba0b7dbe51",
+      "publishedSha256": "a0b28576076ce7db43d1aa203f66d297e73d410251b4c24f6ee03bb1cec9e8df",
+      "changedForPublication": true
+    },
+    {
+      "source": "analysis-results/CODE-KNOWLEDGE.md",
+      "destination": "docs/analysis/mail-mcp-20261017/CODE-KNOWLEDGE.md",
+      "sourceSha256": "4160a81ca877110335cf4c31d401eb2a1991db7dac3080319a25360f75c0f89c",
+      "publishedSha256": "faaf6f2eab13509d865ed33914d3abccc2bafeb7ef64590f1dc2c500c4e57dac",
+      "changedForPublication": true
+    },
+    {
+      "source": "analysis-results/dependency-audit-current.json",
+      "destination": "docs/analysis/mail-mcp-20261017/dependency-audit-current.json",
+      "sourceSha256": "cc4b755b62cad8750e99b241690e9921980a16fe7da4102ea9ec99edc4af6cd9",
+      "publishedSha256": "cc4b755b62cad8750e99b241690e9921980a16fe7da4102ea9ec99edc4af6cd9",
+      "changedForPublication": false
+    },
+    {
+      "source": "analysis-results/dependency-evidence.md",
+      "destination": "docs/analysis/mail-mcp-20261017/dependency-evidence.md",
+      "sourceSha256": "1d6226833c26fd9f05267891a3508f31933da4e63bec4a1439a013680303bdf1",
+      "publishedSha256": "1d6226833c26fd9f05267891a3508f31933da4e63bec4a1439a013680303bdf1",
+      "changedForPublication": false
+    },
+    {
+      "source": "analysis-results/EVIDENCE.md",
+      "destination": "docs/analysis/mail-mcp-20261017/EVIDENCE.md",
+      "sourceSha256": "22f00583a242c62093c3ed3d8ad429ffd9747755f432ac26813dd619adc19207",
+      "publishedSha256": "415acdcadaea51ebb3f44fc5a46b0f3a7dcd1acb0bcc821576a596e83506e309",
+      "changedForPublication": true
+    },
+    {
+      "source": "analysis-results/github-version-comparison.json",
+      "destination": "docs/analysis/mail-mcp-20261017/github-version-comparison.json",
+      "sourceSha256": "798e260ede01ac50e4081adfd85f46c795784792a8010d008cc3c4741bf6ee6e",
+      "publishedSha256": "e4ba6f0365c9cdf30e7a870214a06809674cfb48749da703a695a0e356c1c768",
+      "changedForPublication": true
+    },
+    {
+      "source": "analysis-results/MODULE-INDEX.md",
+      "destination": "docs/analysis/mail-mcp-20261017/MODULE-INDEX.md",
+      "sourceSha256": "e31ae5fb42d583cc33fcc45fee74180c9c210906b67dea31ed2ec75edc2716a3",
+      "publishedSha256": "e31ae5fb42d583cc33fcc45fee74180c9c210906b67dea31ed2ec75edc2716a3",
+      "changedForPublication": false
+    },
+    {
+      "source": "analysis-results/probe-results.json",
+      "destination": "docs/analysis/mail-mcp-20261017/probe-results.json",
+      "sourceSha256": "821adc057725c82021979788fd5bab3cdbb408310c67c3e1f1750bd991d551a1",
+      "publishedSha256": "821adc057725c82021979788fd5bab3cdbb408310c67c3e1f1750bd991d551a1",
+      "changedForPublication": false
+    },
+    {
+      "source": "analysis-results/probes.mts",
+      "destination": "docs/analysis/mail-mcp-20261017/probes.mts",
+      "sourceSha256": "1d6e0f7d2828473129d897d299f4422dcef6d22c3acff45a05b69c57dd5a481b",
+      "publishedSha256": "142ed205cf752ca2fd48d0fe23561939e1ab57d03d9d5b9ab86edb92b317e4d2",
+      "changedForPublication": true
+    },
+    {
+      "source": "analysis-results/review-dry-run.json",
+      "destination": "docs/analysis/mail-mcp-20261017/review-dry-run.json",
+      "sourceSha256": "ec1193306cae81fe7ea6a90113a8940c11ec7e21a1d256f89ce43ffc5a190ed8",
+      "publishedSha256": "b7bf85f855913fe3dab5d00fdc3a628a404e71c80ae694030894ccbb94a853ea",
+      "changedForPublication": true
+    },
+    {
+      "source": "analysis-results/review-plan.json",
+      "destination": "docs/analysis/mail-mcp-20261017/review-plan.json",
+      "sourceSha256": "a49ac8a3c27fa50e7affba18ce76137ec7161da5c8745b94cb42b1ab111ebc12",
+      "publishedSha256": "3f995124f26e22f58d99648eab0e38ff8a73dccac3c9acb36ba34d0fb91577e6",
+      "changedForPublication": true
+    },
+    {
+      "source": "analysis-results/review-result.json",
+      "destination": "docs/analysis/mail-mcp-20261017/review-result.json",
+      "sourceSha256": "3492cbc7ff3ca912e7ec4b873b70a08abff964ba5d887bb74f8e9ca6677123be",
+      "publishedSha256": "4dda61b29555062fabd5192ba5964547d58a774b580a2da571545b971b09260f",
+      "changedForPublication": true
+    },
+    {
+      "source": "analysis-results/review-task.md",
+      "destination": "docs/analysis/mail-mcp-20261017/review-task.md",
+      "sourceSha256": "bed2ed9658e52f5ede9b710ac0b2737890378024f4ecee51047de2e1bebf119e",
+      "publishedSha256": "bed2ed9658e52f5ede9b710ac0b2737890378024f4ecee51047de2e1bebf119e",
+      "changedForPublication": false
+    },
+    {
+      "source": "analysis-results/roadmap-index.json",
+      "destination": "docs/analysis/mail-mcp-20261017/roadmap-index.json",
+      "sourceSha256": "3102aeb88903911c02b838dd3b73a92c60fe7be229971a00e2a4053faaaf412c",
+      "publishedSha256": "3102aeb88903911c02b838dd3b73a92c60fe7be229971a00e2a4053faaaf412c",
+      "changedForPublication": false
+    },
+    {
+      "source": "analysis-results/ROADMAP-PR-BODY.md",
+      "destination": "docs/analysis/mail-mcp-20261017/ROADMAP-PR-BODY.md",
+      "sourceSha256": "bf93c2a68d50234a9459fef923a8a67cc0d7b7d20e5188c0e4941f6dce3e706e",
+      "publishedSha256": "bf93c2a68d50234a9459fef923a8a67cc0d7b7d20e5188c0e4941f6dce3e706e",
+      "changedForPublication": false
+    },
+    {
+      "source": "analysis-results/START-HERE.md",
+      "destination": "docs/analysis/mail-mcp-20261017/START-HERE.md",
+      "sourceSha256": "3897aa3746ec5c630ed5f01474157f71e6838866ece0786066c4e75909b575c2",
+      "publishedSha256": "b708fe3f4857cdf663218ce62fc34a3e3722021e3fbea18842393ea5143c04cc",
+      "changedForPublication": true
+    },
+    {
+      "source": "analysis-results/validate-analysis.mjs",
+      "destination": "docs/analysis/mail-mcp-20261017/validate-analysis.mjs",
+      "sourceSha256": "13125e2f9867f78eb05c9da385ebf96817251d0d599eef72f5c2ab8eba170982",
+      "publishedSha256": "c04ff630f02b4f640eb9e2569f82137fedb6a9bea31e8b68c88edb0c0c19e03c",
+      "changedForPublication": true
+    },
+    {
+      "source": "understand-artifacts/coverage.json",
+      "destination": "docs/analysis/mail-mcp-20261017/knowledge/coverage.json",
+      "sourceSha256": "8afc9d5a9b31d355aa83fe1c314d0633e8042cd27cb8c8226393835167945650",
+      "publishedSha256": "8afc9d5a9b31d355aa83fe1c314d0633e8042cd27cb8c8226393835167945650",
+      "changedForPublication": false
+    },
+    {
+      "source": "understand-artifacts/fingerprints.json",
+      "destination": "docs/analysis/mail-mcp-20261017/knowledge/fingerprints.json",
+      "sourceSha256": "f46329fbac486f77248af622c35316fe45477e711e6dca18f162563f829ded90",
+      "publishedSha256": "bfe0c8d64b81193fd571fefe92ec5d226e918f74b47165f8884800e5b2724324",
+      "changedForPublication": true
+    },
+    {
+      "source": "understand-artifacts/intermediate/fingerprint-input.json",
+      "destination": "docs/analysis/mail-mcp-20261017/knowledge/intermediate/fingerprint-input.json",
+      "sourceSha256": "23b4490fba683a574f2b2777c8e9d408a080cc91f36de10d20e73f0c9d0614ac",
+      "publishedSha256": "065003ad64750ae99afb3427c90b909cb92484e76659cd1e699f084d0b5b05f7",
+      "changedForPublication": true
+    },
+    {
+      "source": "understand-artifacts/intermediate/review.json",
+      "destination": "docs/analysis/mail-mcp-20261017/knowledge/intermediate/review.json",
+      "sourceSha256": "63f6081234616792395ec77c58d9d2f75061da0cea43a7a9d7ee6a84f22b33fd",
+      "publishedSha256": "63f6081234616792395ec77c58d9d2f75061da0cea43a7a9d7ee6a84f22b33fd",
+      "changedForPublication": false
+    },
+    {
+      "source": "understand-artifacts/intermediate/scan-result.json",
+      "destination": "docs/analysis/mail-mcp-20261017/knowledge/intermediate/scan-result.json",
+      "sourceSha256": "5614c4df2528a663f8b62258574cc078647822dceead4f42a3e6aedc41a36b99",
+      "publishedSha256": "5614c4df2528a663f8b62258574cc078647822dceead4f42a3e6aedc41a36b99",
+      "changedForPublication": false
+    },
+    {
+      "source": "understand-artifacts/knowledge-graph.json",
+      "destination": "docs/analysis/mail-mcp-20261017/knowledge/knowledge-graph.json",
+      "sourceSha256": "3a379801b46bcfa52b01c362c368bbd2079e61fa3e200a8cd090642f6d02235b",
+      "publishedSha256": "3a379801b46bcfa52b01c362c368bbd2079e61fa3e200a8cd090642f6d02235b",
+      "changedForPublication": false
+    },
+    {
+      "source": "understand-artifacts/meta.json",
+      "destination": "docs/analysis/mail-mcp-20261017/knowledge/meta.json",
+      "sourceSha256": "19ba8a05d350603592fdf73f95c76ce4b59c664bc01c6bb55df4b91834fbd4d4",
+      "publishedSha256": "19ba8a05d350603592fdf73f95c76ce4b59c664bc01c6bb55df4b91834fbd4d4",
+      "changedForPublication": false
+    },
+    {
+      "source": "understand-artifacts/module-index.json",
+      "destination": "docs/analysis/mail-mcp-20261017/knowledge/module-index.json",
+      "sourceSha256": "a462216026864578e9d0618e6087855668f50c0b08ea9edd4367f9404636d024",
+      "publishedSha256": "a462216026864578e9d0618e6087855668f50c0b08ea9edd4367f9404636d024",
+      "changedForPublication": false
+    },
+    {
+      "source": "understand-artifacts/test-index.json",
+      "destination": "docs/analysis/mail-mcp-20261017/knowledge/test-index.json",
+      "sourceSha256": "c74aa862f17ddcbfcd96c9b41705651be979f7267b59c87e86bd767385d8c0e4",
+      "publishedSha256": "c74aa862f17ddcbfcd96c9b41705651be979f7267b59c87e86bd767385d8c0e4",
+      "changedForPublication": false
+    },
+    {
+      "source": "understand-artifacts/tmp/import-input.json",
+      "destination": "docs/analysis/mail-mcp-20261017/knowledge/tmp/import-input.json",
+      "sourceSha256": "8d9a9cc971661510af155702a01df441b5422124d85b9b307e15ac9dfa485645",
+      "publishedSha256": "93ad45fac66ba338df813f95c4153896605a9cf566e64655f6aef727ad878cce",
+      "changedForPublication": true
+    },
+    {
+      "source": "understand-artifacts/tmp/import-output.json",
+      "destination": "docs/analysis/mail-mcp-20261017/knowledge/tmp/import-output.json",
+      "sourceSha256": "f29863d1f2bac491aedd01909b8591b17c6f03c43a73d8c355cd89ebbe2ec084",
+      "publishedSha256": "ae27104cdd970346c54ecd4412aad3b834c3c22948283ff9681cec1c0b7c6740",
+      "changedForPublication": true
+    },
+    {
+      "source": "understand-artifacts/tmp/scan.json",
+      "destination": "docs/analysis/mail-mcp-20261017/knowledge/tmp/scan.json",
+      "sourceSha256": "3eac10a0c130b687783e65743ecbd9d30af91d457adfbb28a98dd5a34735eadf",
+      "publishedSha256": "db5fa2f151f44981d0e2c3c5cd1e4e22491849d2f268b4ee63f55a2b080d9f8f",
+      "changedForPublication": true
+    },
+    {
+      "source": "understand-artifacts/tmp/structure-input.json",
+      "destination": "docs/analysis/mail-mcp-20261017/knowledge/tmp/structure-input.json",
+      "sourceSha256": "fc04760ec096729193f24a113285a1787929e1b9854bd402e628165f093fcd1b",
+      "publishedSha256": "d4a94fde7f0ff4e320385c910ea3b89fe2620808940676507be1d23b4c64a2aa",
+      "changedForPublication": true
+    },
+    {
+      "source": "understand-artifacts/tmp/structure.json",
+      "destination": "docs/analysis/mail-mcp-20261017/knowledge/tmp/structure.json",
+      "sourceSha256": "6160ae01e94e8529534c5dbabeb838dcbed003eb270f6a85b6b847dcb5226bcd",
+      "publishedSha256": "622a3dd6bf58e85d81043c8ca9aaaef456ac4e52af2a4f1e00c4afecea221d8d",
+      "changedForPublication": true
+    }
+  ]
+}

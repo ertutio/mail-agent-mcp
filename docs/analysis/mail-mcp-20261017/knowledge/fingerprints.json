@@ -1,0 +1,6832 @@
+{
+  "version": "1.0.0",
+  "gitCommitHash": "524e1b34c89ebe2834a27b948371227f142d346d",
+  "generatedAt": "2026-10-17T05:34:51.185Z",
+  "files": {
+    ".github/ISSUE_TEMPLATE/bug_report.yml": {
+      "filePath": ".github/ISSUE_TEMPLATE/bug_report.yml",
+      "contentHash": "71faf8b7e89203979d19893d5af85dc754a9c4477c639f405032d872132d57ea",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 55,
+      "hasStructuralAnalysis": false
+    },
+    ".github/ISSUE_TEMPLATE/config.yml": {
+      "filePath": ".github/ISSUE_TEMPLATE/config.yml",
+      "contentHash": "d6d81427cbfd6fb2c87462698c241fd6c31e47025c137498e50b8a01b228cb95",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 2,
+      "hasStructuralAnalysis": false
+    },
+    ".github/ISSUE_TEMPLATE/feature_request.yml": {
+      "filePath": ".github/ISSUE_TEMPLATE/feature_request.yml",
+      "contentHash": "1150ef12ed13c1819d422b289da0025b056af3249c9c06997f9e83c727b3d758",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 38,
+      "hasStructuralAnalysis": false
+    },
+    ".github/dependabot.yml": {
+      "filePath": ".github/dependabot.yml",
+      "contentHash": "70358b6879dd1d4b2d3ee37f5147d1fd99d7fb53a28758b875fd454f16fe19c3",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 51,
+      "hasStructuralAnalysis": false
+    },
+    ".github/workflow-drafts/release.yml": {
+      "filePath": ".github/workflow-drafts/release.yml",
+      "contentHash": "ee20a5aa618241e295a1edc49227193ebcb05f8e69264c10ee2dd998422db8ff",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 49,
+      "hasStructuralAnalysis": false
+    },
+    ".github/workflows/ci.yml": {
+      "filePath": ".github/workflows/ci.yml",
+      "contentHash": "1ded665ddd94be2d835fa6b02f17dc81739b2c395a1992ece15189307924a5c6",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 64,
+      "hasStructuralAnalysis": false
+    },
+    "AGENTS.md": {
+      "filePath": "AGENTS.md",
+      "contentHash": "a152257b26bbb298c3c0162ec596764a317441bceb1ec1e6a6a950b29b4e9284",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 56,
+      "hasStructuralAnalysis": false
+    },
+    "CHANGELOG.md": {
+      "filePath": "CHANGELOG.md",
+      "contentHash": "58f6a0211cf3d03eb029c2c3f37e2562117bf842405ad809a0444e236399055f",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 230,
+      "hasStructuralAnalysis": false
+    },
+    "CLAUDE.md": {
+      "filePath": "CLAUDE.md",
+      "contentHash": "1801b45abd5bb6dcf530bf4772fda962c88be7ff3d4f4bd72601fd2cb97587b7",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 26,
+      "hasStructuralAnalysis": false
+    },
+    "CONTRIBUTING.md": {
+      "filePath": "CONTRIBUTING.md",
+      "contentHash": "a8a9a8f3093992336cf6c00e5d0d95e2da3557948edea62c11f89ec8db34e117",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 49,
+      "hasStructuralAnalysis": false
+    },
+    "README.en.md": {
+      "filePath": "README.en.md",
+      "contentHash": "52209b2696e83fd2674b81438e199da5d3e2c57a32416546debd670755a16913",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 377,
+      "hasStructuralAnalysis": false
+    },
+    "README.md": {
+      "filePath": "README.md",
+      "contentHash": "fd5e56cc4422c2f0591f527fa6b68d03863b8cf4504068bad257ad667f950c97",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 255,
+      "hasStructuralAnalysis": false
+    },
+    "SECURITY.md": {
+      "filePath": "SECURITY.md",
+      "contentHash": "7f9daccbef37d08644c104807830d7eb2152a6096d31a0ff0397981c20dac62b",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 56,
+      "hasStructuralAnalysis": false
+    },
+    "build.mjs": {
+      "filePath": "build.mjs",
+      "contentHash": "a97fd56e2abcc0b8338413d633f08d44cef1691f735e9db42bf4160dd31ff6d6",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "esbuild",
+          "specifiers": [
+            "* as esbuild"
+          ]
+        },
+        {
+          "source": "fs",
+          "specifiers": [
+            "readFileSync"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 59,
+      "hasStructuralAnalysis": true
+    },
+    "docs/agent-integration.md": {
+      "filePath": "docs/agent-integration.md",
+      "contentHash": "60965c275167a4a13f2c3113ba35265b79630462bf2a6f2b1a43632a48f8ddef",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 129,
+      "hasStructuralAnalysis": false
+    },
+    "docs/audits/supplemental-findings-2026-10-15.json": {
+      "filePath": "docs/audits/supplemental-findings-2026-10-15.json",
+      "contentHash": "627f68b4fc64fc94a85ae23f6ec3da816be8ac83c8f17cc7d5547116c4ec40d2",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 54,
+      "hasStructuralAnalysis": false
+    },
+    "docs/audits/supplied-audit-findings-2026-10-15.json": {
+      "filePath": "docs/audits/supplied-audit-findings-2026-10-15.json",
+      "contentHash": "e45944e8342c9ee6d71b2488186f6392df3b58d29c90d66096ef85c2697ec783",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 836,
+      "hasStructuralAnalysis": false
+    },
+    "docs/plans/audit-remediation-2026-10-15.md": {
+      "filePath": "docs/plans/audit-remediation-2026-10-15.md",
+      "contentHash": "50d400d0f2652edfef3a7a6cf40b924f0c239deffa9ef19ddddb37909afc479c",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 172,
+      "hasStructuralAnalysis": false
+    },
+    "docs/release/provider-smoke-checklist.md": {
+      "filePath": "docs/release/provider-smoke-checklist.md",
+      "contentHash": "1b9589fdb069f8e9ab7e996d72142dd2d628ee29ed6c04725c8b4bc7471e046f",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 56,
+      "hasStructuralAnalysis": false
+    },
+    "docs/release/release-candidate-inventory.md": {
+      "filePath": "docs/release/release-candidate-inventory.md",
+      "contentHash": "fd6f3ab6d6d2914c6d883ca492b62eb2056424d51364e19619a0184a7a8c8c5e",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 41,
+      "hasStructuralAnalysis": false
+    },
+    "docs/release/release-workflow.md": {
+      "filePath": "docs/release/release-workflow.md",
+      "contentHash": "417dac1d20fe5e4a20ad52cb381f2daecb48ffc4d62880691f50c4b74a4fadaf",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 28,
+      "hasStructuralAnalysis": false
+    },
+    "example-usage.md": {
+      "filePath": "example-usage.md",
+      "contentHash": "78cd8e74370757f2d0c5f85d31524db3ab75fcc42249fb739eb504f6f2cf4f1b",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 30,
+      "hasStructuralAnalysis": false
+    },
+    "install.ps1": {
+      "filePath": "install.ps1",
+      "contentHash": "8a75ff1e79a0acbd91b0361a82e6e3d0968992f97232d51e377cfa87d65990b0",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 20,
+      "hasStructuralAnalysis": false
+    },
+    "install.sh": {
+      "filePath": "install.sh",
+      "contentHash": "3330f7976922d18b0eece4956a8a7de7449083ce4b44ca6271ddbe1fe87721c8",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 23,
+      "hasStructuralAnalysis": false
+    },
+    "package.json": {
+      "filePath": "package.json",
+      "contentHash": "d7c0a7d2d40428c8e73a86a2f769e23d006fb73dda9a65ec7948d7242159b8a5",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 120,
+      "hasStructuralAnalysis": false
+    },
+    "public/css/setup.css": {
+      "filePath": "public/css/setup.css",
+      "contentHash": "aec618587289cf650285d2fbb492335f4f9b09d3858868629b133ac970af2f97",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 8,
+      "hasStructuralAnalysis": false
+    },
+    "public/index.html": {
+      "filePath": "public/index.html",
+      "contentHash": "174c80e500a536bd99bae38c2b66d140ecbc3ec161e7d59abded8d7c9b0c083a",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 29,
+      "hasStructuralAnalysis": false
+    },
+    "public/js/app.js": {
+      "filePath": "public/js/app.js",
+      "contentHash": "9e0413a72f4e8f186f22d4da35e515414288cce0d9865de7be4c1845ca82b573",
+      "functions": [
+        {
+          "name": "$",
+          "params": [],
+          "exported": false,
+          "lineCount": 1
+        },
+        {
+          "name": "setupFetch",
+          "params": [
+            "url"
+          ],
+          "exported": false,
+          "lineCount": 13
+        },
+        {
+          "name": "feedback",
+          "params": [
+            "message"
+          ],
+          "exported": false,
+          "lineCount": 5
+        },
+        {
+          "name": "clearSecrets",
+          "params": [],
+          "exported": false,
+          "lineCount": 12
+        },
+        {
+          "name": "updateProvider",
+          "params": [],
+          "exported": false,
+          "lineCount": 17
+        },
+        {
+          "name": "viewAccounts",
+          "params": [],
+          "exported": false,
+          "lineCount": 24
+        },
+        {
+          "name": "showRemoval",
+          "params": [
+            "account"
+          ],
+          "exported": false,
+          "lineCount": 8
+        },
+        {
+          "name": "confirmRemoval",
+          "params": [],
+          "exported": false,
+          "lineCount": 17
+        },
+        {
+          "name": "setBusy",
+          "params": [
+            "value"
+          ],
+          "exported": false,
+          "lineCount": 10
+        },
+        {
+          "name": "finishEnrollment",
+          "params": [],
+          "exported": false,
+          "lineCount": 8
+        },
+        {
+          "name": "pollGmail",
+          "params": [
+            "id"
+          ],
+          "exported": false,
+          "lineCount": 12
+        },
+        {
+          "name": "submit",
+          "params": [
+            "event"
+          ],
+          "exported": false,
+          "lineCount": 33
+        },
+        {
+          "name": "importOAuthFile",
+          "params": [
+            "file"
+          ],
+          "exported": false,
+          "lineCount": 13
+        },
+        {
+          "name": "manualOAuthChanged",
+          "params": [],
+          "exported": false,
+          "lineCount": 1
+        }
+      ],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 222,
+      "hasStructuralAnalysis": true
+    },
+    "quick-install.sh": {
+      "filePath": "quick-install.sh",
+      "contentHash": "f5f9a0c3ab1d8830c33afac46e3d5339331639b46275eed3c8bfd68b9b5d7a55",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 7,
+      "hasStructuralAnalysis": false
+    },
+    "scripts/check-release-secrets.mjs": {
+      "filePath": "scripts/check-release-secrets.mjs",
+      "contentHash": "a0164f209c7d034d1e87e9d136fd222d43d399dadb736eefa02919c7eb2ad79a",
+      "functions": [
+        {
+          "name": "quotedFieldPattern",
+          "params": [
+            "field"
+          ],
+          "exported": false,
+          "lineCount": 3
+        },
+        {
+          "name": "scanText",
+          "params": [
+            "text"
+          ],
+          "exported": true,
+          "lineCount": 28
+        },
+        {
+          "name": "verifyRules",
+          "params": [],
+          "exported": false,
+          "lineCount": 27
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "node:child_process",
+          "specifiers": [
+            "execFileSync"
+          ]
+        },
+        {
+          "source": "node:fs",
+          "specifiers": [
+            "readFileSync"
+          ]
+        }
+      ],
+      "exports": [
+        "scanText"
+      ],
+      "totalLines": 106,
+      "hasStructuralAnalysis": true
+    },
+    "scripts/open-setup.cjs": {
+      "filePath": "scripts/open-setup.cjs",
+      "contentHash": "ac533e09f891a8bb1f85ca0ad687261969a9fedcc4d0b6065547f133a3a9da13",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 16,
+      "hasStructuralAnalysis": true
+    },
+    "server.json": {
+      "filePath": "server.json",
+      "contentHash": "5488d20b42d270b0653da8af678e35d08e963f4344e9d6931ba0912411029d44",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 21,
+      "hasStructuralAnalysis": false
+    },
+    "src/credentials/account-auth.ts": {
+      "filePath": "src/credentials/account-auth.ts",
+      "contentHash": "1729ca9e81122f9fc2cbbc0c8052d01737e1e3cbda3cf4009a22c8cc52329d7c",
+      "functions": [
+        {
+          "name": "readSecret",
+          "params": [
+            "handle"
+          ],
+          "returnType": "string",
+          "exported": false,
+          "lineCount": 11
+        },
+        {
+          "name": "assertCredentialTarget",
+          "params": [
+            "account"
+          ],
+          "returnType": "void",
+          "exported": true,
+          "lineCount": 20
+        },
+        {
+          "name": "assertProviderEndpoints",
+          "params": [
+            "account"
+          ],
+          "returnType": "void",
+          "exported": true,
+          "lineCount": 22
+        },
+        {
+          "name": "buildImapAuth",
+          "params": [
+            "auth"
+          ],
+          "returnType": "{ user: string; pass: string } | { user: string; accessToken: string }",
+          "exported": true,
+          "lineCount": 4
+        },
+        {
+          "name": "buildSmtpAuth",
+          "params": [
+            "auth"
+          ],
+          "returnType": "{ user: string; pass: string } | { type: 'OAuth2'; user: string; accessToken: string }",
+          "exported": true,
+          "lineCount": 6
+        },
+        {
+          "name": "accountForPersistence",
+          "params": [
+            "account"
+          ],
+          "returnType": "ImapAccount",
+          "exported": true,
+          "lineCount": 11
+        }
+      ],
+      "classes": [
+        {
+          "name": "AccountAuthResolver",
+          "methods": [
+            "constructor",
+            "resolve"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 44
+        }
+      ],
+      "imports": [
+        {
+          "source": "../types/index.js",
+          "specifiers": [
+            "ImapAccount"
+          ]
+        },
+        {
+          "source": "./credential-backend.js",
+          "specifiers": [
+            "CredentialBackend",
+            "SecretHandle"
+          ]
+        },
+        {
+          "source": "./credential-backend.js",
+          "specifiers": [
+            "credentialTargetsForAccount",
+            "gmailClientSecretTargetsForAccount"
+          ]
+        }
+      ],
+      "exports": [
+        "assertCredentialTarget",
+        "assertProviderEndpoints",
+        "AccountAuthResolver",
+        "buildImapAuth",
+        "buildSmtpAuth",
+        "accountForPersistence"
+      ],
+      "totalLines": 138,
+      "hasStructuralAnalysis": true
+    },
+    "src/credentials/account-enrollment.ts": {
+      "filePath": "src/credentials/account-enrollment.ts",
+      "contentHash": "a5175cafe367e79d46d1a152f65116b2c76a446c7368e37026604dc2134cb7bd",
+      "functions": [
+        {
+          "name": "required",
+          "params": [
+            "value",
+            "label"
+          ],
+          "returnType": "string",
+          "exported": false,
+          "lineCount": 5
+        }
+      ],
+      "classes": [
+        {
+          "name": "AccountEnrollmentService",
+          "methods": [
+            "constructor",
+            "enrollNetease",
+            "enrollQq",
+            "enrollGmail",
+            "persist",
+            "persistUnlocked",
+            "snapshot"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 152
+        }
+      ],
+      "imports": [
+        {
+          "source": "node:crypto",
+          "specifiers": [
+            "randomUUID"
+          ]
+        },
+        {
+          "source": "../services/account-manager.js",
+          "specifiers": [
+            "AccountManager"
+          ]
+        },
+        {
+          "source": "../types/index.js",
+          "specifiers": [
+            "ImapAccount"
+          ]
+        },
+        {
+          "source": "./credential-backend.js",
+          "specifiers": [
+            "CredentialBackend"
+          ]
+        },
+        {
+          "source": "./credential-backend.js",
+          "specifiers": [
+            "credentialTarget",
+            "gmailClientSecretTarget"
+          ]
+        }
+      ],
+      "exports": [
+        "NETEASE_ENDPOINTS",
+        "AccountEnrollmentService"
+      ],
+      "totalLines": 192,
+      "hasStructuralAnalysis": true
+    },
+    "src/credentials/credential-backend.ts": {
+      "filePath": "src/credentials/credential-backend.ts",
+      "contentHash": "2088beeefbc84925f7bd361949ed79d97d2811e42c477a82b1710960ba283072",
+      "functions": [
+        {
+          "name": "normalizedAccount",
+          "params": [
+            "account"
+          ],
+          "returnType": "string",
+          "exported": false,
+          "lineCount": 7
+        },
+        {
+          "name": "credentialTarget",
+          "params": [
+            "provider",
+            "account"
+          ],
+          "returnType": "string",
+          "exported": true,
+          "lineCount": 7
+        },
+        {
+          "name": "gmailClientSecretTarget",
+          "params": [
+            "account"
+          ],
+          "returnType": "string",
+          "exported": true,
+          "lineCount": 3
+        },
+        {
+          "name": "legacyCredentialTarget",
+          "params": [
+            "provider",
+            "account"
+          ],
+          "returnType": "string",
+          "exported": true,
+          "lineCount": 6
+        },
+        {
+          "name": "legacyGmailClientSecretTarget",
+          "params": [
+            "account"
+          ],
+          "returnType": "string",
+          "exported": true,
+          "lineCount": 3
+        },
+        {
+          "name": "credentialTargetsForAccount",
+          "params": [
+            "provider",
+            "account"
+          ],
+          "returnType": "readonly string[]",
+          "exported": true,
+          "lineCount": 6
+        },
+        {
+          "name": "gmailClientSecretTargetsForAccount",
+          "params": [
+            "account"
+          ],
+          "returnType": "readonly string[]",
+          "exported": true,
+          "lineCount": 3
+        }
+      ],
+      "classes": [],
+      "imports": [],
+      "exports": [
+        "credentialTarget",
+        "gmailClientSecretTarget",
+        "legacyCredentialTarget",
+        "legacyGmailClientSecretTarget",
+        "credentialTargetsForAccount",
+        "gmailClientSecretTargetsForAccount"
+      ],
+      "totalLines": 55,
+      "hasStructuralAnalysis": true
+    },
+    "src/credentials/credential-rotation.ts": {
+      "filePath": "src/credentials/credential-rotation.ts",
+      "contentHash": "7ed22da0d5590731b63dafb5b7e31284082bcb2c0e3497ddc378b7646f82ef70",
+      "functions": [
+        {
+          "name": "rotateCredential",
+          "params": [
+            "options"
+          ],
+          "returnType": "Promise<void>",
+          "exported": true,
+          "lineCount": 28
+        },
+        {
+          "name": "snapshot",
+          "params": [
+            "credentials",
+            "target"
+          ],
+          "returnType": "CredentialSnapshot",
+          "exported": false,
+          "lineCount": 14
+        }
+      ],
+      "classes": [
+        {
+          "name": "CredentialRollbackError",
+          "methods": [
+            "constructor"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 6
+        }
+      ],
+      "imports": [
+        {
+          "source": "./credential-backend.js",
+          "specifiers": [
+            "CredentialBackend"
+          ]
+        }
+      ],
+      "exports": [
+        "CredentialRollbackError",
+        "rotateCredential"
+      ],
+      "totalLines": 66,
+      "hasStructuralAnalysis": true
+    },
+    "src/credentials/gmail-oauth-loopback.ts": {
+      "filePath": "src/credentials/gmail-oauth-loopback.ts",
+      "contentHash": "939ee358b1af57913be7f512bf6dbf310b6fd03d36a41d85237fdb1ebaad49cf",
+      "functions": [
+        {
+          "name": "base64Url",
+          "params": [
+            "value"
+          ],
+          "returnType": "string",
+          "exported": false,
+          "lineCount": 3
+        },
+        {
+          "name": "writeBrowserResponse",
+          "params": [
+            "response",
+            "statusCode",
+            "text"
+          ],
+          "returnType": "void",
+          "exported": false,
+          "lineCount": 12
+        },
+        {
+          "name": "classifyInvalidRequestDescription",
+          "params": [
+            "description"
+          ],
+          "returnType": "string | undefined",
+          "exported": false,
+          "lineCount": 21
+        },
+        {
+          "name": "readSafeTokenError",
+          "params": [
+            "response"
+          ],
+          "returnType": "Promise<SafeTokenError | undefined>",
+          "exported": false,
+          "lineCount": 25
+        },
+        {
+          "name": "listenOnLoopback",
+          "params": [
+            "server"
+          ],
+          "returnType": "Promise<number>",
+          "exported": false,
+          "lineCount": 21
+        },
+        {
+          "name": "closeServer",
+          "params": [
+            "server"
+          ],
+          "returnType": "Promise<void>",
+          "exported": false,
+          "lineCount": 5
+        },
+        {
+          "name": "runGmailOAuthLoopback",
+          "params": [
+            "options"
+          ],
+          "returnType": "Promise<GmailOAuthLoopbackResult>",
+          "exported": true,
+          "lineCount": 183
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "node:crypto",
+          "specifiers": [
+            "createHash",
+            "randomBytes"
+          ]
+        },
+        {
+          "source": "node:http",
+          "specifiers": [
+            "createServer",
+            "Server",
+            "ServerResponse"
+          ]
+        },
+        {
+          "source": "./proxy-fetch.js",
+          "specifiers": [
+            "createProxyAwareFetch"
+          ]
+        }
+      ],
+      "exports": [
+        "GMAIL_OAUTH_SUCCESS_TEXT",
+        "GMAIL_OAUTH_FAILURE_TEXT",
+        "runGmailOAuthLoopback"
+      ],
+      "totalLines": 330,
+      "hasStructuralAnalysis": true
+    },
+    "src/credentials/gmail-token-exchange.ts": {
+      "filePath": "src/credentials/gmail-token-exchange.ts",
+      "contentHash": "0d365c5fe0509b69350a4c81fe69adf1d9788d5d9c3415e93b6013cae0cd66a3",
+      "functions": [
+        {
+          "name": "classifyNetworkError",
+          "params": [
+            "error"
+          ],
+          "returnType": "NetworkErrorCategory",
+          "exported": false,
+          "lineCount": 25
+        },
+        {
+          "name": "safeOAuthError",
+          "params": [
+            "payload"
+          ],
+          "returnType": "string | undefined",
+          "exported": false,
+          "lineCount": 5
+        },
+        {
+          "name": "readClientSecret",
+          "params": [
+            "backend",
+            "target"
+          ],
+          "returnType": "string",
+          "exported": false,
+          "lineCount": 13
+        },
+        {
+          "name": "createGmailAccessTokenExchange",
+          "params": [
+            "options"
+          ],
+          "returnType": "(refreshToken: string, account: ImapAccount) => Promise<string>",
+          "exported": true,
+          "lineCount": 85
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "../types/index.js",
+          "specifiers": [
+            "ImapAccount"
+          ]
+        },
+        {
+          "source": "./credential-backend.js",
+          "specifiers": [
+            "CredentialBackend"
+          ]
+        },
+        {
+          "source": "./credential-backend.js",
+          "specifiers": [
+            "gmailClientSecretTargetsForAccount"
+          ]
+        },
+        {
+          "source": "./proxy-fetch.js",
+          "specifiers": [
+            "createProxyAwareFetch",
+            "ProxyEnvironment",
+            "ProxyFetchDependencies"
+          ]
+        }
+      ],
+      "exports": [
+        "createGmailAccessTokenExchange"
+      ],
+      "totalLines": 182,
+      "hasStructuralAnalysis": true
+    },
+    "src/credentials/proxy-fetch.ts": {
+      "filePath": "src/credentials/proxy-fetch.ts",
+      "contentHash": "fdf9ad6345641d825acf7bb91351bbdbda2963b22c8539b0bdbe35fd29a65f5f",
+      "functions": [
+        {
+          "name": "value",
+          "params": [
+            "primary",
+            "fallback"
+          ],
+          "returnType": "string | undefined",
+          "exported": false,
+          "lineCount": 4
+        },
+        {
+          "name": "normalizeProxyEnvironment",
+          "params": [
+            "env"
+          ],
+          "returnType": "NormalizedProxyEnvironment",
+          "exported": true,
+          "lineCount": 12
+        },
+        {
+          "name": "createProxyAwareFetch",
+          "params": [
+            "env",
+            "dependencies",
+            "policy"
+          ],
+          "returnType": "ProxyAwareFetch",
+          "exported": true,
+          "lineCount": 47
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "undici",
+          "specifiers": [
+            "EnvHttpProxyAgent",
+            "ProxyAgent",
+            "undiciFetch",
+            "Dispatcher",
+            "UndiciRequestInit"
+          ]
+        },
+        {
+          "source": "../utils/gmail-proxy.js",
+          "specifiers": [
+            "resolveGmailProxy"
+          ]
+        }
+      ],
+      "exports": [
+        "normalizeProxyEnvironment",
+        "createProxyAwareFetch"
+      ],
+      "totalLines": 107,
+      "hasStructuralAnalysis": true
+    },
+    "src/credentials/windows-credential-backend.ts": {
+      "filePath": "src/credentials/windows-credential-backend.ts",
+      "contentHash": "bbdfb3bd5b2ff3e93da6f180c90eee6ab77cf0963a712557380532ea2bce210a",
+      "functions": [
+        {
+          "name": "winError",
+          "params": [
+            "operation",
+            "code"
+          ],
+          "returnType": "Error",
+          "exported": false,
+          "lineCount": 3
+        },
+        {
+          "name": "validateBlob",
+          "params": [
+            "blob"
+          ],
+          "returnType": "void",
+          "exported": false,
+          "lineCount": 5
+        },
+        {
+          "name": "getDefaultWinCredNative",
+          "params": [],
+          "returnType": "WinCredNative",
+          "exported": false,
+          "lineCount": 4
+        },
+        {
+          "name": "createKoffiWinCredNative",
+          "params": [],
+          "returnType": "WinCredNative",
+          "exported": true,
+          "lineCount": 41
+        }
+      ],
+      "classes": [
+        {
+          "name": "BufferSecretHandle",
+          "methods": [
+            "constructor",
+            "read",
+            "dispose"
+          ],
+          "properties": [
+            "disposed"
+          ],
+          "exported": false,
+          "lineCount": 13
+        },
+        {
+          "name": "WindowsCredentialBackend",
+          "methods": [
+            "constructor",
+            "read",
+            "write",
+            "delete"
+          ],
+          "properties": [
+            "native"
+          ],
+          "exported": true,
+          "lineCount": 37
+        },
+        {
+          "name": "UnavailableCredentialBackend",
+          "methods": [
+            "constructor",
+            "unavailable",
+            "read",
+            "write",
+            "delete"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 7
+        }
+      ],
+      "imports": [
+        {
+          "source": "koffi",
+          "specifiers": [
+            "koffi"
+          ]
+        },
+        {
+          "source": "./credential-backend.js",
+          "specifiers": [
+            "CredentialBackend",
+            "SecretHandle"
+          ]
+        }
+      ],
+      "exports": [
+        "CRED_TYPE_GENERIC",
+        "CRED_PERSIST_LOCAL_MACHINE",
+        "ERROR_NOT_FOUND",
+        "CRED_MAX_CREDENTIAL_BLOB_SIZE",
+        "WindowsCredentialBackend",
+        "UnavailableCredentialBackend",
+        "createKoffiWinCredNative"
+      ],
+      "totalLines": 142,
+      "hasStructuralAnalysis": true
+    },
+    "src/enroll.ts": {
+      "filePath": "src/enroll.ts",
+      "contentHash": "659fa5e9b5f8a1b8a71a559f839afc3d0ff6de190b2f40e0e918daf817758527",
+      "functions": [
+        {
+          "name": "readStoredSecret",
+          "params": [
+            "credentials",
+            "target"
+          ],
+          "returnType": "string",
+          "exported": false,
+          "lineCount": 13
+        },
+        {
+          "name": "parseProvider",
+          "params": [
+            "value"
+          ],
+          "returnType": "Provider | undefined",
+          "exported": false,
+          "lineCount": 4
+        },
+        {
+          "name": "runEnrollmentCli",
+          "params": [
+            "argv",
+            "dependencies"
+          ],
+          "returnType": "Promise<void>",
+          "exported": true,
+          "lineCount": 276
+        }
+      ],
+      "classes": [
+        {
+          "name": "MutedPromptOutput",
+          "methods": [
+            "_write"
+          ],
+          "properties": [
+            "muted"
+          ],
+          "exported": false,
+          "lineCount": 14
+        }
+      ],
+      "imports": [
+        {
+          "source": "node:stream",
+          "specifiers": [
+            "Writable"
+          ]
+        },
+        {
+          "source": "node:url",
+          "specifiers": [
+            "pathToFileURL"
+          ]
+        },
+        {
+          "source": "node:readline/promises",
+          "specifiers": [
+            "createInterface"
+          ]
+        },
+        {
+          "source": "open",
+          "specifiers": [
+            "open"
+          ]
+        },
+        {
+          "source": "./credentials/account-auth.js",
+          "specifiers": [
+            "AccountAuthResolver"
+          ]
+        },
+        {
+          "source": "./credentials/account-enrollment.js",
+          "specifiers": [
+            "AccountEnrollmentService"
+          ]
+        },
+        {
+          "source": "./credentials/credential-backend.js",
+          "specifiers": [
+            "CredentialBackend"
+          ]
+        },
+        {
+          "source": "./credentials/credential-backend.js",
+          "specifiers": [
+            "credentialTargetsForAccount",
+            "gmailClientSecretTargetsForAccount"
+          ]
+        },
+        {
+          "source": "./credentials/credential-rotation.js",
+          "specifiers": [
+            "CredentialRollbackError",
+            "rotateCredential",
+            "CredentialRotationOptions"
+          ]
+        },
+        {
+          "source": "./credentials/gmail-oauth-loopback.js",
+          "specifiers": [
+            "runGmailOAuthLoopback"
+          ]
+        },
+        {
+          "source": "./credentials/gmail-token-exchange.js",
+          "specifiers": [
+            "createGmailAccessTokenExchange"
+          ]
+        },
+        {
+          "source": "./credentials/windows-credential-backend.js",
+          "specifiers": [
+            "WindowsCredentialBackend"
+          ]
+        },
+        {
+          "source": "./services/account-manager.js",
+          "specifiers": [
+            "AccountManager"
+          ]
+        },
+        {
+          "source": "./services/imap-service.js",
+          "specifiers": [
+            "ImapService"
+          ]
+        },
+        {
+          "source": "./types/index.js",
+          "specifiers": [
+            "ImapAccount"
+          ]
+        }
+      ],
+      "exports": [
+        "runEnrollmentCli"
+      ],
+      "totalLines": 361,
+      "hasStructuralAnalysis": true
+    },
+    "src/index.ts": {
+      "filePath": "src/index.ts",
+      "contentHash": "3ce40a1b72f835ac056b3f741d2ea281453d8c642ffc659b7763759f994094ff",
+      "functions": [
+        {
+          "name": "main",
+          "params": [],
+          "exported": false,
+          "lineCount": 5
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "@modelcontextprotocol/sdk/server/mcp.js",
+          "specifiers": [
+            "McpServer"
+          ]
+        },
+        {
+          "source": "@modelcontextprotocol/sdk/server/stdio.js",
+          "specifiers": [
+            "StdioServerTransport"
+          ]
+        },
+        {
+          "source": "dotenv",
+          "specifiers": [
+            "dotenv"
+          ]
+        },
+        {
+          "source": "./services/imap-service.js",
+          "specifiers": [
+            "ImapService"
+          ]
+        },
+        {
+          "source": "./services/account-manager.js",
+          "specifiers": [
+            "AccountManager"
+          ]
+        },
+        {
+          "source": "./services/smtp-service.js",
+          "specifiers": [
+            "SmtpService"
+          ]
+        },
+        {
+          "source": "./services/spam-service.js",
+          "specifiers": [
+            "SpamService"
+          ]
+        },
+        {
+          "source": "./tools/index.js",
+          "specifiers": [
+            "registerTools"
+          ]
+        },
+        {
+          "source": "./credentials/account-auth.js",
+          "specifiers": [
+            "AccountAuthResolver"
+          ]
+        },
+        {
+          "source": "./credentials/gmail-token-exchange.js",
+          "specifiers": [
+            "createGmailAccessTokenExchange"
+          ]
+        },
+        {
+          "source": "./credentials/windows-credential-backend.js",
+          "specifiers": [
+            "UnavailableCredentialBackend",
+            "WindowsCredentialBackend"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 58,
+      "hasStructuralAnalysis": true
+    },
+    "src/providers/email-providers.ts": {
+      "filePath": "src/providers/email-providers.ts",
+      "contentHash": "eda4c6635524ac51cea7cd765b2fb2475031e5a0eb9259e5314f424cfe0211fa",
+      "functions": [
+        {
+          "name": "getProviderByEmail",
+          "params": [
+            "email"
+          ],
+          "returnType": "EmailProvider | undefined",
+          "exported": true,
+          "lineCount": 8
+        },
+        {
+          "name": "getProviderById",
+          "params": [
+            "id"
+          ],
+          "returnType": "EmailProvider | undefined",
+          "exported": true,
+          "lineCount": 3
+        }
+      ],
+      "classes": [],
+      "imports": [],
+      "exports": [
+        "emailProviders",
+        "getProviderByEmail",
+        "getProviderById"
+      ],
+      "totalLines": 272,
+      "hasStructuralAnalysis": true
+    },
+    "src/services/account-manager.ts": {
+      "filePath": "src/services/account-manager.ts",
+      "contentHash": "5195ae1a26d86bcb6fd257de0c8a97ef7b454fbead4fca98e356831472189134",
+      "functions": [
+        {
+          "name": "providerForHost",
+          "params": [
+            "host"
+          ],
+          "returnType": "'gmail' | 'qq' | undefined",
+          "exported": false,
+          "lineCount": 6
+        },
+        {
+          "name": "assertProviderAccountAuth",
+          "params": [
+            "account",
+            "hasPasswordUpdate"
+          ],
+          "returnType": "void",
+          "exported": true,
+          "lineCount": 16
+        }
+      ],
+      "classes": [
+        {
+          "name": "AccountManager",
+          "methods": [
+            "withStoreTransaction",
+            "constructor",
+            "addAccount",
+            "addAccountUnlocked",
+            "removeAccount",
+            "removeAccountUnlocked",
+            "updateAccount",
+            "updateAccountUnlocked",
+            "getAccount",
+            "applyEnvOverrides",
+            "captureEnvOverrides",
+            "getEnvOverride",
+            "hashCacheKey",
+            "getAllAccounts",
+            "resolveAccountId",
+            "getAccountByName",
+            "loadAccountsSync",
+            "saveAccounts",
+            "enforceStorePermissions",
+            "getOrCreateEncryptionKey",
+            "encrypt",
+            "decryptField",
+            "decrypt"
+          ],
+          "properties": [
+            "configPath",
+            "configDir",
+            "accounts",
+            "encryptionKey",
+            "capturedEnvOverrides",
+            "transactionContext",
+            "writeInProgress",
+            "ENV_OVERRIDE_PATTERN"
+          ],
+          "exported": true,
+          "lineCount": 524
+        }
+      ],
+      "imports": [
+        {
+          "source": "fs",
+          "specifiers": [
+            "fs"
+          ]
+        },
+        {
+          "source": "fs",
+          "specifiers": [
+            "readFileSync",
+            "writeFileSync",
+            "mkdirSync"
+          ]
+        },
+        {
+          "source": "path",
+          "specifiers": [
+            "path"
+          ]
+        },
+        {
+          "source": "os",
+          "specifiers": [
+            "os"
+          ]
+        },
+        {
+          "source": "crypto",
+          "specifiers": [
+            "crypto"
+          ]
+        },
+        {
+          "source": "../types/index.js",
+          "specifiers": [
+            "ImapAccount"
+          ]
+        },
+        {
+          "source": "../utils/env-credentials.js",
+          "specifiers": [
+            "ENV_CREDENTIAL_SUFFIXES",
+            "envVarName"
+          ]
+        },
+        {
+          "source": "../credentials/account-auth.js",
+          "specifiers": [
+            "accountForPersistence",
+            "assertCredentialTarget"
+          ]
+        },
+        {
+          "source": "../credentials/credential-backend.js",
+          "specifiers": [
+            "CredentialBackend"
+          ]
+        },
+        {
+          "source": "node:async_hooks",
+          "specifiers": [
+            "AsyncLocalStorage"
+          ]
+        },
+        {
+          "source": "../utils/account-store-lock.js",
+          "specifiers": [
+            "withAccountStoreLock"
+          ]
+        }
+      ],
+      "exports": [
+        "assertProviderAccountAuth",
+        "AccountManager"
+      ],
+      "totalLines": 569,
+      "hasStructuralAnalysis": true
+    },
+    "src/services/html-to-markdown.ts": {
+      "filePath": "src/services/html-to-markdown.ts",
+      "contentHash": "a6100f5871f17c7189c0ef3b3dc293de9ca797a48dc04d3f3e1acc4077813e84",
+      "functions": [
+        {
+          "name": "isHidden",
+          "params": [
+            "node"
+          ],
+          "returnType": "boolean",
+          "exported": false,
+          "lineCount": 6
+        },
+        {
+          "name": "buildService",
+          "params": [],
+          "returnType": "TurndownService",
+          "exported": false,
+          "lineCount": 62
+        },
+        {
+          "name": "htmlToMarkdown",
+          "params": [
+            "html"
+          ],
+          "returnType": "string",
+          "exported": true,
+          "lineCount": 11
+        },
+        {
+          "name": "normalizeWhitespace",
+          "params": [
+            "text"
+          ],
+          "returnType": "string",
+          "exported": true,
+          "lineCount": 10
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "turndown",
+          "specifiers": [
+            "TurndownService"
+          ]
+        },
+        {
+          "source": "turndown-plugin-gfm",
+          "specifiers": [
+            "gfmPlugin"
+          ]
+        }
+      ],
+      "exports": [
+        "htmlToMarkdown",
+        "normalizeWhitespace"
+      ],
+      "totalLines": 150,
+      "hasStructuralAnalysis": true
+    },
+    "src/services/imap-service.ts": {
+      "filePath": "src/services/imap-service.ts",
+      "contentHash": "875b44bcea06ca35e6529d0bc4456071b1dfc31d94672eb522beb840c5b6c2f0",
+      "functions": [
+        {
+          "name": "enrichConnectionError",
+          "params": [
+            "error",
+            "host"
+          ],
+          "returnType": "string",
+          "exported": false,
+          "lineCount": 27
+        },
+        {
+          "name": "parseRawHeaders",
+          "params": [
+            "raw"
+          ],
+          "returnType": "Record<string, string>",
+          "exported": true,
+          "lineCount": 32
+        }
+      ],
+      "classes": [
+        {
+          "name": "ImapService",
+          "methods": [
+            "constructor",
+            "setAccountManager",
+            "connect",
+            "disconnect",
+            "abortConnection",
+            "ensureConnected",
+            "listFolders",
+            "convertFolderList",
+            "selectFolder",
+            "getFolderStatus",
+            "searchEmails",
+            "searchEmailPage",
+            "fetchHeadersForUids",
+            "latestMessageRange",
+            "getLatestEmails",
+            "formatAddress",
+            "getEmailContent",
+            "buildEmailContentFromSource",
+            "mergeBodyIntoMessage",
+            "getAttachmentContent",
+            "markAsRead",
+            "markAsUnread",
+            "flagBatch",
+            "flagEmail",
+            "unflagEmail",
+            "addKeyword",
+            "removeKeyword",
+            "resolveTrashFolder",
+            "deleteEmail",
+            "bulkDelete",
+            "moveEmail",
+            "folderExists",
+            "createFolder",
+            "findThreadMessages",
+            "appendToSentFolder",
+            "appendToSentFolderInternal",
+            "findFolderByNames",
+            "findSpecialUseFolder",
+            "findDraftsFolder",
+            "appendMessage",
+            "authenticateOnly",
+            "testConnection",
+            "buildSearchQuery",
+            "normalizeMessageId",
+            "bracketMessageId",
+            "flattenFolders",
+            "resolveFolderSearchOrder",
+            "findEmailByMessageId"
+          ],
+          "properties": [
+            "connections",
+            "pendingConnections",
+            "reconnectAttempts",
+            "maxReconnectAttempts",
+            "accountManager"
+          ],
+          "exported": true,
+          "lineCount": 1806
+        }
+      ],
+      "imports": [
+        {
+          "source": "../utils/mail-resource-limits.js",
+          "specifiers": [
+            "MAX_MESSAGE_BYTES",
+            "MAX_BODY_CHARS",
+            "MAX_ATTACHMENT_COUNT",
+            "boundedSource",
+            "assertMessageSize"
+          ]
+        },
+        {
+          "source": "../utils/pdf-preview.js",
+          "specifiers": [
+            "extractPdfPreview"
+          ]
+        },
+        {
+          "source": "imapflow",
+          "specifiers": [
+            "ImapFlow"
+          ]
+        },
+        {
+          "source": "mailparser",
+          "specifiers": [
+            "simpleParser"
+          ]
+        },
+        {
+          "source": "../types/index.js",
+          "specifiers": [
+            "ImapAccount",
+            "EmailMessage",
+            "EmailContent",
+            "EmailBodyFormat",
+            "EmailLocation",
+            "Folder",
+            "SearchCriteria",
+            "SearchOptions",
+            "SentSaveResult",
+            "DEFAULT_BODY_MAX_LENGTH",
+            "DEFAULT_BODY_FORMAT",
+            "isSystemFlag"
+          ]
+        },
+        {
+          "source": "./account-manager.js",
+          "specifiers": [
+            "AccountManager"
+          ]
+        },
+        {
+          "source": "./html-to-markdown.js",
+          "specifiers": [
+            "htmlToMarkdown",
+            "normalizeWhitespace"
+          ]
+        },
+        {
+          "source": "../utils/env-credentials.js",
+          "specifiers": [
+            "assertCredentialsResolved"
+          ]
+        },
+        {
+          "source": "../credentials/account-auth.js",
+          "specifiers": [
+            "AccountAuthResolver",
+            "buildImapAuth"
+          ]
+        },
+        {
+          "source": "../utils/mail-proxy.js",
+          "specifiers": [
+            "resolveMailProxy"
+          ]
+        }
+      ],
+      "exports": [
+        "parseRawHeaders",
+        "ImapService"
+      ],
+      "totalLines": 1973,
+      "hasStructuralAnalysis": true
+    },
+    "src/services/safe-send-service.ts": {
+      "filePath": "src/services/safe-send-service.ts",
+      "contentHash": "2d3a00e7073c7c699856fb58f296e57d610bb87f5fcdfeee3f92691c25b3ef65",
+      "functions": [
+        {
+          "name": "copyList",
+          "params": [
+            "value"
+          ],
+          "returnType": "string | string[] | undefined",
+          "exported": false,
+          "lineCount": 3
+        },
+        {
+          "name": "summaryList",
+          "params": [
+            "value"
+          ],
+          "returnType": "readonly string[]",
+          "exported": false,
+          "lineCount": 4
+        },
+        {
+          "name": "copyAttachment",
+          "params": [
+            "attachment"
+          ],
+          "returnType": "EmailAttachment",
+          "exported": false,
+          "lineCount": 15
+        },
+        {
+          "name": "freezeComposer",
+          "params": [
+            "composer"
+          ],
+          "returnType": "Readonly<EmailComposer>",
+          "exported": false,
+          "lineCount": 18
+        },
+        {
+          "name": "freezePayload",
+          "params": [
+            "input"
+          ],
+          "returnType": "SafeSendPayload",
+          "exported": false,
+          "lineCount": 3
+        },
+        {
+          "name": "zeroizeAttachments",
+          "params": [
+            "payload"
+          ],
+          "returnType": "void",
+          "exported": false,
+          "lineCount": 5
+        }
+      ],
+      "classes": [
+        {
+          "name": "SafeSendService",
+          "methods": [
+            "constructor",
+            "preview",
+            "getState",
+            "expireDrafts",
+            "scheduleCleanup",
+            "confirm",
+            "getDraft",
+            "expireIfNeeded",
+            "finish"
+          ],
+          "properties": [
+            "executor",
+            "ttlMs",
+            "clock",
+            "id",
+            "drafts",
+            "maxPendingDrafts",
+            "maxRetainedAttachmentBytes",
+            "cleanupTimer"
+          ],
+          "exported": true,
+          "lineCount": 146
+        }
+      ],
+      "imports": [
+        {
+          "source": "node:crypto",
+          "specifiers": [
+            "randomUUID"
+          ]
+        },
+        {
+          "source": "../types/index.js",
+          "specifiers": [
+            "EmailAttachment",
+            "EmailComposer"
+          ]
+        },
+        {
+          "source": "../utils/mail-resource-limits.js",
+          "specifiers": [
+            "MAX_BODY_CHARS",
+            "MAX_ATTACHMENT_COUNT"
+          ]
+        }
+      ],
+      "exports": [
+        "SafeSendService"
+      ],
+      "totalLines": 265,
+      "hasStructuralAnalysis": true
+    },
+    "src/services/smtp-service.ts": {
+      "filePath": "src/services/smtp-service.ts",
+      "contentHash": "3857d2ed3fb2a16b6a5269e3d6438acb91a7725c75c6e23212cb383785648778",
+      "functions": [],
+      "classes": [
+        {
+          "name": "SmtpService",
+          "methods": [
+            "constructor",
+            "createTransporter",
+            "resolveTlsMode",
+            "getDefaultSmtpConfig",
+            "addresses",
+            "toMailOptions",
+            "composeRaw",
+            "sendEmail",
+            "verifySmtpConnection",
+            "disconnect",
+            "disconnectAll"
+          ],
+          "properties": [
+            "transporters"
+          ],
+          "exported": true,
+          "lineCount": 195
+        }
+      ],
+      "imports": [
+        {
+          "source": "nodemailer",
+          "specifiers": [
+            "nodemailer",
+            "Transporter",
+            "SendMailOptions"
+          ]
+        },
+        {
+          "source": "nodemailer/lib/mail-composer/index.js",
+          "specifiers": [
+            "MailComposer"
+          ]
+        },
+        {
+          "source": "../types/index.js",
+          "specifiers": [
+            "ImapAccount",
+            "EmailComposer",
+            "SmtpConfig"
+          ]
+        },
+        {
+          "source": "../utils/array-input.js",
+          "specifiers": [
+            "parseSerializedArray"
+          ]
+        },
+        {
+          "source": "../utils/env-credentials.js",
+          "specifiers": [
+            "assertCredentialsResolved"
+          ]
+        },
+        {
+          "source": "../credentials/account-auth.js",
+          "specifiers": [
+            "AccountAuthResolver",
+            "buildSmtpAuth"
+          ]
+        },
+        {
+          "source": "../utils/mail-proxy.js",
+          "specifiers": [
+            "resolveMailProxy"
+          ]
+        },
+        {
+          "source": "../utils/mail-resource-limits.js",
+          "specifiers": [
+            "materializeBoundedAttachments",
+            "MAX_BODY_CHARS"
+          ]
+        }
+      ],
+      "exports": [
+        "SmtpService"
+      ],
+      "totalLines": 205,
+      "hasStructuralAnalysis": true
+    },
+    "src/services/spam-service.ts": {
+      "filePath": "src/services/spam-service.ts",
+      "contentHash": "aac0bf239c16a1404e7125e3470ee51efbbe92f1c8c1e68b3e1859548e1eb132",
+      "functions": [],
+      "classes": [
+        {
+          "name": "SpamService",
+          "methods": [
+            "constructor",
+            "loadCustomDomains",
+            "extractDomain",
+            "checkEmail",
+            "checkEmails",
+            "checkHeaders",
+            "domainsRelated",
+            "extractHeaderHosts",
+            "addSpamDomain",
+            "removeSpamDomain",
+            "addWhitelistDomain",
+            "removeWhitelistDomain",
+            "getKnownSpamDomains",
+            "getWhitelistDomains",
+            "checkDomainReputation"
+          ],
+          "properties": [
+            "customSpamDomains",
+            "customWhitelistDomains"
+          ],
+          "exported": true,
+          "lineCount": 332
+        }
+      ],
+      "imports": [],
+      "exports": [
+        "SpamService"
+      ],
+      "totalLines": 450,
+      "hasStructuralAnalysis": true
+    },
+    "src/setup.ts": {
+      "filePath": "src/setup.ts",
+      "contentHash": "551332fbe3d93c177c55ffd22a4acf7efc1821637bcf0d9a361fb41435b9202f",
+      "functions": [
+        {
+          "name": "getClaudeConfigPath",
+          "params": [],
+          "returnType": "Promise<string>",
+          "exported": false,
+          "lineCount": 13
+        },
+        {
+          "name": "setupClaudeIntegration",
+          "params": [],
+          "returnType": "Promise<void>",
+          "exported": false,
+          "lineCount": 59
+        },
+        {
+          "name": "askForClaudeSetup",
+          "params": [],
+          "returnType": "Promise<boolean>",
+          "exported": false,
+          "lineCount": 14
+        },
+        {
+          "name": "main",
+          "params": [],
+          "exported": false,
+          "lineCount": 35
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "./web/server.js",
+          "specifiers": [
+            "WebUIServer"
+          ]
+        },
+        {
+          "source": "chalk",
+          "specifiers": [
+            "chalk"
+          ]
+        },
+        {
+          "source": "ora",
+          "specifiers": [
+            "ora"
+          ]
+        },
+        {
+          "source": "commander",
+          "specifiers": [
+            "program"
+          ]
+        },
+        {
+          "source": "fs",
+          "specifiers": [
+            "fs"
+          ]
+        },
+        {
+          "source": "path",
+          "specifiers": [
+            "path"
+          ]
+        },
+        {
+          "source": "os",
+          "specifiers": [
+            "os"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 146,
+      "hasStructuralAnalysis": true
+    },
+    "src/tools/account-tools.ts": {
+      "filePath": "src/tools/account-tools.ts",
+      "contentHash": "e69b79b13e9d5af44b7093372c8bed6f9f531597aa90a8442eb0dc3d23a986bf",
+      "functions": [
+        {
+          "name": "accountTools",
+          "params": [
+            "server",
+            "accountManager",
+            "imapService"
+          ],
+          "returnType": "void",
+          "exported": true,
+          "lineCount": 112
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "@modelcontextprotocol/sdk/server/mcp.js",
+          "specifiers": [
+            "McpServer"
+          ]
+        },
+        {
+          "source": "../services/account-manager.js",
+          "specifiers": [
+            "AccountManager"
+          ]
+        },
+        {
+          "source": "../services/imap-service.js",
+          "specifiers": [
+            "ImapService"
+          ]
+        },
+        {
+          "source": "zod",
+          "specifiers": [
+            "z"
+          ]
+        }
+      ],
+      "exports": [
+        "accountTools"
+      ],
+      "totalLines": 117,
+      "hasStructuralAnalysis": true
+    },
+    "src/tools/email-tools.ts": {
+      "filePath": "src/tools/email-tools.ts",
+      "contentHash": "daa1d105388cbe7e078586ac7dbcd300279a8529d98d75bf653e103478e36246",
+      "functions": [
+        {
+          "name": "addressList",
+          "params": [
+            "field",
+            "description"
+          ],
+          "exported": false,
+          "lineCount": 5
+        },
+        {
+          "name": "uidList",
+          "params": [
+            "description"
+          ],
+          "exported": false,
+          "lineCount": 5
+        },
+        {
+          "name": "buildAttachments",
+          "params": [
+            "atts"
+          ],
+          "exported": false,
+          "lineCount": 9
+        },
+        {
+          "name": "resolveBcc",
+          "params": [
+            "account",
+            "explicitBcc"
+          ],
+          "returnType": "string | string[] | undefined",
+          "exported": false,
+          "lineCount": 4
+        },
+        {
+          "name": "saveSentCopy",
+          "params": [
+            "imapService",
+            "accountId",
+            "account",
+            "rawMessage"
+          ],
+          "returnType": "Promise<SentSaveOutcome>",
+          "exported": false,
+          "lineCount": 16
+        },
+        {
+          "name": "sentSaveFields",
+          "params": [
+            "outcome"
+          ],
+          "exported": false,
+          "lineCount": 5
+        },
+        {
+          "name": "sentSaveSuffix",
+          "params": [
+            "outcome"
+          ],
+          "exported": false,
+          "lineCount": 5
+        },
+        {
+          "name": "positiveInteger",
+          "params": [
+            "value",
+            "fallback",
+            "maximum"
+          ],
+          "returnType": "number",
+          "exported": false,
+          "lineCount": 4
+        },
+        {
+          "name": "emailTools",
+          "params": [
+            "server",
+            "imapService",
+            "accountManager",
+            "smtpService",
+            "runtimeOptions"
+          ],
+          "returnType": "void",
+          "exported": true,
+          "lineCount": 1185
+        }
+      ],
+      "classes": [
+        {
+          "name": "FolderSearchTimeoutError",
+          "methods": [
+            "constructor"
+          ],
+          "properties": [],
+          "exported": false,
+          "lineCount": 6
+        }
+      ],
+      "imports": [
+        {
+          "source": "@modelcontextprotocol/sdk/server/mcp.js",
+          "specifiers": [
+            "McpServer"
+          ]
+        },
+        {
+          "source": "../services/imap-service.js",
+          "specifiers": [
+            "ImapService"
+          ]
+        },
+        {
+          "source": "../services/account-manager.js",
+          "specifiers": [
+            "AccountManager"
+          ]
+        },
+        {
+          "source": "../services/smtp-service.js",
+          "specifiers": [
+            "SmtpService"
+          ]
+        },
+        {
+          "source": "../utils/search-folders.js",
+          "specifiers": [
+            "selectSearchFolders"
+          ]
+        },
+        {
+          "source": "../utils/array-input.js",
+          "specifiers": [
+            "parseSerializedArray"
+          ]
+        },
+        {
+          "source": "../utils/default-bcc.js",
+          "specifiers": [
+            "mergeBcc"
+          ]
+        },
+        {
+          "source": "../types/index.js",
+          "specifiers": [
+            "EmailMessage",
+            "ImapAccount",
+            "SentSaveResult"
+          ]
+        },
+        {
+          "source": "zod",
+          "specifiers": [
+            "z"
+          ]
+        },
+        {
+          "source": "path",
+          "specifiers": [
+            "join"
+          ]
+        },
+        {
+          "source": "os",
+          "specifiers": [
+            "homedir"
+          ]
+        },
+        {
+          "source": "crypto",
+          "specifiers": [
+            "randomBytes"
+          ]
+        },
+        {
+          "source": "../utils/attachment-root.js",
+          "specifiers": [
+            "attachmentBasename",
+            "resolveAttachmentInputPath",
+            "resolveAttachmentOutputPath"
+          ]
+        }
+      ],
+      "exports": [
+        "emailTools"
+      ],
+      "totalLines": 1341,
+      "hasStructuralAnalysis": true
+    },
+    "src/tools/folder-tools.ts": {
+      "filePath": "src/tools/folder-tools.ts",
+      "contentHash": "6989feb082ea72b5447c15d193bbfc43a4b8c28e8b007dfc8560fa538740bbd0",
+      "functions": [
+        {
+          "name": "folderTools",
+          "params": [
+            "server",
+            "imapService",
+            "accountManager"
+          ],
+          "returnType": "void",
+          "exported": true,
+          "lineCount": 154
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "@modelcontextprotocol/sdk/server/mcp.js",
+          "specifiers": [
+            "McpServer"
+          ]
+        },
+        {
+          "source": "../services/imap-service.js",
+          "specifiers": [
+            "ImapService"
+          ]
+        },
+        {
+          "source": "../services/account-manager.js",
+          "specifiers": [
+            "AccountManager"
+          ]
+        },
+        {
+          "source": "../types/index.js",
+          "specifiers": [
+            "isSystemFlag"
+          ]
+        },
+        {
+          "source": "zod",
+          "specifiers": [
+            "z"
+          ]
+        }
+      ],
+      "exports": [
+        "folderTools"
+      ],
+      "totalLines": 167,
+      "hasStructuralAnalysis": true
+    },
+    "src/tools/guarded-delete-tools.ts": {
+      "filePath": "src/tools/guarded-delete-tools.ts",
+      "contentHash": "a2ca3264d7bc4040e8230cb9f60a1a27c3c9bc7fc35e9a59d1df76f7cb36a109",
+      "functions": [
+        {
+          "name": "response",
+          "params": [
+            "value"
+          ],
+          "exported": false,
+          "lineCount": 1
+        },
+        {
+          "name": "guardedDeletion",
+          "params": [
+            "server",
+            "imap",
+            "clock"
+          ],
+          "exported": true,
+          "lineCount": 82
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "node:async_hooks",
+          "specifiers": [
+            "AsyncLocalStorage"
+          ]
+        },
+        {
+          "source": "node:crypto",
+          "specifiers": [
+            "randomUUID"
+          ]
+        },
+        {
+          "source": "zod",
+          "specifiers": [
+            "z"
+          ]
+        },
+        {
+          "source": "@modelcontextprotocol/sdk/server/mcp.js",
+          "specifiers": [
+            "McpServer"
+          ]
+        },
+        {
+          "source": "../services/imap-service.js",
+          "specifiers": [
+            "ImapService"
+          ]
+        }
+      ],
+      "exports": [
+        "guardedDeletion"
+      ],
+      "totalLines": 96,
+      "hasStructuralAnalysis": true
+    },
+    "src/tools/index.ts": {
+      "filePath": "src/tools/index.ts",
+      "contentHash": "3684502cbf6280a97258fc1516472120e4bbcddca6f8cc92e028ab93b9af87ad",
+      "functions": [
+        {
+          "name": "normalizeToolName",
+          "params": [
+            "name"
+          ],
+          "returnType": "string",
+          "exported": false,
+          "lineCount": 4
+        },
+        {
+          "name": "parseToolList",
+          "params": [
+            "value"
+          ],
+          "returnType": "string[]",
+          "exported": false,
+          "lineCount": 8
+        },
+        {
+          "name": "isTruthy",
+          "params": [
+            "value"
+          ],
+          "returnType": "boolean",
+          "exported": false,
+          "lineCount": 4
+        },
+        {
+          "name": "resolveEnabledTools",
+          "params": [
+            "env"
+          ],
+          "returnType": "Set<string> | null",
+          "exported": true,
+          "lineCount": 12
+        },
+        {
+          "name": "createFilteredServer",
+          "params": [
+            "server",
+            "allowed",
+            "seen",
+            "registered"
+          ],
+          "returnType": "McpServer",
+          "exported": false,
+          "lineCount": 24
+        },
+        {
+          "name": "registerTools",
+          "params": [
+            "server",
+            "imapService",
+            "accountManager",
+            "smtpService",
+            "spamService"
+          ],
+          "returnType": "void",
+          "exported": true,
+          "lineCount": 46
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "@modelcontextprotocol/sdk/server/mcp.js",
+          "specifiers": [
+            "McpServer"
+          ]
+        },
+        {
+          "source": "../services/imap-service.js",
+          "specifiers": [
+            "ImapService"
+          ]
+        },
+        {
+          "source": "../services/account-manager.js",
+          "specifiers": [
+            "AccountManager"
+          ]
+        },
+        {
+          "source": "../services/smtp-service.js",
+          "specifiers": [
+            "SmtpService"
+          ]
+        },
+        {
+          "source": "../services/spam-service.js",
+          "specifiers": [
+            "SpamService"
+          ]
+        },
+        {
+          "source": "./account-tools.js",
+          "specifiers": [
+            "accountTools"
+          ]
+        },
+        {
+          "source": "./email-tools.js",
+          "specifiers": [
+            "emailTools"
+          ]
+        },
+        {
+          "source": "./folder-tools.js",
+          "specifiers": [
+            "folderTools"
+          ]
+        },
+        {
+          "source": "./spam-tools.js",
+          "specifiers": [
+            "spamTools"
+          ]
+        },
+        {
+          "source": "./safe-send-tools.js",
+          "specifiers": [
+            "safeSendTools"
+          ]
+        },
+        {
+          "source": "./unified-search-tools.js",
+          "specifiers": [
+            "unifiedSearchTools"
+          ]
+        },
+        {
+          "source": "./guarded-delete-tools.js",
+          "specifiers": [
+            "guardedDeletion"
+          ]
+        }
+      ],
+      "exports": [
+        "READ_ONLY_TOOLS",
+        "resolveEnabledTools",
+        "registerTools"
+      ],
+      "totalLines": 182,
+      "hasStructuralAnalysis": true
+    },
+    "src/tools/safe-send-tools.ts": {
+      "filePath": "src/tools/safe-send-tools.ts",
+      "contentHash": "e8f389fd1b5a22cbc75fa90fbc7d96035e16376b3b92338366ffe8a4f1afce88",
+      "functions": [
+        {
+          "name": "list",
+          "params": [
+            "value"
+          ],
+          "returnType": "string[]",
+          "exported": false,
+          "lineCount": 1
+        },
+        {
+          "name": "mergeBcc",
+          "params": [
+            "defaults",
+            "explicit"
+          ],
+          "returnType": "string[] | undefined",
+          "exported": false,
+          "lineCount": 4
+        },
+        {
+          "name": "materializeAttachments",
+          "params": [
+            "inputs"
+          ],
+          "returnType": "Promise<EmailAttachment[] | undefined>",
+          "exported": false,
+          "lineCount": 8
+        },
+        {
+          "name": "materializeOriginalAttachments",
+          "params": [
+            "imapService",
+            "accountId",
+            "folder",
+            "uid",
+            "attachments"
+          ],
+          "returnType": "Promise<EmailAttachment[]>",
+          "exported": false,
+          "lineCount": 23
+        },
+        {
+          "name": "extractEmail",
+          "params": [
+            "address"
+          ],
+          "returnType": "string",
+          "exported": false,
+          "lineCount": 4
+        },
+        {
+          "name": "replyRecipients",
+          "params": [
+            "originalEmail",
+            "account",
+            "replyAll"
+          ],
+          "returnType": "string[]",
+          "exported": false,
+          "lineCount": 16
+        },
+        {
+          "name": "saveSentBestEffort",
+          "params": [
+            "imapService",
+            "accountId",
+            "account",
+            "rawMessage",
+            "timeoutMs"
+          ],
+          "returnType": "Promise<SafeSendExecutionResult>",
+          "exported": false,
+          "lineCount": 35
+        },
+        {
+          "name": "previewResponse",
+          "params": [
+            "preview"
+          ],
+          "exported": false,
+          "lineCount": 3
+        },
+        {
+          "name": "safeSendTools",
+          "params": [
+            "server",
+            "imapService",
+            "accountManager",
+            "smtpService",
+            "options"
+          ],
+          "returnType": "void",
+          "exported": true,
+          "lineCount": 113
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "node:fs/promises",
+          "specifiers": [
+            "readFile"
+          ]
+        },
+        {
+          "source": "node:os",
+          "specifiers": [
+            "homedir"
+          ]
+        },
+        {
+          "source": "node:path",
+          "specifiers": [
+            "join"
+          ]
+        },
+        {
+          "source": "zod",
+          "specifiers": [
+            "z"
+          ]
+        },
+        {
+          "source": "@modelcontextprotocol/sdk/server/mcp.js",
+          "specifiers": [
+            "McpServer"
+          ]
+        },
+        {
+          "source": "../services/account-manager.js",
+          "specifiers": [
+            "AccountManager"
+          ]
+        },
+        {
+          "source": "../services/imap-service.js",
+          "specifiers": [
+            "ImapService"
+          ]
+        },
+        {
+          "source": "../services/safe-send-service.js",
+          "specifiers": [
+            "SafeSendService",
+            "SafeSendExecutionResult",
+            "SafeSendServiceOptions"
+          ]
+        },
+        {
+          "source": "../services/smtp-service.js",
+          "specifiers": [
+            "SmtpService"
+          ]
+        },
+        {
+          "source": "../types/index.js",
+          "specifiers": [
+            "Attachment",
+            "EmailAttachment",
+            "EmailComposer",
+            "EmailContent",
+            "ImapAccount"
+          ]
+        },
+        {
+          "source": "../utils/attachment-root.js",
+          "specifiers": [
+            "resolveAttachmentInputPath"
+          ]
+        },
+        {
+          "source": "../utils/mail-resource-limits.js",
+          "specifiers": [
+            "materializeBoundedAttachments",
+            "MAX_BODY_CHARS"
+          ]
+        }
+      ],
+      "exports": [
+        "safeSendTools"
+      ],
+      "totalLines": 245,
+      "hasStructuralAnalysis": true
+    },
+    "src/tools/spam-tools.ts": {
+      "filePath": "src/tools/spam-tools.ts",
+      "contentHash": "c71902b9a69e5a5db25ef74c8b4c263a8bd3cf40a7f530750f4ee5be40c014f9",
+      "functions": [
+        {
+          "name": "spamTools",
+          "params": [
+            "server",
+            "imapService",
+            "spamService"
+          ],
+          "returnType": "void",
+          "exported": true,
+          "lineCount": 373
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "@modelcontextprotocol/sdk/server/mcp.js",
+          "specifiers": [
+            "McpServer"
+          ]
+        },
+        {
+          "source": "../services/imap-service.js",
+          "specifiers": [
+            "ImapService"
+          ]
+        },
+        {
+          "source": "../services/spam-service.js",
+          "specifiers": [
+            "SpamService",
+            "HeaderRedFlag"
+          ]
+        },
+        {
+          "source": "zod",
+          "specifiers": [
+            "z"
+          ]
+        }
+      ],
+      "exports": [
+        "spamTools"
+      ],
+      "totalLines": 379,
+      "hasStructuralAnalysis": true
+    },
+    "src/tools/unified-search-tools.ts": {
+      "filePath": "src/tools/unified-search-tools.ts",
+      "contentHash": "ea9a5b05b0de546f61deed8c60ae9fa69b481071b4fe0862b7307d5168d555d3",
+      "functions": [
+        {
+          "name": "compareLocated",
+          "params": [
+            "a",
+            "b"
+          ],
+          "returnType": "number",
+          "exported": false,
+          "lineCount": 4
+        },
+        {
+          "name": "dateOnly",
+          "params": [
+            "value"
+          ],
+          "returnType": "Date",
+          "exported": false,
+          "lineCount": 7
+        },
+        {
+          "name": "unifiedSearchTools",
+          "params": [
+            "server",
+            "imap",
+            "manager",
+            "runtime"
+          ],
+          "returnType": "void",
+          "exported": true,
+          "lineCount": 113
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "@modelcontextprotocol/sdk/server/mcp.js",
+          "specifiers": [
+            "McpServer"
+          ]
+        },
+        {
+          "source": "../services/imap-service.js",
+          "specifiers": [
+            "ImapService"
+          ]
+        },
+        {
+          "source": "../services/account-manager.js",
+          "specifiers": [
+            "AccountManager"
+          ]
+        },
+        {
+          "source": "../types/index.js",
+          "specifiers": [
+            "EmailMessage",
+            "SearchCriteria"
+          ]
+        },
+        {
+          "source": "../utils/search-folders.js",
+          "specifiers": [
+            "selectSearchFolders"
+          ]
+        },
+        {
+          "source": "zod",
+          "specifiers": [
+            "z"
+          ]
+        },
+        {
+          "source": "node:crypto",
+          "specifiers": [
+            "createHash"
+          ]
+        }
+      ],
+      "exports": [
+        "unifiedSearchTools"
+      ],
+      "totalLines": 146,
+      "hasStructuralAnalysis": true
+    },
+    "src/types/index.ts": {
+      "filePath": "src/types/index.ts",
+      "contentHash": "a087967f4022f6db5c4fb9af15222bf29f0ad9067acb5a8cb212f91e44bd0cd3",
+      "functions": [
+        {
+          "name": "isSystemFlag",
+          "params": [
+            "flag"
+          ],
+          "returnType": "boolean",
+          "exported": true,
+          "lineCount": 3
+        }
+      ],
+      "classes": [],
+      "imports": [],
+      "exports": [
+        "DEFAULT_BODY_MAX_LENGTH",
+        "DEFAULT_BODY_FORMAT",
+        "SYSTEM_FLAGS",
+        "isSystemFlag"
+      ],
+      "totalLines": 198,
+      "hasStructuralAnalysis": true
+    },
+    "src/types/turndown-plugin-gfm.d.ts": {
+      "filePath": "src/types/turndown-plugin-gfm.d.ts",
+      "contentHash": "0960fad57d95610dccdf151cdf94b943bb4a6202acfc15a18188c888cd136c69",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 14,
+      "hasStructuralAnalysis": true
+    },
+    "src/utils/account-store-lock.ts": {
+      "filePath": "src/utils/account-store-lock.ts",
+      "contentHash": "75ac0b12b6e6c0a5cf7f9e69574c11ed370d831068486860e2801a381914eb5d",
+      "functions": [
+        {
+          "name": "withAccountStoreLock",
+          "params": [
+            "directory",
+            "action"
+          ],
+          "returnType": "Promise<T>",
+          "exported": true,
+          "lineCount": 15
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "fs",
+          "specifiers": [
+            "fs"
+          ]
+        },
+        {
+          "source": "node:path",
+          "specifiers": [
+            "join"
+          ]
+        }
+      ],
+      "exports": [
+        "withAccountStoreLock"
+      ],
+      "totalLines": 19,
+      "hasStructuralAnalysis": true
+    },
+    "src/utils/array-input.ts": {
+      "filePath": "src/utils/array-input.ts",
+      "contentHash": "d2721ed759ec4f108b372e978e95a7a8de10a959696814eadd3384f7d0be7b4a",
+      "functions": [
+        {
+          "name": "unquote",
+          "params": [
+            "item"
+          ],
+          "returnType": "string",
+          "exported": false,
+          "lineCount": 7
+        },
+        {
+          "name": "fromJson",
+          "params": [
+            "text"
+          ],
+          "returnType": "(string | number)[] | null",
+          "exported": false,
+          "lineCount": 11
+        },
+        {
+          "name": "fromBracketedList",
+          "params": [
+            "text"
+          ],
+          "returnType": "string[] | null",
+          "exported": false,
+          "lineCount": 7
+        },
+        {
+          "name": "parseSerializedArray",
+          "params": [
+            "value",
+            "field"
+          ],
+          "returnType": "unknown",
+          "exported": true,
+          "lineCount": 16
+        }
+      ],
+      "classes": [],
+      "imports": [],
+      "exports": [
+        "parseSerializedArray"
+      ],
+      "totalLines": 82,
+      "hasStructuralAnalysis": true
+    },
+    "src/utils/attachment-root.ts": {
+      "filePath": "src/utils/attachment-root.ts",
+      "contentHash": "7f436c4062e6d3d35bda8559595dc85cb6746d98d3725ff0e6b26522083051df",
+      "functions": [
+        {
+          "name": "isOutside",
+          "params": [
+            "root",
+            "candidate"
+          ],
+          "returnType": "boolean",
+          "exported": false,
+          "lineCount": 4
+        },
+        {
+          "name": "assertInside",
+          "params": [
+            "root",
+            "candidate"
+          ],
+          "returnType": "void",
+          "exported": false,
+          "lineCount": 5
+        },
+        {
+          "name": "assertNotLink",
+          "params": [
+            "path"
+          ],
+          "returnType": "void",
+          "exported": false,
+          "lineCount": 5
+        },
+        {
+          "name": "walkDirectory",
+          "params": [
+            "root",
+            "targetDirectory",
+            "create"
+          ],
+          "returnType": "void",
+          "exported": false,
+          "lineCount": 22
+        },
+        {
+          "name": "normalizeAttachmentRoot",
+          "params": [
+            "configuredRoot"
+          ],
+          "returnType": "string",
+          "exported": true,
+          "lineCount": 8
+        },
+        {
+          "name": "attachmentBasename",
+          "params": [
+            "senderFilename"
+          ],
+          "returnType": "string",
+          "exported": true,
+          "lineCount": 6
+        },
+        {
+          "name": "resolveAttachmentOutputPath",
+          "params": [
+            "configuredRoot",
+            "requestedPath",
+            "senderFilename"
+          ],
+          "returnType": "string",
+          "exported": true,
+          "lineCount": 16
+        },
+        {
+          "name": "resolveAttachmentInputPath",
+          "params": [
+            "configuredRoot",
+            "requestedPath"
+          ],
+          "returnType": "string",
+          "exported": true,
+          "lineCount": 15
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "fs",
+          "specifiers": [
+            "existsSync",
+            "lstatSync",
+            "mkdirSync",
+            "realpathSync"
+          ]
+        },
+        {
+          "source": "path",
+          "specifiers": [
+            "basename",
+            "dirname",
+            "isAbsolute",
+            "join",
+            "relative",
+            "resolve",
+            "sep"
+          ]
+        }
+      ],
+      "exports": [
+        "normalizeAttachmentRoot",
+        "attachmentBasename",
+        "resolveAttachmentOutputPath",
+        "resolveAttachmentInputPath"
+      ],
+      "totalLines": 111,
+      "hasStructuralAnalysis": true
+    },
+    "src/utils/default-bcc.ts": {
+      "filePath": "src/utils/default-bcc.ts",
+      "contentHash": "6bf185372a74d47766f616978c7d7b0b4646807ed1906ec11a44a657b1c676a8",
+      "functions": [
+        {
+          "name": "mergeBcc",
+          "params": [
+            "defaultBcc",
+            "explicitBcc"
+          ],
+          "returnType": "string | string[] | undefined",
+          "exported": true,
+          "lineCount": 28
+        }
+      ],
+      "classes": [],
+      "imports": [],
+      "exports": [
+        "mergeBcc"
+      ],
+      "totalLines": 36,
+      "hasStructuralAnalysis": true
+    },
+    "src/utils/env-credentials.ts": {
+      "filePath": "src/utils/env-credentials.ts",
+      "contentHash": "c062fc6b80ea2951b5df383a1f8b7d763111aa22f4f60844574d1cdcde31e5e5",
+      "functions": [
+        {
+          "name": "envAccountKey",
+          "params": [
+            "accountName"
+          ],
+          "returnType": "string",
+          "exported": true,
+          "lineCount": 3
+        },
+        {
+          "name": "envVarName",
+          "params": [
+            "accountName",
+            "suffix"
+          ],
+          "returnType": "string",
+          "exported": true,
+          "lineCount": 3
+        },
+        {
+          "name": "assertCredentialsResolved",
+          "params": [
+            "account",
+            "channel"
+          ],
+          "returnType": "void",
+          "exported": true,
+          "lineCount": 35
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "../types/index.js",
+          "specifiers": [
+            "ImapAccount"
+          ]
+        }
+      ],
+      "exports": [
+        "ENV_CREDENTIAL_SUFFIXES",
+        "envAccountKey",
+        "envVarName",
+        "assertCredentialsResolved"
+      ],
+      "totalLines": 72,
+      "hasStructuralAnalysis": true
+    },
+    "src/utils/gmail-proxy.ts": {
+      "filePath": "src/utils/gmail-proxy.ts",
+      "contentHash": "360a56b3d7ac9dd9d018ebe58ded927eb88143ef81e427cb67e718e2d54d4ad2",
+      "functions": [
+        {
+          "name": "resolveGmailProxy",
+          "params": [
+            "env",
+            "transport",
+            "systemProxy"
+          ],
+          "returnType": "string",
+          "exported": true,
+          "lineCount": 20
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "./windows-system-proxy.js",
+          "specifiers": [
+            "windowsLoopbackProxy"
+          ]
+        }
+      ],
+      "exports": [
+        "resolveGmailProxy"
+      ],
+      "totalLines": 23,
+      "hasStructuralAnalysis": true
+    },
+    "src/utils/mail-proxy.ts": {
+      "filePath": "src/utils/mail-proxy.ts",
+      "contentHash": "fb530ae709d2a449351cd75b595d0cc2597b419f69ddd6d52b63be7bb642ab12",
+      "functions": [
+        {
+          "name": "bypassesProxy",
+          "params": [
+            "host",
+            "noProxy"
+          ],
+          "returnType": "boolean",
+          "exported": false,
+          "lineCount": 12
+        },
+        {
+          "name": "resolveMailProxy",
+          "params": [
+            "env",
+            "targetHost",
+            "provider"
+          ],
+          "returnType": "string | undefined",
+          "exported": true,
+          "lineCount": 31
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "../credentials/proxy-fetch.js",
+          "specifiers": [
+            "normalizeProxyEnvironment"
+          ]
+        },
+        {
+          "source": "./gmail-proxy.js",
+          "specifiers": [
+            "resolveGmailProxy"
+          ]
+        }
+      ],
+      "exports": [
+        "resolveMailProxy"
+      ],
+      "totalLines": 57,
+      "hasStructuralAnalysis": true
+    },
+    "src/utils/mail-resource-limits.ts": {
+      "filePath": "src/utils/mail-resource-limits.ts",
+      "contentHash": "e7ad5dc699586478f3a095aeb0306af2643354ab6c1f2b62513c7e9b500ba0e3",
+      "functions": [
+        {
+          "name": "assertMessageSize",
+          "params": [
+            "source",
+            "size"
+          ],
+          "returnType": "void",
+          "exported": true,
+          "lineCount": 3
+        },
+        {
+          "name": "readBoundedFile",
+          "params": [
+            "path"
+          ],
+          "returnType": "Promise<Buffer>",
+          "exported": true,
+          "lineCount": 11
+        },
+        {
+          "name": "materializeBoundedAttachments",
+          "params": [
+            "inputs"
+          ],
+          "returnType": "Promise<Array<T&{content:Buffer;path:undefined}>>",
+          "exported": true,
+          "lineCount": 6
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "node:fs/promises",
+          "specifiers": [
+            "open",
+            "stat"
+          ]
+        }
+      ],
+      "exports": [
+        "MAX_MESSAGE_BYTES",
+        "MAX_BODY_CHARS",
+        "MAX_ATTACHMENT_COUNT",
+        "boundedSource",
+        "assertMessageSize",
+        "readBoundedFile",
+        "materializeBoundedAttachments"
+      ],
+      "totalLines": 26,
+      "hasStructuralAnalysis": true
+    },
+    "src/utils/pdf-preview.ts": {
+      "filePath": "src/utils/pdf-preview.ts",
+      "contentHash": "90d8e18cd92d22bc8fb7173e6a4c78f889b8fe19920011dd4b968cfbd6522c02",
+      "functions": [
+        {
+          "name": "extractPdfPreview",
+          "params": [
+            "bytes",
+            "maxChars"
+          ],
+          "returnType": "Promise<{text:string;truncated:boolean}>",
+          "exported": true,
+          "lineCount": 32
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "node:child_process",
+          "specifiers": [
+            "spawn"
+          ]
+        },
+        {
+          "source": "node:module",
+          "specifiers": [
+            "createRequire"
+          ]
+        }
+      ],
+      "exports": [
+        "extractPdfPreview"
+      ],
+      "totalLines": 57,
+      "hasStructuralAnalysis": true
+    },
+    "src/utils/search-folders.ts": {
+      "filePath": "src/utils/search-folders.ts",
+      "contentHash": "a5e8cdffe259e65c0c567255b7a81964be2a7c2a9678b624a4981017b46c54a5",
+      "functions": [
+        {
+          "name": "leafName",
+          "params": [
+            "folder"
+          ],
+          "returnType": "string",
+          "exported": false,
+          "lineCount": 5
+        },
+        {
+          "name": "isNonSelectable",
+          "params": [
+            "folder"
+          ],
+          "returnType": "boolean",
+          "exported": true,
+          "lineCount": 3
+        },
+        {
+          "name": "matchesCategory",
+          "params": [
+            "folder",
+            "specialUse",
+            "names"
+          ],
+          "returnType": "boolean",
+          "exported": false,
+          "lineCount": 8
+        },
+        {
+          "name": "selectSearchFolders",
+          "params": [
+            "folders",
+            "opts"
+          ],
+          "returnType": "string[]",
+          "exported": true,
+          "lineCount": 18
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "../types/index.js",
+          "specifiers": [
+            "Folder"
+          ]
+        }
+      ],
+      "exports": [
+        "TRASH_FOLDER_NAMES",
+        "SPAM_FOLDER_NAMES",
+        "DRAFTS_FOLDER_NAMES",
+        "BLOCKED_FOLDER_NAMES",
+        "isNonSelectable",
+        "selectSearchFolders"
+      ],
+      "totalLines": 65,
+      "hasStructuralAnalysis": true
+    },
+    "src/utils/windows-system-proxy.ts": {
+      "filePath": "src/utils/windows-system-proxy.ts",
+      "contentHash": "b7b388c646445f37f8c234e0d732aa777456a595bb637dc4a80a3b5cc84b010f",
+      "functions": [
+        {
+          "name": "windowsLoopbackProxy",
+          "params": [],
+          "returnType": "string | undefined",
+          "exported": true,
+          "lineCount": 11
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "node:child_process",
+          "specifiers": [
+            "execFileSync"
+          ]
+        }
+      ],
+      "exports": [
+        "windowsLoopbackProxy"
+      ],
+      "totalLines": 15,
+      "hasStructuralAnalysis": true
+    },
+    "src/web/enrollment-router.ts": {
+      "filePath": "src/web/enrollment-router.ts",
+      "contentHash": "4ce09067281112f82ddbc84748aef83171e3dc505ac610700200f405a23f8114",
+      "functions": [
+        {
+          "name": "enrollmentRouter",
+          "params": [
+            "deps"
+          ],
+          "returnType": "Router",
+          "exported": true,
+          "lineCount": 70
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "express",
+          "specifiers": [
+            "Router"
+          ]
+        },
+        {
+          "source": "node:crypto",
+          "specifiers": [
+            "randomUUID"
+          ]
+        },
+        {
+          "source": "zod",
+          "specifiers": [
+            "z"
+          ]
+        },
+        {
+          "source": "../services/account-manager.js",
+          "specifiers": [
+            "AccountManager"
+          ]
+        },
+        {
+          "source": "../credentials/account-enrollment.js",
+          "specifiers": [
+            "AccountEnrollmentService"
+          ]
+        },
+        {
+          "source": "../credentials/gmail-oauth-loopback.js",
+          "specifiers": [
+            "runGmailOAuthLoopback"
+          ]
+        }
+      ],
+      "exports": [
+        "enrollmentRouter"
+      ],
+      "totalLines": 93,
+      "hasStructuralAnalysis": true
+    },
+    "src/web/server.ts": {
+      "filePath": "src/web/server.ts",
+      "contentHash": "befab3305e7500cc2034c4f2518174903bdc46265e5626d4e5b07dba9248431c",
+      "functions": [
+        {
+          "name": "stripAccountSecrets",
+          "params": [
+            "account"
+          ],
+          "returnType": "Omit<T, 'password'>",
+          "exported": false,
+          "lineCount": 9
+        }
+      ],
+      "classes": [
+        {
+          "name": "WebUIServer",
+          "methods": [
+            "constructor",
+            "getApp",
+            "setupMiddleware",
+            "getSetupUrl",
+            "isLoopbackName",
+            "loopbackOnly",
+            "resolvePublicDir",
+            "setupRoutes",
+            "resetIdleTimer",
+            "stop",
+            "start"
+          ],
+          "properties": [
+            "sessionToken",
+            "app",
+            "accountManager",
+            "imapService",
+            "port",
+            "httpServer",
+            "idleTimer",
+            "onInterrupt"
+          ],
+          "exported": true,
+          "lineCount": 422
+        }
+      ],
+      "imports": [
+        {
+          "source": "express",
+          "specifiers": [
+            "express"
+          ]
+        },
+        {
+          "source": "node:crypto",
+          "specifiers": [
+            "randomBytes",
+            "timingSafeEqual"
+          ]
+        },
+        {
+          "source": "body-parser",
+          "specifiers": [
+            "bodyParser"
+          ]
+        },
+        {
+          "source": "path",
+          "specifiers": [
+            "path"
+          ]
+        },
+        {
+          "source": "fs",
+          "specifiers": [
+            "fs"
+          ]
+        },
+        {
+          "source": "url",
+          "specifiers": [
+            "fileURLToPath",
+            "pathToFileURL"
+          ]
+        },
+        {
+          "source": "open",
+          "specifiers": [
+            "open"
+          ]
+        },
+        {
+          "source": "../services/account-manager.js",
+          "specifiers": [
+            "AccountManager"
+          ]
+        },
+        {
+          "source": "../services/imap-service.js",
+          "specifiers": [
+            "ImapService"
+          ]
+        },
+        {
+          "source": "../providers/email-providers.js",
+          "specifiers": [
+            "emailProviders",
+            "getProviderByEmail"
+          ]
+        },
+        {
+          "source": "../credentials/account-auth.js",
+          "specifiers": [
+            "AccountAuthResolver"
+          ]
+        },
+        {
+          "source": "../credentials/gmail-token-exchange.js",
+          "specifiers": [
+            "createGmailAccessTokenExchange"
+          ]
+        },
+        {
+          "source": "../credentials/windows-credential-backend.js",
+          "specifiers": [
+            "UnavailableCredentialBackend",
+            "WindowsCredentialBackend"
+          ]
+        },
+        {
+          "source": "../types/index.js",
+          "specifiers": [
+            "ImapAccount"
+          ]
+        },
+        {
+          "source": "../credentials/credential-backend.js",
+          "specifiers": [
+            "CredentialBackend"
+          ]
+        },
+        {
+          "source": "../credentials/account-enrollment.js",
+          "specifiers": [
+            "AccountEnrollmentService"
+          ]
+        },
+        {
+          "source": "../credentials/gmail-oauth-loopback.js",
+          "specifiers": [
+            "runGmailOAuthLoopback"
+          ]
+        },
+        {
+          "source": "./enrollment-router.js",
+          "specifiers": [
+            "enrollmentRouter"
+          ]
+        },
+        {
+          "source": "node:http",
+          "specifiers": [
+            "Server"
+          ]
+        },
+        {
+          "source": "zod",
+          "specifiers": [
+            "z"
+          ]
+        }
+      ],
+      "exports": [
+        "WebUIServer"
+      ],
+      "totalLines": 471,
+      "hasStructuralAnalysis": true
+    },
+    "tests/account-enrollment.test.ts": {
+      "filePath": "tests/account-enrollment.test.ts",
+      "contentHash": "66eab5ba23d3f0fb940325a81cf52c287a82b65999d274a42f44776d2de5ab3e",
+      "functions": [
+        {
+          "name": "accountManager",
+          "params": [
+            "implementation"
+          ],
+          "exported": false,
+          "lineCount": 9
+        }
+      ],
+      "classes": [
+        {
+          "name": "FakeHandle",
+          "methods": [
+            "constructor",
+            "read",
+            "dispose"
+          ],
+          "properties": [
+            "disposed"
+          ],
+          "exported": false,
+          "lineCount": 6
+        },
+        {
+          "name": "FakeCredentialBackend",
+          "methods": [
+            "read",
+            "write",
+            "delete"
+          ],
+          "properties": [
+            "values",
+            "handles",
+            "writeError",
+            "deleteError",
+            "failWriteAt",
+            "writeCalls"
+          ],
+          "exported": false,
+          "lineCount": 28
+        }
+      ],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "expect",
+            "it",
+            "vi"
+          ]
+        },
+        {
+          "source": "../src/services/account-manager.js",
+          "specifiers": [
+            "AccountManager"
+          ]
+        },
+        {
+          "source": "../src/credentials/credential-backend.js",
+          "specifiers": [
+            "CredentialBackend",
+            "SecretHandle"
+          ]
+        },
+        {
+          "source": "../src/types/index.js",
+          "specifiers": [
+            "ImapAccount"
+          ]
+        },
+        {
+          "source": "../src/credentials/account-enrollment.js",
+          "specifiers": [
+            "AccountEnrollmentService"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 297,
+      "hasStructuralAnalysis": true
+    },
+    "tests/account-manager-permissions.test.ts": {
+      "filePath": "tests/account-manager-permissions.test.ts",
+      "contentHash": "afe58cf14f1ef9793b8ba9fcaecc23c471b586e2f572e03d3e02efe1f8ec3b82",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "it",
+            "expect",
+            "beforeEach",
+            "afterEach"
+          ]
+        },
+        {
+          "source": "fs",
+          "specifiers": [
+            "fsp",
+            "statSync"
+          ]
+        },
+        {
+          "source": "path",
+          "specifiers": [
+            "path"
+          ]
+        },
+        {
+          "source": "os",
+          "specifiers": [
+            "os"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 51,
+      "hasStructuralAnalysis": true
+    },
+    "tests/account-manager.test.ts": {
+      "filePath": "tests/account-manager.test.ts",
+      "contentHash": "b1eeb562c6d4ee2165a3d6e40f1a1c6c92e55a93a494bf05820586140ff7a583",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "it",
+            "expect",
+            "beforeEach",
+            "afterEach",
+            "vi"
+          ]
+        },
+        {
+          "source": "fs",
+          "specifiers": [
+            "fs"
+          ]
+        },
+        {
+          "source": "path",
+          "specifiers": [
+            "path"
+          ]
+        },
+        {
+          "source": "os",
+          "specifiers": [
+            "os"
+          ]
+        },
+        {
+          "source": "../src/services/account-manager.js",
+          "specifiers": [
+            "AccountManager"
+          ]
+        },
+        {
+          "source": "../src/credentials/credential-backend.js",
+          "specifiers": [
+            "credentialTarget",
+            "gmailClientSecretTarget",
+            "CredentialBackend"
+          ]
+        },
+        {
+          "source": "fs",
+          "specifiers": [
+            "readFileSync",
+            "writeFileSync",
+            "mkdirSync"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 857,
+      "hasStructuralAnalysis": true
+    },
+    "tests/account-runtime-removal.test.ts": {
+      "filePath": "tests/account-runtime-removal.test.ts",
+      "contentHash": "4430012d0db4ac4ca5d1256e9e3238fe1c01689403d9e2df08daf02c8a0bce15",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "it",
+            "expect",
+            "vi"
+          ]
+        },
+        {
+          "source": "node:fs/promises",
+          "specifiers": [
+            "mkdtemp",
+            "rm"
+          ]
+        },
+        {
+          "source": "node:os",
+          "specifiers": [
+            "tmpdir"
+          ]
+        },
+        {
+          "source": "node:path",
+          "specifiers": [
+            "join"
+          ]
+        },
+        {
+          "source": "../src/services/account-manager.js",
+          "specifiers": [
+            "AccountManager"
+          ]
+        },
+        {
+          "source": "../src/services/imap-service.js",
+          "specifiers": [
+            "ImapService"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 36,
+      "hasStructuralAnalysis": true
+    },
+    "tests/account-store-concurrency.test.ts": {
+      "filePath": "tests/account-store-concurrency.test.ts",
+      "contentHash": "5651a60b134080085de2ebd0ac01e2f5bae4ea742d7e74d87a6f4a4a5d0d8278",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "it",
+            "expect",
+            "vi"
+          ]
+        },
+        {
+          "source": "node:fs",
+          "specifiers": [
+            "fs"
+          ]
+        },
+        {
+          "source": "node:child_process",
+          "specifiers": [
+            "execFile"
+          ]
+        },
+        {
+          "source": "node:util",
+          "specifiers": [
+            "promisify"
+          ]
+        },
+        {
+          "source": "node:fs/promises",
+          "specifiers": [
+            "mkdtemp",
+            "readFile",
+            "rm",
+            "writeFile"
+          ]
+        },
+        {
+          "source": "node:os",
+          "specifiers": [
+            "tmpdir"
+          ]
+        },
+        {
+          "source": "node:path",
+          "specifiers": [
+            "join"
+          ]
+        },
+        {
+          "source": "../src/services/account-manager.js",
+          "specifiers": [
+            "AccountManager"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 41,
+      "hasStructuralAnalysis": true
+    },
+    "tests/account-tools-readonly.test.ts": {
+      "filePath": "tests/account-tools-readonly.test.ts",
+      "contentHash": "09904793ee605a5d2b0287c31618c3ee31a69073c71381181524830809ff1ecb",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "it",
+            "expect"
+          ]
+        },
+        {
+          "source": "../src/tools/account-tools.js",
+          "specifiers": [
+            "accountTools"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 11,
+      "hasStructuralAnalysis": true
+    },
+    "tests/account-tools-sent-folder.test.ts": {
+      "filePath": "tests/account-tools-sent-folder.test.ts",
+      "contentHash": "8ea8a43f63e23041ac02edb2098c9b28b1dc589dccc56fc5f4e5c78ab906aec1",
+      "functions": [
+        {
+          "name": "setup",
+          "params": [],
+          "exported": false,
+          "lineCount": 9
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "it",
+            "expect",
+            "vi",
+            "afterEach"
+          ]
+        },
+        {
+          "source": "node:http",
+          "specifiers": [
+            "Server"
+          ]
+        },
+        {
+          "source": "../src/web/server.js",
+          "specifiers": [
+            "WebUIServer"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 30,
+      "hasStructuralAnalysis": true
+    },
+    "tests/attachment-root.test.ts": {
+      "filePath": "tests/attachment-root.test.ts",
+      "contentHash": "0d9c6e2b9d7c000240aa9303e4e5976f611099ae8260cf06aee388567f776b70",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "afterEach",
+            "beforeEach",
+            "describe",
+            "expect",
+            "it"
+          ]
+        },
+        {
+          "source": "fs",
+          "specifiers": [
+            "mkdtempSync",
+            "mkdirSync",
+            "rmSync",
+            "symlinkSync",
+            "writeFileSync"
+          ]
+        },
+        {
+          "source": "os",
+          "specifiers": [
+            "tmpdir"
+          ]
+        },
+        {
+          "source": "path",
+          "specifiers": [
+            "basename",
+            "dirname",
+            "join",
+            "resolve"
+          ]
+        },
+        {
+          "source": "../src/utils/attachment-root.js",
+          "specifiers": [
+            "attachmentBasename",
+            "normalizeAttachmentRoot",
+            "resolveAttachmentInputPath",
+            "resolveAttachmentOutputPath"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 86,
+      "hasStructuralAnalysis": true
+    },
+    "tests/auth-builders.test.ts": {
+      "filePath": "tests/auth-builders.test.ts",
+      "contentHash": "c9d44bdf4c11168fff818751a978834e2def7a79866075929182be9d5989d44f",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "expect",
+            "it"
+          ]
+        },
+        {
+          "source": "../src/credentials/account-auth.js",
+          "specifiers": [
+            "buildImapAuth",
+            "buildSmtpAuth"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 24,
+      "hasStructuralAnalysis": true
+    },
+    "tests/browser-account-removal.test.ts": {
+      "filePath": "tests/browser-account-removal.test.ts",
+      "contentHash": "6fde7849e95acef1b8697ba89f8f7e2a3446917d5a62c31cdcd69f38c757e5ae",
+      "functions": [
+        {
+          "name": "setup",
+          "params": [],
+          "exported": false,
+          "lineCount": 30
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "afterEach",
+            "describe",
+            "expect",
+            "it",
+            "vi"
+          ]
+        },
+        {
+          "source": "node:fs/promises",
+          "specifiers": [
+            "mkdtemp",
+            "rm"
+          ]
+        },
+        {
+          "source": "node:os",
+          "specifiers": [
+            "tmpdir"
+          ]
+        },
+        {
+          "source": "node:path",
+          "specifiers": [
+            "join"
+          ]
+        },
+        {
+          "source": "node:http",
+          "specifiers": [
+            "Server"
+          ]
+        },
+        {
+          "source": "../src/services/account-manager.js",
+          "specifiers": [
+            "AccountManager"
+          ]
+        },
+        {
+          "source": "../src/credentials/account-enrollment.js",
+          "specifiers": [
+            "AccountEnrollmentService"
+          ]
+        },
+        {
+          "source": "../src/web/server.js",
+          "specifiers": [
+            "WebUIServer"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 83,
+      "hasStructuralAnalysis": true
+    },
+    "tests/browser-enrollment.test.ts": {
+      "filePath": "tests/browser-enrollment.test.ts",
+      "contentHash": "86eae03736edc007c6dc519164def4d943ae4b5ca1c4419e90c6c44fb370feef",
+      "functions": [
+        {
+          "name": "backend",
+          "params": [],
+          "exported": false,
+          "lineCount": 9
+        },
+        {
+          "name": "setup",
+          "params": [
+            "extra"
+          ],
+          "exported": false,
+          "lineCount": 19
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "afterEach",
+            "describe",
+            "expect",
+            "it",
+            "vi"
+          ]
+        },
+        {
+          "source": "node:http",
+          "specifiers": [
+            "Server"
+          ]
+        },
+        {
+          "source": "../src/web/server.js",
+          "specifiers": [
+            "WebUIServer"
+          ]
+        },
+        {
+          "source": "../src/credentials/account-enrollment.js",
+          "specifiers": [
+            "AccountEnrollmentService"
+          ]
+        },
+        {
+          "source": "../src/credentials/credential-backend.js",
+          "specifiers": [
+            "CredentialBackend"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 116,
+      "hasStructuralAnalysis": true
+    },
+    "tests/check-release-secrets.test.ts": {
+      "filePath": "tests/check-release-secrets.test.ts",
+      "contentHash": "c437db5ce23d386bc8177160506fb0301d93559853370aff3bfb798a0338661e",
+      "functions": [
+        {
+          "name": "scan",
+          "params": [
+            "source"
+          ],
+          "exported": false,
+          "lineCount": 8
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "node:child_process",
+          "specifiers": [
+            "execFileSync",
+            "spawnSync"
+          ]
+        },
+        {
+          "source": "node:fs",
+          "specifiers": [
+            "mkdtempSync",
+            "rmSync",
+            "writeFileSync"
+          ]
+        },
+        {
+          "source": "node:os",
+          "specifiers": [
+            "tmpdir"
+          ]
+        },
+        {
+          "source": "node:path",
+          "specifiers": [
+            "resolve"
+          ]
+        },
+        {
+          "source": "vitest",
+          "specifiers": [
+            "afterEach",
+            "describe",
+            "expect",
+            "it"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 69,
+      "hasStructuralAnalysis": true
+    },
+    "tests/credential-auth.test.ts": {
+      "filePath": "tests/credential-auth.test.ts",
+      "contentHash": "4c851a0a41617f6386119ae0aa3279cdea4dcd473fdedc9d0a765949b977cc8b",
+      "functions": [
+        {
+          "name": "base",
+          "params": [
+            "overrides"
+          ],
+          "returnType": "ImapAccount",
+          "exported": false,
+          "lineCount": 6
+        }
+      ],
+      "classes": [
+        {
+          "name": "FakeHandle",
+          "methods": [
+            "constructor",
+            "read",
+            "dispose"
+          ],
+          "properties": [
+            "disposed"
+          ],
+          "exported": false,
+          "lineCount": 12
+        },
+        {
+          "name": "FakeBackend",
+          "methods": [
+            "read",
+            "write",
+            "delete"
+          ],
+          "properties": [
+            "values",
+            "handles",
+            "reads"
+          ],
+          "exported": false,
+          "lineCount": 18
+        }
+      ],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "expect",
+            "it",
+            "vi"
+          ]
+        },
+        {
+          "source": "../src/credentials/credential-backend.js",
+          "specifiers": [
+            "credentialTarget",
+            "gmailClientSecretTarget",
+            "legacyCredentialTarget",
+            "CredentialBackend",
+            "SecretHandle"
+          ]
+        },
+        {
+          "source": "../src/credentials/account-auth.js",
+          "specifiers": [
+            "AccountAuthResolver",
+            "accountForPersistence"
+          ]
+        },
+        {
+          "source": "../src/types/index.js",
+          "specifiers": [
+            "ImapAccount"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 222,
+      "hasStructuralAnalysis": true
+    },
+    "tests/credential-rotation.test.ts": {
+      "filePath": "tests/credential-rotation.test.ts",
+      "contentHash": "60286142ec44446eb4094c558befb8625ab91141a0994d4fd9a423582864d3f6",
+      "functions": [
+        {
+          "name": "options",
+          "params": [
+            "credentials",
+            "replacement",
+            "verify"
+          ],
+          "exported": false,
+          "lineCount": 7
+        }
+      ],
+      "classes": [
+        {
+          "name": "FakeHandle",
+          "methods": [
+            "constructor",
+            "read",
+            "dispose"
+          ],
+          "properties": [
+            "disposed"
+          ],
+          "exported": false,
+          "lineCount": 6
+        },
+        {
+          "name": "FakeBackend",
+          "methods": [
+            "read",
+            "write",
+            "delete"
+          ],
+          "properties": [
+            "values",
+            "handles",
+            "reads",
+            "writes",
+            "deletes",
+            "writeError",
+            "deleteError"
+          ],
+          "exported": false,
+          "lineCount": 28
+        }
+      ],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "expect",
+            "it",
+            "vi"
+          ]
+        },
+        {
+          "source": "../src/credentials/credential-backend.js",
+          "specifiers": [
+            "CredentialBackend",
+            "SecretHandle"
+          ]
+        },
+        {
+          "source": "../src/credentials/credential-rotation.js",
+          "specifiers": [
+            "CredentialRollbackError",
+            "rotateCredential"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 139,
+      "hasStructuralAnalysis": true
+    },
+    "tests/default-bcc.test.ts": {
+      "filePath": "tests/default-bcc.test.ts",
+      "contentHash": "661a40edbeac651750ac8d0bd5b83ff1f50f4b2181c844bf0c29b6fcf6223134",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "it",
+            "expect",
+            "vi",
+            "beforeEach"
+          ]
+        },
+        {
+          "source": "../src/utils/default-bcc.js",
+          "specifiers": [
+            "mergeBcc"
+          ]
+        },
+        {
+          "source": "../src/tools/email-tools.js",
+          "specifiers": [
+            "emailTools"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 106,
+      "hasStructuralAnalysis": true
+    },
+    "tests/dependencies.test.ts": {
+      "filePath": "tests/dependencies.test.ts",
+      "contentHash": "78dab1b4689fdeeca319ab96d2e09adaec07e522916e4177bba794e462c2b820",
+      "functions": [
+        {
+          "name": "collectStringWidthDirs",
+          "params": [
+            "dir",
+            "acc"
+          ],
+          "returnType": "string[]",
+          "exported": false,
+          "lineCount": 25
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "it",
+            "expect"
+          ]
+        },
+        {
+          "source": "fs",
+          "specifiers": [
+            "readFileSync",
+            "readdirSync",
+            "statSync"
+          ]
+        },
+        {
+          "source": "path",
+          "specifiers": [
+            "join"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 62,
+      "hasStructuralAnalysis": true
+    },
+    "tests/email-tools-attachment-path-traversal.test.ts": {
+      "filePath": "tests/email-tools-attachment-path-traversal.test.ts",
+      "contentHash": "b509a810908a5e126f43d8d02cbd106689abc53819a949d3647d259739abddff",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "it",
+            "expect",
+            "vi",
+            "beforeEach",
+            "afterAll"
+          ]
+        },
+        {
+          "source": "fs",
+          "specifiers": [
+            "fsp"
+          ]
+        },
+        {
+          "source": "os",
+          "specifiers": [
+            "os"
+          ]
+        },
+        {
+          "source": "path",
+          "specifiers": [
+            "path"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 113,
+      "hasStructuralAnalysis": true
+    },
+    "tests/email-tools-bulk-delete-guard.test.ts": {
+      "filePath": "tests/email-tools-bulk-delete-guard.test.ts",
+      "contentHash": "c56fe82d08483998e9a75436bb9150ec2ba8eb2a5fb34d653eb8db385d4bed31",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "it",
+            "expect",
+            "vi",
+            "beforeEach"
+          ]
+        },
+        {
+          "source": "../src/tools/email-tools.js",
+          "specifiers": [
+            "emailTools"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 82,
+      "hasStructuralAnalysis": true
+    },
+    "tests/email-tools-include-body-and-batch.test.ts": {
+      "filePath": "tests/email-tools-include-body-and-batch.test.ts",
+      "contentHash": "34164f855d4414458d9d7415e9ae13b7c2ac039b3295b1f103e0b808f58e5ff1",
+      "functions": [
+        {
+          "name": "msg",
+          "params": [
+            "uid",
+            "date",
+            "subject",
+            "from"
+          ],
+          "exported": false,
+          "lineCount": 9
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "it",
+            "expect",
+            "vi",
+            "beforeEach"
+          ]
+        },
+        {
+          "source": "../src/tools/email-tools.js",
+          "specifiers": [
+            "emailTools"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 372,
+      "hasStructuralAnalysis": true
+    },
+    "tests/email-tools-move.test.ts": {
+      "filePath": "tests/email-tools-move.test.ts",
+      "contentHash": "660ecd16a5b2497433241e58a634c343735dee9e9d89a30a2844547cc1515641",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "it",
+            "expect",
+            "vi",
+            "beforeEach"
+          ]
+        },
+        {
+          "source": "../src/tools/email-tools.js",
+          "specifiers": [
+            "emailTools"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 151,
+      "hasStructuralAnalysis": true
+    },
+    "tests/email-tools-pdf-extract.test.ts": {
+      "filePath": "tests/email-tools-pdf-extract.test.ts",
+      "contentHash": "de93102051844ac9bea8b5efb0987b3c7f867271857ecab405f2630a0c55560f",
+      "functions": [
+        {
+          "name": "makePdf",
+          "params": [
+            "text"
+          ],
+          "returnType": "Buffer",
+          "exported": false,
+          "lineCount": 26
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "it",
+            "expect",
+            "vi",
+            "beforeEach",
+            "afterEach"
+          ]
+        },
+        {
+          "source": "os",
+          "specifiers": [
+            "tmpdir"
+          ]
+        },
+        {
+          "source": "path",
+          "specifiers": [
+            "join"
+          ]
+        },
+        {
+          "source": "fs",
+          "specifiers": [
+            "existsSync",
+            "rmSync",
+            "readFileSync"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 128,
+      "hasStructuralAnalysis": true
+    },
+    "tests/email-tools-search-all.test.ts": {
+      "filePath": "tests/email-tools-search-all.test.ts",
+      "contentHash": "e8f106f2ee9c795e95fc17972b31316657318cb3a14382269ac0485c2f94f9b2",
+      "functions": [
+        {
+          "name": "folder",
+          "params": [
+            "name",
+            "specialUse"
+          ],
+          "exported": false,
+          "lineCount": 6
+        },
+        {
+          "name": "msg",
+          "params": [
+            "uid",
+            "date",
+            "subject"
+          ],
+          "exported": false,
+          "lineCount": 7
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "it",
+            "expect",
+            "vi",
+            "beforeEach"
+          ]
+        },
+        {
+          "source": "../src/tools/email-tools.js",
+          "specifiers": [
+            "emailTools"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 227,
+      "hasStructuralAnalysis": true
+    },
+    "tests/email-tools-sent-save.test.ts": {
+      "filePath": "tests/email-tools-sent-save.test.ts",
+      "contentHash": "5cc287382cfba58e06b2bb763c589abe2e86a4b8d9cbe7e5bb9b8eb3092bc726",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "it",
+            "expect",
+            "vi",
+            "beforeEach"
+          ]
+        },
+        {
+          "source": "../src/tools/email-tools.js",
+          "specifiers": [
+            "emailTools"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 114,
+      "hasStructuralAnalysis": true
+    },
+    "tests/email-tools-thread.test.ts": {
+      "filePath": "tests/email-tools-thread.test.ts",
+      "contentHash": "6961a7d1eb28d3c2f305c37f7adbed16870f4acc15639541a130c6fb004e7b33",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "it",
+            "expect",
+            "vi",
+            "beforeEach"
+          ]
+        },
+        {
+          "source": "../src/tools/email-tools.js",
+          "specifiers": [
+            "emailTools"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 82,
+      "hasStructuralAnalysis": true
+    },
+    "tests/enroll-cli.test.ts": {
+      "filePath": "tests/enroll-cli.test.ts",
+      "contentHash": "08941c100724425141870a547db8168e470fc34f9b97db91e3f1d6cd42256510",
+      "functions": [
+        {
+          "name": "account",
+          "params": [
+            "user"
+          ],
+          "returnType": "ImapAccount",
+          "exported": false,
+          "lineCount": 5
+        },
+        {
+          "name": "setup",
+          "params": [
+            "accounts"
+          ],
+          "exported": false,
+          "lineCount": 15
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "expect",
+            "it",
+            "vi"
+          ]
+        },
+        {
+          "source": "../src/credentials/credential-backend.js",
+          "specifiers": [
+            "CredentialBackend"
+          ]
+        },
+        {
+          "source": "../src/credentials/credential-backend.js",
+          "specifiers": [
+            "credentialTarget",
+            "gmailClientSecretTarget"
+          ]
+        },
+        {
+          "source": "../src/credentials/credential-rotation.js",
+          "specifiers": [
+            "CredentialRollbackError",
+            "CredentialRotationOptions"
+          ]
+        },
+        {
+          "source": "../src/enroll.js",
+          "specifiers": [
+            "runEnrollmentCli",
+            "EnrollmentCliDependencies"
+          ]
+        },
+        {
+          "source": "../src/types/index.js",
+          "specifiers": [
+            "ImapAccount"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 254,
+      "hasStructuralAnalysis": true
+    },
+    "tests/env-credentials.test.ts": {
+      "filePath": "tests/env-credentials.test.ts",
+      "contentHash": "d48265c708da735df55fadfe4a16ee01f46a7dd912f92fbce5243a1ac33db37f",
+      "functions": [
+        {
+          "name": "account",
+          "params": [
+            "overrides"
+          ],
+          "returnType": "ImapAccount",
+          "exported": false,
+          "lineCount": 10
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "it",
+            "expect"
+          ]
+        },
+        {
+          "source": "../src/types/index.js",
+          "specifiers": [
+            "ImapAccount"
+          ]
+        },
+        {
+          "source": "../src/utils/env-credentials.js",
+          "specifiers": [
+            "assertCredentialsResolved",
+            "envVarName",
+            "envAccountKey"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 88,
+      "hasStructuralAnalysis": true
+    },
+    "tests/folder-tools-create.test.ts": {
+      "filePath": "tests/folder-tools-create.test.ts",
+      "contentHash": "37f8f67880cbcd2cbb7d8f1c61e41d2640e4f487d0f4787345ee3e7de97b1b01",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "it",
+            "expect",
+            "vi",
+            "beforeEach"
+          ]
+        },
+        {
+          "source": "../src/tools/folder-tools.js",
+          "specifiers": [
+            "folderTools"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 69,
+      "hasStructuralAnalysis": true
+    },
+    "tests/folder-tools-list.test.ts": {
+      "filePath": "tests/folder-tools-list.test.ts",
+      "contentHash": "a21ebb39b9a070228e48c866e94abee6ba53215af195f637d8f36c84e536f1c1",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "it",
+            "expect",
+            "vi",
+            "beforeEach"
+          ]
+        },
+        {
+          "source": "../src/tools/folder-tools.js",
+          "specifiers": [
+            "folderTools"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 50,
+      "hasStructuralAnalysis": true
+    },
+    "tests/folder-tools-status.test.ts": {
+      "filePath": "tests/folder-tools-status.test.ts",
+      "contentHash": "04814d53e5a5e40be0ddee1cbd243d7286ed098c271ccfd48fc7c952eeb9783e",
+      "functions": [
+        {
+          "name": "mailboxObject",
+          "params": [
+            "overrides"
+          ],
+          "exported": false,
+          "lineCount": 10
+        },
+        {
+          "name": "folderStatus",
+          "params": [
+            "overrides"
+          ],
+          "exported": false,
+          "lineCount": 8
+        },
+        {
+          "name": "runStatus",
+          "params": [],
+          "exported": false,
+          "lineCount": 4
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "it",
+            "expect",
+            "vi",
+            "beforeEach"
+          ]
+        },
+        {
+          "source": "../src/tools/folder-tools.js",
+          "specifiers": [
+            "folderTools"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 124,
+      "hasStructuralAnalysis": true
+    },
+    "tests/gmail-oauth-loopback.test.ts": {
+      "filePath": "tests/gmail-oauth-loopback.test.ts",
+      "contentHash": "41c6d130f54e972a6a4805bd76cf6164ae3fcbc52dfd836a218dff58e71d2057",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "expect",
+            "it",
+            "vi"
+          ]
+        },
+        {
+          "source": "../src/credentials/gmail-oauth-loopback.js",
+          "specifiers": [
+            "GMAIL_OAUTH_FAILURE_TEXT",
+            "GMAIL_OAUTH_SUCCESS_TEXT",
+            "runGmailOAuthLoopback"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 284,
+      "hasStructuralAnalysis": true
+    },
+    "tests/gmail-oauth-wire.test.ts": {
+      "filePath": "tests/gmail-oauth-wire.test.ts",
+      "contentHash": "7a5a08a4d667eaa0d3ad0616b51ee0c6875d5f215d4171dd63276f0efd008fe0",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "node:crypto",
+          "specifiers": [
+            "createHash"
+          ]
+        },
+        {
+          "source": "node:http",
+          "specifiers": [
+            "createServer"
+          ]
+        },
+        {
+          "source": "vitest",
+          "specifiers": [
+            "afterEach",
+            "describe",
+            "expect",
+            "it"
+          ]
+        },
+        {
+          "source": "../src/credentials/gmail-oauth-loopback.js",
+          "specifiers": [
+            "runGmailOAuthLoopback"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 89,
+      "hasStructuralAnalysis": true
+    },
+    "tests/gmail-token-exchange.test.ts": {
+      "filePath": "tests/gmail-token-exchange.test.ts",
+      "contentHash": "2b804482eabf35e398ad180ea614cceb6432ac5a9eec73b4d879fed54bab1bf4",
+      "functions": [
+        {
+          "name": "gmailAccount",
+          "params": [
+            "clientId"
+          ],
+          "returnType": "ImapAccount",
+          "exported": false,
+          "lineCount": 10
+        },
+        {
+          "name": "response",
+          "params": [
+            "status",
+            "body"
+          ],
+          "returnType": "Awaited<ReturnType<TokenFetch>>",
+          "exported": false,
+          "lineCount": 5
+        },
+        {
+          "name": "credentials",
+          "params": [
+            "values"
+          ],
+          "returnType": "CredentialBackend",
+          "exported": false,
+          "lineCount": 8
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "expect",
+            "it",
+            "vi"
+          ]
+        },
+        {
+          "source": "undici",
+          "specifiers": [
+            "Dispatcher"
+          ]
+        },
+        {
+          "source": "../src/types/index.js",
+          "specifiers": [
+            "ImapAccount"
+          ]
+        },
+        {
+          "source": "../src/credentials/credential-backend.js",
+          "specifiers": [
+            "CredentialBackend",
+            "SecretHandle"
+          ]
+        },
+        {
+          "source": "../src/credentials/gmail-token-exchange.js",
+          "specifiers": [
+            "createGmailAccessTokenExchange",
+            "TokenFetch"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 221,
+      "hasStructuralAnalysis": true
+    },
+    "tests/guarded-delete.test.ts": {
+      "filePath": "tests/guarded-delete.test.ts",
+      "contentHash": "6d56eedea19f769f3bc127e4ba98da043466aa6ad10e743f6addf980fd576b76",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "beforeEach",
+            "describe",
+            "it",
+            "expect",
+            "vi"
+          ]
+        },
+        {
+          "source": "../src/tools/guarded-delete-tools.js",
+          "specifiers": [
+            "guardedDeletion"
+          ]
+        },
+        {
+          "source": "../src/tools/email-tools.js",
+          "specifiers": [
+            "emailTools"
+          ]
+        },
+        {
+          "source": "../src/tools/spam-tools.js",
+          "specifiers": [
+            "spamTools"
+          ]
+        },
+        {
+          "source": "../src/services/imap-service.js",
+          "specifiers": [
+            "ImapService"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 68,
+      "hasStructuralAnalysis": true
+    },
+    "tests/html-to-markdown.test.ts": {
+      "filePath": "tests/html-to-markdown.test.ts",
+      "contentHash": "3ca71afaf241f7a059690cc9f7dcf0a5868f4766933406ea19f3c05a3932118b",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "it",
+            "expect"
+          ]
+        },
+        {
+          "source": "../src/services/html-to-markdown.js",
+          "specifiers": [
+            "htmlToMarkdown",
+            "normalizeWhitespace"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 84,
+      "hasStructuralAnalysis": true
+    },
+    "tests/imap-service-latest-no-search.test.ts": {
+      "filePath": "tests/imap-service-latest-no-search.test.ts",
+      "contentHash": "00c485afc2836934f4032e3cba0291aaaad1315af66547b78c7fc3aa93aa1c01",
+      "functions": [
+        {
+          "name": "makeClient",
+          "params": [
+            "overrides"
+          ],
+          "exported": false,
+          "lineCount": 16
+        },
+        {
+          "name": "serviceWith",
+          "params": [
+            "client"
+          ],
+          "exported": false,
+          "lineCount": 6
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "it",
+            "expect",
+            "vi",
+            "beforeEach"
+          ]
+        },
+        {
+          "source": "../src/services/imap-service.js",
+          "specifiers": [
+            "ImapService"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 104,
+      "hasStructuralAnalysis": true
+    },
+    "tests/imap-service-reconnect.test.ts": {
+      "filePath": "tests/imap-service-reconnect.test.ts",
+      "contentHash": "05963df0d8d280f6f63e0a061abf27df84615a63f5d69457673a82bf70d747b5",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "it",
+            "expect",
+            "beforeEach",
+            "vi"
+          ]
+        },
+        {
+          "source": "../src/services/imap-service.js",
+          "specifiers": [
+            "ImapService"
+          ]
+        },
+        {
+          "source": "../src/types/index.js",
+          "specifiers": [
+            "ImapAccount"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 85,
+      "hasStructuralAnalysis": true
+    },
+    "tests/imap-service-sent-save.test.ts": {
+      "filePath": "tests/imap-service-sent-save.test.ts",
+      "contentHash": "f2e11c59531d4d69a08ee24d09ea086a8f7b0f8770b9511ce2afdb51126e824c",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "it",
+            "expect",
+            "vi",
+            "beforeEach"
+          ]
+        },
+        {
+          "source": "../src/services/imap-service.js",
+          "specifiers": [
+            "ImapService"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 95,
+      "hasStructuralAnalysis": true
+    },
+    "tests/imap-service-special-use.test.ts": {
+      "filePath": "tests/imap-service-special-use.test.ts",
+      "contentHash": "41a9a8f27b64d428461857d606d844f6ec46a2c615dc6307829cdb9174492260",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "it",
+            "expect",
+            "vi",
+            "beforeEach"
+          ]
+        },
+        {
+          "source": "../src/services/imap-service.js",
+          "specifiers": [
+            "ImapService"
+          ]
+        },
+        {
+          "source": "../src/types/index.js",
+          "specifiers": [
+            "Folder"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 88,
+      "hasStructuralAnalysis": true
+    },
+    "tests/imap-service-tls-host.test.ts": {
+      "filePath": "tests/imap-service-tls-host.test.ts",
+      "contentHash": "4b885e68499915279f15116216d041275b6d4b3acee5b5e3d2c28f5eec5cd7a8",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "it",
+            "expect",
+            "vi",
+            "beforeEach"
+          ]
+        },
+        {
+          "source": "../src/services/imap-service.js",
+          "specifiers": [
+            "ImapService"
+          ]
+        },
+        {
+          "source": "../src/types/index.js",
+          "specifiers": [
+            "ImapAccount"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 54,
+      "hasStructuralAnalysis": true
+    },
+    "tests/imap-service.test.ts": {
+      "filePath": "tests/imap-service.test.ts",
+      "contentHash": "051e8061d6f6ac7671ec29e19e89f566f18d4db026bb415dfc6b4e9f7453bc8c",
+      "functions": [
+        {
+          "name": "createMockHeaders",
+          "params": [
+            "entries"
+          ],
+          "returnType": "Map<string, any>",
+          "exported": false,
+          "lineCount": 3
+        }
+      ],
+      "classes": [
+        {
+          "name": "MockImapFlow",
+          "methods": [
+            "connect",
+            "logout",
+            "list",
+            "mailboxOpen",
+            "getMailboxLock",
+            "search",
+            "fetch",
+            "fetchOne",
+            "messageFlagsAdd",
+            "messageFlagsRemove",
+            "messageDelete",
+            "messageMove",
+            "mailboxCreate",
+            "status",
+            "on"
+          ],
+          "properties": [
+            "connectMock",
+            "logoutMock",
+            "listMock",
+            "mailboxOpenMock",
+            "getMailboxLockMock",
+            "searchMock",
+            "fetchMock",
+            "fetchOneMock",
+            "messageFlagsAddMock",
+            "messageFlagsRemoveMock",
+            "messageDeleteMock",
+            "messageMoveMock",
+            "mailboxCreateMock",
+            "statusMock",
+            "usable",
+            "onMock"
+          ],
+          "exported": false,
+          "lineCount": 34
+        }
+      ],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "it",
+            "expect",
+            "beforeEach",
+            "vi"
+          ]
+        },
+        {
+          "source": "mailparser",
+          "specifiers": [
+            "simpleParser"
+          ]
+        },
+        {
+          "source": "../src/services/imap-service.js",
+          "specifiers": [
+            "ImapService"
+          ]
+        },
+        {
+          "source": "../src/types/index.js",
+          "specifiers": [
+            "ImapAccount"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 1229,
+      "hasStructuralAnalysis": true
+    },
+    "tests/mail-resource-limits.test.ts": {
+      "filePath": "tests/mail-resource-limits.test.ts",
+      "contentHash": "7882013f1cfe99eec6d413712b8cf3eda60626577b7b447c6d87fd04519d045b",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "it",
+            "expect",
+            "vi"
+          ]
+        },
+        {
+          "source": "../src/services/imap-service.js",
+          "specifiers": [
+            "ImapService"
+          ]
+        },
+        {
+          "source": "../src/utils/mail-resource-limits.js",
+          "specifiers": [
+            "MAX_MESSAGE_BYTES",
+            "materializeBoundedAttachments",
+            "assertMessageSize"
+          ]
+        },
+        {
+          "source": "../src/utils/pdf-preview.js",
+          "specifiers": [
+            "extractPdfPreview"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 31,
+      "hasStructuralAnalysis": true
+    },
+    "tests/mail-transport-proxy.test.ts": {
+      "filePath": "tests/mail-transport-proxy.test.ts",
+      "contentHash": "2f9b1efc93ef0d84c0d80daa19cdbf167b5ebf3a9f8dee93b3632cc8ef86256e",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "afterEach",
+            "beforeEach",
+            "describe",
+            "expect",
+            "it",
+            "vi"
+          ]
+        },
+        {
+          "source": "../src/utils/mail-proxy.js",
+          "specifiers": [
+            "resolveMailProxy"
+          ]
+        },
+        {
+          "source": "../src/services/imap-service.js",
+          "specifiers": [
+            "ImapService"
+          ]
+        },
+        {
+          "source": "../src/services/smtp-service.js",
+          "specifiers": [
+            "SmtpService"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 153,
+      "hasStructuralAnalysis": true
+    },
+    "tests/netease-cli.test.ts": {
+      "filePath": "tests/netease-cli.test.ts",
+      "contentHash": "ef2aa2dad11f33279323831b89b10e58bccfe46dc2f6c95a230cbc0ccb2d7413",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "it",
+            "expect",
+            "vi"
+          ]
+        },
+        {
+          "source": "../src/enroll.js",
+          "specifiers": [
+            "runEnrollmentCli"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 27,
+      "hasStructuralAnalysis": true
+    },
+    "tests/netease-enrollment.test.ts": {
+      "filePath": "tests/netease-enrollment.test.ts",
+      "contentHash": "3f8d87c76c0e346a31ed4fadb0a3049d68813a2f9388d365f8c8e782d3119e05",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "it",
+            "expect",
+            "vi"
+          ]
+        },
+        {
+          "source": "../src/credentials/account-enrollment.js",
+          "specifiers": [
+            "AccountEnrollmentService"
+          ]
+        },
+        {
+          "source": "../src/credentials/account-auth.js",
+          "specifiers": [
+            "AccountAuthResolver"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 24,
+      "hasStructuralAnalysis": true
+    },
+    "tests/node-engines.test.ts": {
+      "filePath": "tests/node-engines.test.ts",
+      "contentHash": "358c88bca5ee4bb21cead2de1fb9f836c1fdb0c6280fa1435f9928bbb077e379",
+      "functions": [
+        {
+          "name": "declaredFloor",
+          "params": [],
+          "returnType": "string",
+          "exported": false,
+          "lineCount": 8
+        },
+        {
+          "name": "runtimeDependencies",
+          "params": [],
+          "returnType": "Array<{ name: string; version: string; engines: string }>",
+          "exported": false,
+          "lineCount": 19
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "it",
+            "expect"
+          ]
+        },
+        {
+          "source": "fs",
+          "specifiers": [
+            "readFileSync"
+          ]
+        },
+        {
+          "source": "path",
+          "specifiers": [
+            "join"
+          ]
+        },
+        {
+          "source": "semver",
+          "specifiers": [
+            "semver"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 77,
+      "hasStructuralAnalysis": true
+    },
+    "tests/oauth-transport-lifecycle.test.ts": {
+      "filePath": "tests/oauth-transport-lifecycle.test.ts",
+      "contentHash": "97302ef54107cf27b9463a9127647133379db1e4d0eb4f2fde0c379c5fb47c9b",
+      "functions": [
+        {
+          "name": "installTransport",
+          "params": [
+            "fetchImpl"
+          ],
+          "exported": false,
+          "lineCount": 5
+        },
+        {
+          "name": "completeAuthorization",
+          "params": [
+            "authorizationUrl"
+          ],
+          "returnType": "Promise<void>",
+          "exported": false,
+          "lineCount": 7
+        },
+        {
+          "name": "abortingFetch",
+          "params": [],
+          "returnType": "typeof globalThis.fetch",
+          "exported": false,
+          "lineCount": 7
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "beforeEach",
+            "describe",
+            "expect",
+            "it",
+            "vi"
+          ]
+        },
+        {
+          "source": "../src/types/index.js",
+          "specifiers": [
+            "ImapAccount"
+          ]
+        },
+        {
+          "source": "../src/credentials/gmail-token-exchange.js",
+          "specifiers": [
+            "createGmailAccessTokenExchange"
+          ]
+        },
+        {
+          "source": "../src/credentials/gmail-oauth-loopback.js",
+          "specifiers": [
+            "runGmailOAuthLoopback"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 123,
+      "hasStructuralAnalysis": true
+    },
+    "tests/parse-raw-headers.test.ts": {
+      "filePath": "tests/parse-raw-headers.test.ts",
+      "contentHash": "53d3f912cfaf3daea787411c1b98ab8306bde379a1afe4c9a004fe6624a0db54",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "it",
+            "expect"
+          ]
+        },
+        {
+          "source": "../src/services/imap-service.js",
+          "specifiers": [
+            "parseRawHeaders"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 39,
+      "hasStructuralAnalysis": true
+    },
+    "tests/phase1-contract-hardening.test.ts": {
+      "filePath": "tests/phase1-contract-hardening.test.ts",
+      "contentHash": "a779b4b4513c5754673651953fe22d6d03cd05663b164589eb5b1914a4f6af53",
+      "functions": [
+        {
+          "name": "read",
+          "params": [
+            "path"
+          ],
+          "exported": false,
+          "lineCount": 1
+        },
+        {
+          "name": "account",
+          "params": [
+            "overrides"
+          ],
+          "returnType": "ImapAccount",
+          "exported": false,
+          "lineCount": 10
+        },
+        {
+          "name": "input",
+          "params": [],
+          "returnType": "SafeSendInput",
+          "exported": false,
+          "lineCount": 10
+        },
+        {
+          "name": "stored",
+          "params": [
+            "service",
+            "draftId"
+          ],
+          "returnType": "Record<string, unknown>",
+          "exported": false,
+          "lineCount": 2
+        },
+        {
+          "name": "expectTombstone",
+          "params": [
+            "service",
+            "draftId",
+            "state"
+          ],
+          "exported": false,
+          "lineCount": 5
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "node:fs",
+          "specifiers": [
+            "readFileSync"
+          ]
+        },
+        {
+          "source": "node:path",
+          "specifiers": [
+            "join"
+          ]
+        },
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "expect",
+            "it",
+            "vi"
+          ]
+        },
+        {
+          "source": "../src/services/account-manager.js",
+          "specifiers": [
+            "assertProviderAccountAuth"
+          ]
+        },
+        {
+          "source": "../src/services/safe-send-service.js",
+          "specifiers": [
+            "SafeSendService",
+            "SafeSendInput"
+          ]
+        },
+        {
+          "source": "../src/types/index.js",
+          "specifiers": [
+            "ImapAccount"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 107,
+      "hasStructuralAnalysis": true
+    },
+    "tests/provider-endpoint-binding.test.ts": {
+      "filePath": "tests/provider-endpoint-binding.test.ts",
+      "contentHash": "68a5c073fce90c27de4ebbfb859d9d145408bc4e3947bc30b642defc2390df91",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "it",
+            "expect",
+            "vi"
+          ]
+        },
+        {
+          "source": "../src/credentials/account-auth.js",
+          "specifiers": [
+            "AccountAuthResolver",
+            "accountForPersistence"
+          ]
+        },
+        {
+          "source": "../src/credentials/credential-backend.js",
+          "specifiers": [
+            "credentialTarget"
+          ]
+        },
+        {
+          "source": "../src/types/index.js",
+          "specifiers": [
+            "ImapAccount"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 25,
+      "hasStructuralAnalysis": true
+    },
+    "tests/provider-proxy-routing.test.ts": {
+      "filePath": "tests/provider-proxy-routing.test.ts",
+      "contentHash": "d5fa14257f942ef284534a675d40b5eb8dde56afb6ea1e93aec38145e6e1814f",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "expect",
+            "it",
+            "vi"
+          ]
+        },
+        {
+          "source": "../src/utils/mail-proxy.js",
+          "specifiers": [
+            "resolveMailProxy"
+          ]
+        },
+        {
+          "source": "../src/utils/gmail-proxy.js",
+          "specifiers": [
+            "resolveGmailProxy"
+          ]
+        },
+        {
+          "source": "../src/credentials/proxy-fetch.js",
+          "specifiers": [
+            "createProxyAwareFetch"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 47,
+      "hasStructuralAnalysis": true
+    },
+    "tests/proxy-fetch.test.ts": {
+      "filePath": "tests/proxy-fetch.test.ts",
+      "contentHash": "87ee60743b262a5b52002632836796732058ba6d534dcf948b99fd1c264e8ee3",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "expect",
+            "it",
+            "vi"
+          ]
+        },
+        {
+          "source": "undici",
+          "specifiers": [
+            "Dispatcher"
+          ]
+        },
+        {
+          "source": "../src/credentials/proxy-fetch.js",
+          "specifiers": [
+            "createProxyAwareFetch"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 77,
+      "hasStructuralAnalysis": true
+    },
+    "tests/public-release-surface.test.ts": {
+      "filePath": "tests/public-release-surface.test.ts",
+      "contentHash": "8acc5c923597f434ae82194c02aa992f9a4760603481b3a3ae45903b791e98ec",
+      "functions": [
+        {
+          "name": "read",
+          "params": [
+            "path"
+          ],
+          "returnType": "string",
+          "exported": false,
+          "lineCount": 1
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "node:fs",
+          "specifiers": [
+            "readFileSync"
+          ]
+        },
+        {
+          "source": "node:path",
+          "specifiers": [
+            "join"
+          ]
+        },
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "expect",
+            "it"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 139,
+      "hasStructuralAnalysis": true
+    },
+    "tests/safe-send-memory.test.ts": {
+      "filePath": "tests/safe-send-memory.test.ts",
+      "contentHash": "dce026230ec2761d8fd77c172f35bfb512e9decb726582e23ebf355a5366fa7a",
+      "functions": [
+        {
+          "name": "input",
+          "params": [],
+          "exported": false,
+          "lineCount": 1
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "it",
+            "expect",
+            "vi",
+            "afterEach"
+          ]
+        },
+        {
+          "source": "../src/services/safe-send-service.js",
+          "specifiers": [
+            "SafeSendService"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 24,
+      "hasStructuralAnalysis": true
+    },
+    "tests/safe-send-service.test.ts": {
+      "filePath": "tests/safe-send-service.test.ts",
+      "contentHash": "f9386e8c223a90b146aeae57bff4399537a04c0a183158854c423739070c656d",
+      "functions": [
+        {
+          "name": "makeInput",
+          "params": [],
+          "returnType": "SafeSendInput",
+          "exported": false,
+          "lineCount": 22
+        },
+        {
+          "name": "harness",
+          "params": [
+            "executor",
+            "ttlMs"
+          ],
+          "exported": false,
+          "lineCount": 11
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "expect",
+            "it",
+            "vi"
+          ]
+        },
+        {
+          "source": "../src/services/safe-send-service.js",
+          "specifiers": [
+            "SafeSendService",
+            "SafeSendExecutor",
+            "SafeSendInput"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 188,
+      "hasStructuralAnalysis": true
+    },
+    "tests/safe-send-tools.test.ts": {
+      "filePath": "tests/safe-send-tools.test.ts",
+      "contentHash": "66a351f558c3c41924eacef2368568f985eeb253d6b2b3233f45c3a89c865ece",
+      "functions": [
+        {
+          "name": "harness",
+          "params": [
+            "options"
+          ],
+          "exported": false,
+          "lineCount": 48
+        },
+        {
+          "name": "json",
+          "params": [
+            "result"
+          ],
+          "exported": false,
+          "lineCount": 1
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "expect",
+            "it",
+            "vi"
+          ]
+        },
+        {
+          "source": "../src/tools/safe-send-tools.js",
+          "specifiers": [
+            "safeSendTools"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 183,
+      "hasStructuralAnalysis": true
+    },
+    "tests/search-folders.test.ts": {
+      "filePath": "tests/search-folders.test.ts",
+      "contentHash": "70e8f18d98d406dc4977fac3821d70208444858d54c3e916030b4aa2d016c689",
+      "functions": [
+        {
+          "name": "f",
+          "params": [
+            "name",
+            "opts"
+          ],
+          "returnType": "Folder",
+          "exported": false,
+          "lineCount": 9
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "it",
+            "expect"
+          ]
+        },
+        {
+          "source": "../src/utils/search-folders.js",
+          "specifiers": [
+            "selectSearchFolders",
+            "isNonSelectable"
+          ]
+        },
+        {
+          "source": "../src/types/index.js",
+          "specifiers": [
+            "Folder"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 88,
+      "hasStructuralAnalysis": true
+    },
+    "tests/serialized-array-input.test.ts": {
+      "filePath": "tests/serialized-array-input.test.ts",
+      "contentHash": "81ec0745c003bf45aaf381fdd244c53d92acc9124d3c8f4da38e20ffa5474431",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "it",
+            "expect",
+            "vi",
+            "beforeEach",
+            "afterEach"
+          ]
+        },
+        {
+          "source": "zod",
+          "specifiers": [
+            "z"
+          ]
+        },
+        {
+          "source": "zod/v4-mini",
+          "specifiers": [
+            "toJSONSchema"
+          ]
+        },
+        {
+          "source": "../src/utils/array-input.js",
+          "specifiers": [
+            "parseSerializedArray"
+          ]
+        },
+        {
+          "source": "../src/services/smtp-service.js",
+          "specifiers": [
+            "SmtpService"
+          ]
+        },
+        {
+          "source": "../src/tools/email-tools.js",
+          "specifiers": [
+            "emailTools"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 264,
+      "hasStructuralAnalysis": true
+    },
+    "tests/setup-session.test.ts": {
+      "filePath": "tests/setup-session.test.ts",
+      "contentHash": "df6024b2808ec686cd1d6df31b56b4e1a1b6aa20b2b9813bf51b46f9806aeaf1",
+      "functions": [
+        {
+          "name": "request",
+          "params": [
+            "path",
+            "method",
+            "token",
+            "extraHeaders",
+            "bodyOverride"
+          ],
+          "exported": false,
+          "lineCount": 13
+        },
+        {
+          "name": "requestWithHostHeader",
+          "params": [
+            "path",
+            "method",
+            "token",
+            "host"
+          ],
+          "returnType": "Promise<Response>",
+          "exported": false,
+          "lineCount": 23
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "afterAll",
+            "beforeAll",
+            "beforeEach",
+            "describe",
+            "expect",
+            "it",
+            "vi"
+          ]
+        },
+        {
+          "source": "node:http",
+          "specifiers": [
+            "httpRequest",
+            "Server"
+          ]
+        },
+        {
+          "source": "../src/web/server.js",
+          "specifiers": [
+            "WebUIServer"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 206,
+      "hasStructuralAnalysis": true
+    },
+    "tests/setup-ui-xss.test.ts": {
+      "filePath": "tests/setup-ui-xss.test.ts",
+      "contentHash": "7f2cd998e80b042bb020d0ab14891d27ada9f09442c888eb8ccdb8647a7df8b2",
+      "functions": [
+        {
+          "name": "fixture",
+          "params": [],
+          "exported": false,
+          "lineCount": 9
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "it",
+            "expect",
+            "vi"
+          ]
+        },
+        {
+          "source": "node:fs",
+          "specifiers": [
+            "readFileSync"
+          ]
+        },
+        {
+          "source": "node:vm",
+          "specifiers": [
+            "runInNewContext"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 54,
+      "hasStructuralAnalysis": true
+    },
+    "tests/spam-service.test.ts": {
+      "filePath": "tests/spam-service.test.ts",
+      "contentHash": "c9b8d1944cc1294ebc802926f931f942b2c53ca376afce654fa2fbb1c14388c1",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "it",
+            "expect",
+            "beforeEach"
+          ]
+        },
+        {
+          "source": "../src/services/spam-service.js",
+          "specifiers": [
+            "SpamService"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 310,
+      "hasStructuralAnalysis": true
+    },
+    "tests/tool-access.test.ts": {
+      "filePath": "tests/tool-access.test.ts",
+      "contentHash": "c94f9a19a6783a9d9837ae3c25c9b5f9d6dca3da426b33b440bcb96033517d26",
+      "functions": [
+        {
+          "name": "registeredToolsFor",
+          "params": [
+            "env"
+          ],
+          "returnType": "string[]",
+          "exported": false,
+          "lineCount": 21
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "it",
+            "expect",
+            "afterEach"
+          ]
+        },
+        {
+          "source": "../src/tools/index.js",
+          "specifiers": [
+            "registerTools",
+            "resolveEnabledTools",
+            "READ_ONLY_TOOLS"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 201,
+      "hasStructuralAnalysis": true
+    },
+    "tests/tools.test.ts": {
+      "filePath": "tests/tools.test.ts",
+      "contentHash": "a3c0e225b9e262394cd269cc58803b70212227044f647e7b6483bebe5ed8b0e0",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "it",
+            "expect",
+            "vi",
+            "beforeEach"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 103,
+      "hasStructuralAnalysis": true
+    },
+    "tests/unified-search-pagination.test.ts": {
+      "filePath": "tests/unified-search-pagination.test.ts",
+      "contentHash": "62870ac1e8786007f1f712ff502396a1fbb4dfd114c1a992ded84a053c15d0ad",
+      "functions": [
+        {
+          "name": "missingUidNextFixture",
+          "params": [
+            "uids",
+            "metadata"
+          ],
+          "exported": false,
+          "lineCount": 21
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "it",
+            "expect",
+            "vi"
+          ]
+        },
+        {
+          "source": "../src/services/imap-service.js",
+          "specifiers": [
+            "ImapService"
+          ]
+        },
+        {
+          "source": "../src/tools/unified-search-tools.js",
+          "specifiers": [
+            "unifiedSearchTools"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 199,
+      "hasStructuralAnalysis": true
+    },
+    "tests/unified-search.test.ts": {
+      "filePath": "tests/unified-search.test.ts",
+      "contentHash": "a50d759576575fca94be1a1e85da78f11734ac89550e1466b4d21df00fad92d5",
+      "functions": [
+        {
+          "name": "message",
+          "params": [
+            "uid",
+            "date"
+          ],
+          "exported": false,
+          "lineCount": 1
+        },
+        {
+          "name": "setup",
+          "params": [
+            "timeout",
+            "configured"
+          ],
+          "exported": false,
+          "lineCount": 11
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "it",
+            "expect",
+            "vi"
+          ]
+        },
+        {
+          "source": "../src/tools/unified-search-tools.js",
+          "specifiers": [
+            "unifiedSearchTools"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 69,
+      "hasStructuralAnalysis": true
+    },
+    "tests/web-server-accounts.test.ts": {
+      "filePath": "tests/web-server-accounts.test.ts",
+      "contentHash": "51bfd1d18dfd063fcde94e05ab8e86c457de8ec9712b199c283351bc55de7a0e",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "it",
+            "expect",
+            "beforeAll",
+            "afterAll"
+          ]
+        },
+        {
+          "source": "net",
+          "specifiers": [
+            "AddressInfo"
+          ]
+        },
+        {
+          "source": "http",
+          "specifiers": [
+            "Server"
+          ]
+        },
+        {
+          "source": "../src/web/server.js",
+          "specifiers": [
+            "WebUIServer"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 91,
+      "hasStructuralAnalysis": true
+    },
+    "tests/web-server-hardening.test.ts": {
+      "filePath": "tests/web-server-hardening.test.ts",
+      "contentHash": "38b87101bc1c5e12f996d2f62977e814d768cc2efcb710cde27eee9845b9bc04",
+      "functions": [
+        {
+          "name": "decryptedAccount",
+          "params": [
+            "over"
+          ],
+          "exported": false,
+          "lineCount": 11
+        },
+        {
+          "name": "request",
+          "params": [
+            "opts"
+          ],
+          "exported": false,
+          "lineCount": 21
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "it",
+            "expect",
+            "beforeAll",
+            "afterAll",
+            "vi"
+          ]
+        },
+        {
+          "source": "http",
+          "specifiers": [
+            "http"
+          ]
+        },
+        {
+          "source": "net",
+          "specifiers": [
+            "AddressInfo"
+          ]
+        },
+        {
+          "source": "http",
+          "specifiers": [
+            "Server"
+          ]
+        },
+        {
+          "source": "../src/web/server.js",
+          "specifiers": [
+            "WebUIServer"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 143,
+      "hasStructuralAnalysis": true
+    },
+    "tests/windows-credential-backend.test.ts": {
+      "filePath": "tests/windows-credential-backend.test.ts",
+      "contentHash": "7c78b27919bc09c13bb281c1fc71edfe17517e5420c1803eb9e86fcfc063b63d",
+      "functions": [],
+      "classes": [
+        {
+          "name": "FakeNative",
+          "methods": [
+            "credRead",
+            "credWrite",
+            "credDelete",
+            "credFree"
+          ],
+          "properties": [
+            "readResult",
+            "readError",
+            "writeResult",
+            "deleteResult",
+            "reads",
+            "writes",
+            "deletes",
+            "frees"
+          ],
+          "exported": false,
+          "lineCount": 16
+        }
+      ],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "describe",
+            "expect",
+            "it"
+          ]
+        },
+        {
+          "source": "../src/credentials/windows-credential-backend.js",
+          "specifiers": [
+            "WinCredNative",
+            "WinCredReadResult",
+            "WinCredWriteInput"
+          ]
+        },
+        {
+          "source": "../src/credentials/windows-credential-backend.js",
+          "specifiers": [
+            "CRED_MAX_CREDENTIAL_BLOB_SIZE",
+            "CRED_PERSIST_LOCAL_MACHINE",
+            "CRED_TYPE_GENERIC",
+            "ERROR_NOT_FOUND",
+            "UnavailableCredentialBackend",
+            "WindowsCredentialBackend"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 87,
+      "hasStructuralAnalysis": true
+    },
+    "tests/windows-system-proxy.test.ts": {
+      "filePath": "tests/windows-system-proxy.test.ts",
+      "contentHash": "c48eaf05a66a15c259e1e1ce1630a11f03e9389cb4ce8de45763bad3fb60757e",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest",
+          "specifiers": [
+            "afterEach",
+            "describe",
+            "expect",
+            "it",
+            "vi"
+          ]
+        },
+        {
+          "source": "node:child_process",
+          "specifiers": [
+            "execFileSync"
+          ]
+        },
+        {
+          "source": "../src/utils/windows-system-proxy.js",
+          "specifiers": [
+            "windowsLoopbackProxy"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 24,
+      "hasStructuralAnalysis": true
+    },
+    "tsconfig.json": {
+      "filePath": "tsconfig.json",
+      "contentHash": "a24c371abbbd70c72ba5e9d3cb3adebcab25814676fa66b02b304ed282cb6977",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 21,
+      "hasStructuralAnalysis": false
+    },
+    "vitest.config.ts": {
+      "filePath": "vitest.config.ts",
+      "contentHash": "c4fe2ae3e694fde5b4e14ff8fbd155589e55f0f8c9798eccb11e46feb3293b1f",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vitest/config",
+          "specifiers": [
+            "defineConfig"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 22,
+      "hasStructuralAnalysis": true
+    }
+  }
+}

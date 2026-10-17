@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "collectedAtUtc": "2026-10-17T05:33:30Z",
+  "repository": {
+    "url": "https://github.com/ertutio/mail-agent-mcp",
+    "isPrivate": false,
+    "visibility": "PUBLIC"
+  },
+  "githubMain": {
+    "ref": "main",
+    "commitSha": "96f8864fa5fb88d0d28e921ced7b8e8ad644d7ca",
+    "treeSha": "f1755af6f8c67d7d40ca22ea1da870e542e7d993",
+    "recursiveTree": {
+      "truncated": false,
+      "entryCountIncludingDirectories": 167
+    }
+  },
+  "localSnapshot": {
+    "branch": "codex/audit-remediation-plan",
+    "commitSha": "524e1b34c89ebe2834a27b948371227f142d346d",
+    "treeSha": "f1755af6f8c67d7d40ca22ea1da870e542e7d993",
+    "localOriginMain": "e47a74c6375c54a4af3b8e2e522262b4c156f3ef",
+    "liveMainCommitObjectPresentLocally": false
+  },
+  "comparison": {
+    "rootTreeShaEqual": true,
+    "allTrackedTreeContentIdentical": true,
+    "localBlobCount": 146,
+    "method": "Read GitHub recursive tree metadata with gh api and compared root tree plus selected path object IDs with local git ls-tree HEAD. The identical root tree SHA proves all tracked tree entries match; no fetch or ref update was performed.",
+    "selectedEntries": [
+      {
+        "path": "src",
+        "type": "tree",
+        "sha": "108b581ae11b3be7ba52692e48638ebf4a5bce0e"
+      },
+      {
+        "path": "tests",
+        "type": "tree",
+        "sha": "df4a71cf2ea9c506d3b7d269e201102657644f32"
+      },
+      {
+        "path": "package-lock.json",
+        "type": "blob",
+        "sha": "c25e68d0ffb35ef9031a2831336ae4ece685333b"
+      },
+      {
+        "path": "package.json",
+        "type": "blob",
+        "sha": "cecf0db27cc2d5c9dacbf05a1df1ecdd75ce442c"
+      },
+      {
+        "path": "README.md",
+        "type": "blob",
+        "sha": "392e99b274936a23c39e3c6e0caf0d422ca8d4ef"
+      },
+      {
+        "path": "README.en.md",
+        "type": "blob",
+        "sha": "8e3713cb55990e4c51d40347bccfbb8e0abdc75a"
+      },
+      {
+        "path": "docs/plans/audit-remediation-2026-10-15.md",
+        "type": "blob",
+        "sha": "dba5e5a552df6e0ad3e462aeed4833b135d4c1bb"
+      }
+    ]
+  }
+}
