@@ -252,3 +252,7 @@ git diff --check
 ## 许可证
 
 MIT，见 [LICENSE](LICENSE)。保留原项目及其上游贡献者署名。
+
+## 持续开发入口
+
+基于原计划 PR #3 的连续总任务见 [开发路线](docs/plans/development-roadmap.md)，当前游标及已交付范围见 [进度记录](docs/plans/development-progress.md)，验证方式见 [验收约定](docs/acceptance.md)。实现代理先读 AGENTS.md；每个行为单元验证并保存/开 PR 后继续下一项就绪工作。真实邮箱、部署和发布保持各自授权门槛。
