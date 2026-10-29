@@ -5,6 +5,7 @@ import { program } from 'commander';
 import { promises as fs } from 'fs';
 import path from 'path';
 import os from 'os';
+import { resolveBundledServerPath } from './utils/install-paths.js';
 
 program
   .name('mail-agent-setup')
@@ -37,12 +38,14 @@ async function setupClaudeIntegration(): Promise<void> {
   try {
     const configPath = await getClaudeConfigPath();
     const configDir = path.dirname(configPath);
-    
+
     // Create config directory if it doesn't exist
     await fs.mkdir(configDir, { recursive: true });
-    
-    // Get current working directory (where the built files are)
-    const serverPath = path.join(process.cwd(), 'dist', 'index.js');
+
+    // T32 / ENG-03: locate the bundled server next to THIS module — never via
+    // process.cwd(), or an installer started from another directory registers
+    // a command pointing at the wrong installation.
+    const serverPath = resolveBundledServerPath(import.meta.url);
     
     let config: any = {};
     
@@ -84,7 +87,7 @@ async function setupClaudeIntegration(): Promise<void> {
     console.log(chalk.gray('    "mcpServers": {'));
     console.log(chalk.gray('      "imap": {'));
     console.log(chalk.gray('        "command": "node",'));
-    console.log(chalk.gray(`        "args": ["${path.join(process.cwd(), 'dist', 'index.js')}"]`));
+    console.log(chalk.gray(`        "args": ["${resolveBundledServerPath(import.meta.url)}"]`));
     console.log(chalk.gray('      }'));
     console.log(chalk.gray('    }'));
     console.log(chalk.gray('  }'));
