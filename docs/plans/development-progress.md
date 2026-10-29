@@ -9,9 +9,9 @@
 | 总任务状态 | `in_progress`：T01 已实现并开 PR 等评审，循环继续 |
 | 代码基线 | `main@96f8864fa5fb88d0d28e921ced7b8e8ad644d7ca`（2026-10-30 核对未变）；实施分支从该基线拉出 |
 | 原计划来源 | [PR #3](https://github.com/ertutio/mail-agent-mcp/pull/3)，head `eee1daf88b52d4969f96c117dc93219b6dd5c7f3`，2026-10-17；计划未合并不等于其中修复已实现 |
-| 当前检查点 / 子项 | C0 / T03（MAIL-09a）；T01/T02 review_pending |
-| next_action | T03：核对 moveEmail/bulkDelete/deleteEmail 与三个调用者（email-tools、guarded-delete-tools 等）的 MOVE 能力门禁；用无 MOVE 能力（无 UIDPLUS）的合成服务器复现「COPY 失败后删除回退」在写前未被拒绝的 FAIL，再实现安全 MOVE 门禁（无原生 MOVE 先拒绝；等效实现须 COPY 明确成功且精确删除能力成立才删，绝不沿用危险库回退）。 |
-| 本子项通过条件 | 三个应用调用者在写前拒绝不安全 MOVE 路径；T01/T03/T04/T05 在安全删除集成点联合验收仍保留。 |
+| 当前检查点 / 子项 | C0 / T04（MAIL-09b）；T01/T02/T03 review_pending |
+| next_action | T04：核对 deleteEmail/bulkDelete 的 messageDelete 路径（Trash 内永久删除）与 UIDPLUS 能力；用无 UIDPLUS 服务器复现「普通 EXPUNGE 清除确认集合外已 \\Deleted UID」的 FAIL，再实现永久删除精确能力门禁（UIDPLUS/已验证 rev2 等效能力在旗标前核实；UID7 不清除 UID9；拒绝路径零写）。 |
+| 本子项通过条件 | 永久删除不影响确认集合外已 Deleted UID；拒绝路径零写；T01/T03/T04/T05 在安全删除集成点联合验收仍保留。 |
 | 全局阻塞 | 无已确认阻断所有核心实现的条件；T33/T34/T36各自有原门控，真实服务商验证另需明确授权 |
 
 ## 已交付与证据边界
@@ -56,6 +56,7 @@
 | 计划初始化 / ready | 文档重构，未修改业务 | 当前计划PR | 原编号/依赖保留及文档静态检查；产品检查未运行 | 启动实现后执行T01具体动作并更新游标。 |
 | T01 / review_pending | `selectFolder` 改走 `getMailboxLock` 锁协议并返回稳定 `FolderSnapshot`（纯值+flags/permanentFlags数组副本）；handler 输出形状不变 | `fix/t01-folder-status-lock` @ `1a8f612`，[PR #5](https://github.com/ertutio/mail-agent-mcp/pull/5)，基线 main@96f8864 | 反例（同账户 INBOX/Archive 同UID 7 不同UIDVALIDITY，gate 暂停持锁后）：修复前 UID 命令 selection=Archive（FAIL），修复后保持 INBOX 且 B 等 `lock:released:INBOX` 后才 `select:Archive`；快照与活跃引用双向隔离；SELECT 失败不占锁、队列可继续。用例 `T01-LOCK-{READ,FLAGS,MOVE,DELETE}`、`T01-SNAPSHOT-01`、`T01-LOCK-FAIL-01`（tests/folder-status-lock-concurrency.test.ts）。lint/build/check:secrets 通过；全量 668 passed/1 skipped（browser-account-removal 首跑一次 ENOTEMPTY 临时目录竞争，单独重跑×2 与全量重跑均绿，与本改动无关）；folder-tools-status 7 例不变通过 | 评审等待中；接口变化：`selectFolder` 返回 `Promise<any>`→`Promise<FolderSnapshot>`，flags 由 Set 变数组副本，唯一生产调用者兼容。合并后跑受影响范围复验。next：T02（游标已更新） |
 | T02 / review_pending | 三个 ImapFlow 构造点共用 `imapTransportPolicy`：tls→隐式 TLS；明文账户→`secure:false, doSTARTTLS:true` 必需 STARTTLS，失败于 authenticate 前关闭 | `fix/t02-starttls-policy` @ `93c3118`，[PR #6](https://github.com/ertutio/mail-agent-mcp/pull/6)，基线 main@96f8864 | 字节级（真实 imapflow + 合成 localhost 服务器，tests/imap-starttls-policy.test.ts）：修复前 STARTTLS 被拒场景凭据明文过线（authReachedWire=true，FAIL），修复后两场景（无 STARTTLS/被拒）线上零 LOGIN/AUTHENTICATE 字节且 connect 以 STARTTLS 错误失败；配置级 T02-POLICY-IMPLICIT/STARTTLS 固定三入口同策略。全量 666 passed/1 skipped；lint/build/check:secrets 通过；git diff --check 干净 | 评审等待中；兼容变化：tls:false 且服务器无 STARTTLS 时连接失败（安全收紧，bridge 完全无 STARTTLS 的例外按原计划留待单独决策）。完整 STARTTLS 升级成功路径未做字节级验证（库流程+配置级覆盖，见 PR #6）。next：T03（游标已更新） |
+| T03 / review_pending | 三个写路径共用 `assertNativeMoveCapability`（含 IMAP4rev2 折叠语义）：moveEmail 在目的文件夹创建前、deleteEmail/bulkDelete 在首个分块前拒绝无 MOVE 服务器的移动；bulkDelete 循环内重连后复查 | `fix/t03-move-gate` @ `ce26d04`，[PR #7](https://github.com/ertutio/mail-agent-mcp/pull/7)，基线 main@96f8864 | 反例（capability map 去 MOVE）：修复前三例继续调用 messageMove（FAIL，库将走 COPY+EXPUNGE），修复后以 /MOVE/ 错误拒绝且零写调用；T03-MOVE-GATE-OK 固定有 MOVE 行为不变；T03-TRASH-UNAFFECTED 固定永久删除不受此门禁（归 T04）。全量 667 passed/1 skipped；lint/build/check:secrets/diff --check 通过 | 评审等待中；兼容变化：无 MOVE 服务器移动报错零改动（安全收紧）。与 T01 的合并顺序需协调：后合并方需在 folder-status-lock-concurrency.test.ts 的 mock 上补 capabilities。next：T04（游标已更新） |
 
 每个子项保留：基线与修复SHA、具体用例/输入、缺陷前FAIL/修复后PASS、相邻回归、精确副作用/零副作用断言、命令或run URL、环境/fixture、报告位置、失败/跳过/缓存/未执行、接口/兼容变化。进度只放必要摘要，凭据、真实邮件和完整日志不入文档。
 
