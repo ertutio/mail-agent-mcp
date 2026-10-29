@@ -259,17 +259,19 @@ export class WebUIServer {
         
         // Try to connect
         await this.imapService.connect(testAccount);
-        
-        // Get folder list to verify connection works
-        const folders = await this.imapService.listFolders(testAccount.id);
-        
-        // Disconnect
-        await this.imapService.disconnect(testAccount.id);
-        
-        res.json({ 
-          success: true, 
-          folders: folders.map(f => f.name) 
-        });
+
+        // Owner cleanup (T18 / BUG-SEC-A1): the temp connection is owned by
+        // this endpoint — a failing folder LIST must still disconnect it, or
+        // the synthetic test-<id> connection leaks in the service map.
+        try {
+          const folders = await this.imapService.listFolders(testAccount.id);
+          res.json({
+            success: true,
+            folders: folders.map(f => f.name)
+          });
+        } finally {
+          await this.imapService.disconnect(testAccount.id);
+        }
       } catch (error) {
         res.status(400).json({ 
           success: false, 

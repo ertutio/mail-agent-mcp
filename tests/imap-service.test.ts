@@ -9,6 +9,7 @@ const SYNTHETIC_PASSWORD_1 = ["passw", "ord123"].join('');
 class MockImapFlow {
   public connectMock = vi.fn().mockResolvedValue(undefined);
   public logoutMock = vi.fn().mockResolvedValue(undefined);
+  public closeMock = vi.fn();
   public listMock = vi.fn().mockResolvedValue([]);
   public mailboxOpenMock = vi.fn().mockResolvedValue({});
   public getMailboxLockMock = vi.fn().mockResolvedValue({ release: vi.fn() });
@@ -58,6 +59,7 @@ class MockImapFlow {
 
   connect() { return this.connectMock(); }
   logout() { return this.logoutMock(); }
+  close() { return this.closeMock(); }
   list() { return this.listMock(); }
   mailboxOpen(name: string) { return this.mailboxOpenMock(name); }
   getMailboxLock(name: string) { return this.getMailboxLockMock(name); }
@@ -85,6 +87,7 @@ vi.mock('imapflow', () => {
         // Bind methods
         this.connect = mockInstance.connect.bind(mockInstance);
         this.logout = mockInstance.logout.bind(mockInstance);
+        this.close = mockInstance.close.bind(mockInstance);
         this.list = mockInstance.list.bind(mockInstance);
         this.mailboxOpen = mockInstance.mailboxOpen.bind(mockInstance);
         this.getMailboxLock = mockInstance.getMailboxLock.bind(mockInstance);
@@ -1381,4 +1384,61 @@ describe('ImapService', () => {
       expect(mockInstance.trashMessages.get(9)).toBe('msg-9');
     });
   });
+  // T18 / BUG-SEC-A1: the temp client in testConnection is owned by the
+  // method — LIST or STATUS failing must still end it (logout, with a hard
+  // close fallback), and cleanup must not mask the first error.
+  describe('T18: testConnection owner cleanup', () => {
+    it('T18-LIST-FAIL-CLEANUP: a failing LIST still logs the temp client out', async () => {
+      mockInstance.listMock.mockRejectedValue(new Error('LIST failed'));
+      const result = await imapService.testConnection(mockAccount);
+      expect(result.success).toBe(false);
+      expect(result.error).toMatch(/LIST failed/);
+      expect(mockInstance.logoutMock).toHaveBeenCalled();
+    });
+
+
+    it('T18R-DOUBLE-FAIL-CLOSE: LIST and logout both failing still hard-closes the client', async () => {
+      mockInstance.listMock.mockRejectedValue(new Error('LIST failed'));
+      mockInstance.logoutMock.mockRejectedValue(new Error('logout failed'));
+
+      const result = await imapService.testConnection(mockAccount);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toMatch(/LIST failed/);   // first error preserved
+      expect(mockInstance.closeMock).toHaveBeenCalled(); // real close happened
+    });
+
+    it('T18R-DISCONNECT-CLOSE: a refused logout in disconnect falls back to close', async () => {
+      await imapService.connect(mockAccount);
+      mockInstance.logoutMock.mockRejectedValue(new Error('logout refused'));
+
+      await imapService.disconnect(mockAccount.id);
+
+      expect(mockInstance.closeMock).toHaveBeenCalled();
+      // The connection entry is gone: a second disconnect is a no-op.
+      mockInstance.logoutMock.mockClear();
+      await imapService.disconnect(mockAccount.id);
+      expect(mockInstance.logoutMock).not.toHaveBeenCalled();
+    });
+
+    it('T18-STATUS-FAIL-CLEANUP: a tolerated STATUS failure still ends the client', async () => {
+      // A missing INBOX is tolerated by design (inner catch), but the temp
+      // client must still be logged out through the owner cleanup.
+      mockInstance.listMock.mockResolvedValue([{ path: 'INBOX' }]);
+      mockInstance.statusMock.mockRejectedValue(new Error('STATUS failed'));
+      const result = await imapService.testConnection(mockAccount);
+      expect(result.success).toBe(true);
+      expect(mockInstance.logoutMock).toHaveBeenCalled();
+    });
+
+    it('T18-CLEANUP-NO-MASK: a logout failure does not mask the LIST error', async () => {
+      mockInstance.listMock.mockRejectedValue(new Error('LIST failed'));
+      mockInstance.logoutMock.mockRejectedValue(new Error('logout failed'));
+      const result = await imapService.testConnection(mockAccount);
+      expect(result.success).toBe(false);
+      expect(result.error).toMatch(/LIST failed/);
+      expect(result.error).not.toMatch(/logout failed/);
+    });
+  });
+
 });

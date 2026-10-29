@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 import type { AddressInfo } from 'net';
 import type { Server } from 'http';
 import { WebUIServer } from '../src/web/server.js';
@@ -38,6 +38,15 @@ const fakeAccountManager = {
       : undefined,
 };
 
+// T18 / BUG-SEC-A1: the temp connection the setup API opens for a connection
+// test is owned by the endpoint — a failing folder LIST must still disconnect
+// it, otherwise the synthetic test-<id> connection leaks in the service map.
+const imapMock = {
+  connect: vi.fn(async () => undefined),
+  listFolders: vi.fn(async () => { throw new Error('LIST failed'); }),
+  disconnect: vi.fn(async () => undefined),
+};
+
 let httpServer: Server;
 let baseUrl: string;
 let sessionToken: string;
@@ -45,7 +54,7 @@ let sessionToken: string;
 beforeAll(async () => {
   const wizard = new WebUIServer(0, {
     accountManager: fakeAccountManager as any,
-    imapService: {} as any,
+    imapService: imapMock as any,
   });
   await new Promise<void>((resolve) => {
     httpServer = wizard.getApp().listen(0, () => resolve());
@@ -86,5 +95,21 @@ describe('Web wizard credential exposure', () => {
     const body = JSON.parse(raw);
     expect(body.account.password).toBeUndefined();
     expect(body.account.smtp?.password).toBeUndefined();
+  });
+});
+
+describe('T18: setup API temp connection cleanup', () => {
+  it('T18-WEB-LIST-FAIL-CLEANUP: a failing LIST still disconnects the temp connection', async () => {
+    imapMock.disconnect.mockClear();
+    const res = await fetch(`${baseUrl}/api/test-connection`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-mail-agent-session': sessionToken },
+      body: JSON.stringify({ email: 'user@synth.test', password: 'unused', host: 'imap.synth.test', port: 993, tls: true }),
+    });
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toMatch(/LIST failed/);
+    expect(imapMock.connect).toHaveBeenCalledWith(expect.objectContaining({ id: expect.stringMatching(/^test-/) }));
+    expect(imapMock.disconnect).toHaveBeenCalledWith(expect.stringMatching(/^test-/));
   });
 });
