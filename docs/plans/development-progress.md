@@ -9,9 +9,9 @@
 | 总任务状态 | `in_progress`：T01 已实现并开 PR 等评审，循环继续 |
 | 代码基线 | `main@96f8864fa5fb88d0d28e921ced7b8e8ad644d7ca`（2026-10-30 核对未变）；实施分支从该基线拉出 |
 | 原计划来源 | [PR #3](https://github.com/ertutio/mail-agent-mcp/pull/3)，head `eee1daf88b52d4969f96c117dc93219b6dd5c7f3`，2026-10-17；计划未合并不等于其中修复已实现 |
-| 当前检查点 / 子项 | 下一就绪项待选：T09（#12→#13 链后）或 T23/T25/T26/T27；T01–T08、T16、T18–T19、T22、T24、T28–T32、T37 review_pending |
-| next_action | 从 T09（SA-07 存储读取失效，需 rebase 到 #12→#13 链）或 T23（MAIL-04 结构化地址）继续；两个都就绪，按当时评审状态选择，保持共享文件单一写入者。 |
-| 本子项通过条件 | 按所选子项的原完成标准执行（T09：ENOENT清空/损坏拒读明确失败；T23：Reply-To优先/完整To/Cc/排自身/去重）。 |
+| 当前检查点 / 子项 | C5 / T23（MAIL-04，独立）；T01–T09、T16、T18–T19、T22、T24、T28–T32、T37 review_pending |
+| next_action | T23：核对 reply-to 与地址模型（MAIL-04/E09：To整串/漏CC与Reply-To）；用多收件人原始消息复现「Reply-To 缺失/CC遗漏/包含自身/重复」FAIL，再实现结构化地址（Reply-To 优先、完整 To/Cc、排自身、去重）并以合成 MIME 金样断言。 |
+| 本子项通过条件 | Reply-To 优先、完整 To/Cc、排自身、去重；合成 MIME 金样断言。 |
 | 全局阻塞 | 无已确认阻断所有核心实现的条件；T33/T34/T36各自有原门控，真实服务商验证另需明确授权 |
 
 ## 已交付与证据边界
@@ -73,6 +73,7 @@
 | T29 / review_pending | 新增 getFolderUnseenStatus（命名 STATUS unseen，缺失/畸形/失败→显式 unknownReason）；imap_get_unread_count 改为 STATUS 计数，unknown 文件夹排除出 totalUnread 并列入 unknownFolders + complete 标志 | `fix/t29-unread-semantics` @ `e77e0c7`，[PR #21](https://github.com/ertutio/mail-agent-mcp/pull/21)，独立基线 main@96f8864 | 反例（4 例 handler 级）：修复前驱动元数据搜索且失败记 0（FAIL）；修复后零 searchEmails 调用、12000 未读如实报告、失败文件夹显式 unknown。全量 666 passed/1 skipped；lint/build/check:secrets/diff --check 通过 | 评审等待中；byFolder 不再含 0 占位（附加 complete/unknownFolders）。真实服务器省略 UNSEEN NOT RUN。next：T22（游标已更新） |
 | T22 / review_pending | sendEmail 冻结单一 MIME：composeRaw 字节经显式 envelope（to+cc+bcc）提交，同一 raw 归 Sent 副本；compose 失败整体失败；实证 raw 无 Bcc 头 | `fix/t22-frozen-mime` @ `8be6422`，[PR #22](https://github.com/ertutio/mail-agent-mcp/pull/22)，独立基线 main@96f8864 | 反例（3 例 mock transporter）：修复前 transport 收 mail options 无 raw、compose 失败静默跳过（FAIL）；修复后 raw 即提交字节且 messageId 锚定其 Message-ID，envelope 全覆盖而 raw 无密送地址，超限整体失败零调用。全量 665 passed/1 skipped；lint/build/check:secrets/diff --check 通过 | 评审等待中；compose 失败从静默跳过变为整体失败（行为变化）。T21/T23/T24 相邻独立。next：T24（游标已更新） |
 | T24 / review_pending | 转发 HTML 视图镜像 text 视图：转义附言 + 转义转发头块 + 原始 htmlContent 原样（cid 保留）；无 HTML 原件不产 HTML 部分 | `fix/t24-forward-views` @ `6eb73f7`，[PR #23](https://github.com/ertutio/mail-agent-mcp/pull/23)，独立基线 main@96f8864 | 反例（5 例）：修复前 HTML 缺附言/头、hostile 无转义（FAIL，3 例）；修复后齐备且 <script> 转义、中文保留、cid 原样、纯文本原件无 HTML 部分。全量 667 passed/1 skipped；lint/build/check:secrets/diff --check 通过 | 评审等待中；HTML 视图内容变化（正确性收紧）。next：T09 或 T23（游标已更新） |
+| T09 / review_pending | loadAccountsSync 载入校验（JSON数组+string id）与失效语义：任何失败先清空内存账户；ENOENT=空、其余错误读取显式拒绝；strict 写前拒绝保持原字节；构造容忍启动（浏览器 setup 恢复路径可用） | `fix/t09-store-load` @ `4b10e4b`，[PR #24](https://github.com/ertutio/mail-agent-mcp/pull/24)，父PR #13（堆叠 #12→#13→#24） | 反例（5 例 mocked fs）：修复前删存储后旧账户可见、损坏静默服务旧数据、addAccount 覆盖损坏字节、删除后新增复活旧记录（FAIL）；修复后全按契约。全量 682 passed/1 skipped；lint/build/check:secrets/diff --check 通过 | 评审等待中；损坏/拒读存储上的读取从静默变为显式错误（行为变化）。next：T23（游标已更新） |
 
 每个子项保留：基线与修复SHA、具体用例/输入、缺陷前FAIL/修复后PASS、相邻回归、精确副作用/零副作用断言、命令或run URL、环境/fixture、报告位置、失败/跳过/缓存/未执行、接口/兼容变化。进度只放必要摘要，凭据、真实邮件和完整日志不入文档。
 
