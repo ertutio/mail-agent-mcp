@@ -9,9 +9,9 @@
 | 总任务状态 | `in_progress`：T01 已实现并开 PR 等评审，循环继续 |
 | 代码基线 | `main@96f8864fa5fb88d0d28e921ced7b8e8ad644d7ca`（2026-10-30 核对未变）；实施分支从该基线拉出 |
 | 原计划来源 | [PR #3](https://github.com/ertutio/mail-agent-mcp/pull/3)，head `eee1daf88b52d4969f96c117dc93219b6dd5c7f3`，2026-10-17；计划未合并不等于其中修复已实现 |
-| 当前检查点 / 子项 | C3 / T18（BUG-SEC-A1，独立）；T01–T08、T16、T19、T37 review_pending |
-| next_action | T18：核对 Web LIST 失败、service testConnection、logout 失败与 stop 的资源拥有者清理路径（E07：LIST失败/stop未清连接）；用合成失败复现「连接未终止/首错被遮」FAIL，再补齐各入口结束路径并保留首错。 |
-| 本子项通过条件 | Web LIST 失败、testConnection、logout 失败、stop 都有结束路径；清理不遮首错；连接终止。 |
+| 当前检查点 / 子项 | C4 / T28（SA-05，独立）；T01–T08、T16、T18、T19、T37 review_pending |
+| next_action | T28：核对搜索输入校验（普通搜索与统一搜索入口）；用假日历/负数/零/超上限日期与 limit 复现「网络前未拒绝」FAIL，再实现真实日历、正整数 limit/上限/逆向范围在网络前拒绝，两个入口语义一致（UID 参数扩展另定范围）。 |
+| 本子项通过条件 | 真实日历、正整数 limit/上限/逆向范围在网络前拒绝；普通/跨账户入口一致。 |
 | 全局阻塞 | 无已确认阻断所有核心实现的条件；T33/T34/T36各自有原门控，真实服务商验证另需明确授权 |
 
 ## 已交付与证据边界
@@ -65,6 +65,7 @@
 | T08 / review_pending | setup API 账户 POST/PUT 的 HTTP 层验收：非法候选 400 且存储字节不变（写入前拒绝）、未知请求字段不入存储、SEC-01 会话门 403 保持、合法注册端到端通过 | `fix/t08-http-candidate-gate` @ `2ca230c`，[PR #13](https://github.com/ertutio/mail-agent-mcp/pull/13)，父PR #12（堆叠 T07→T08） | 用 main manager 跑同一测试：非法候选被持久化、PUT 改变存储（FAIL，4 例）；用 T07 接线后 5 例全过（真实 manager+临时配置+真实 HTTP）。全量 677 passed/1 skipped；lint/build/check:secrets/diff --check 通过 | 评审等待中；纯测试变更无行为改动。next：T16 独立提前（游标已更新），T09 排 #12→#13 链后 |
 | T16 / review_pending | CLI 注册（qq/gmail/netease 全系）注入登录验证：dependencies.authenticateOnly 或真实 ImapService 登录；失败走 persist 回滚，零持久、不报 enrolled | `fix/t16-cli-enroll-verify` @ `2b9f371`，[PR #14](https://github.com/ertutio/mail-agent-mcp/pull/14)，独立基线 main@96f8864 | 反例（真实临时配置目录+注入 mock）：修复前验证从未被调用、坏凭据仍报 enrolled（FAIL）；修复后验证调用一次、失败回滚（vault delete、无存储文件）、成功恰好提交一个账户。netease-cli fixture 同步注入 mock 验证并按后端布尔契约建模。全量 665 passed/1 skipped；lint/build/check:secrets/diff --check 通过 | 评审等待中；行为变化（安全收紧）：CLI 注册错误授权码即失败回滚。真实服务商登录 NOT RUN。next：T19 独立（游标已更新），T09 排 #12→#13 链后 |
 | T19 / review_pending | OAuth body 纳入截止与预算：loopback token timer 覆盖 body 全消费（成功/错误），readBoundedJson 64KB 流式预算（OAuthBodyBudgetError 即时中断）；refresh 保持整调用 timer 并接入预算 | `fix/t19-oauth-body-budgets` @ `27ea25d`，[PR #15](https://github.com/ertutio/mail-agent-mcp/pull/15)，独立基线 main@96f8864 | 反例（真实流式 Response+注入 fetch，drip mock 遵约 signal 以 AbortError 切断）：修复前 drip-fed 成功/错误 body 拖过截止（4s harness 截止，FAIL）、2MB body 被接受；修复后按截止报 timed out、错误按状态码、超限显式预算错误。全量 667 passed/1 skipped；lint/build/check:secrets/diff --check 通过 | 评审等待中；新增错误信息 "OAuth response body exceeded 65536 bytes"。真实 Google 端点 NOT RUN。next：T18（游标已更新），T09 排 #12→#13 链后 |
+| T18 / review_pending | /api/test-connection 的 disconnect 移入 finally；testConnection 的 logout 移入 finally 并带硬关回退；首错不被清理遮蔽，容忍性 STATUS 语义保持 | `fix/t18-owner-cleanup` @ `4426f06`，[PR #16](https://github.com/ertutio/mail-agent-mcp/pull/16)，独立基线 main@96f8864 | 反例：修复前 LIST/STATUS 失败跳过 logout、web 端 test-<id> 连接泄漏（FAIL，3 例）；修复后均结束连接、LIST 错误浮出、logout 失败回退硬关。全量 666 passed/1 skipped；lint/build/check:secrets/diff --check 通过 | 评审等待中；index shutdown 接线按计划先明确范围再接入，未捆绑。next：T28（游标已更新），T09 排 #12→#13 链后 |
 
 每个子项保留：基线与修复SHA、具体用例/输入、缺陷前FAIL/修复后PASS、相邻回归、精确副作用/零副作用断言、命令或run URL、环境/fixture、报告位置、失败/跳过/缓存/未执行、接口/兼容变化。进度只放必要摘要，凭据、真实邮件和完整日志不入文档。
 
