@@ -9,9 +9,9 @@
 | 总任务状态 | `in_progress`：T01 已实现并开 PR 等评审，循环继续 |
 | 代码基线 | `main@96f8864fa5fb88d0d28e921ced7b8e8ad644d7ca`（2026-10-30 核对未变）；实施分支从该基线拉出 |
 | 原计划来源 | [PR #3](https://github.com/ertutio/mail-agent-mcp/pull/3)，head `eee1daf88b52d4969f96c117dc93219b6dd5c7f3`，2026-10-17；计划未合并不等于其中修复已实现 |
-| 当前检查点 / 子项 | C2 / T16（BUG-SEC-04，独立提前）；T01–T08、T37 review_pending |
-| next_action | T16：核对 enroll CLI 的注册流程是否注入 verify（E07：CLI未注入verify）；用 mock 复现「验证失败仍持久化/报 enrolled」FAIL，再让 QQ/网易/Gmail CLI 注册一律先登录验证（authenticateOnly）后提交，失败回滚零持久。T09（SA-07 存储读取失效）在 #12→#13 链后继续。 |
-| 本子项通过条件 | QQ/网易/Gmail 均验证后提交成功；验证失败不持久化/不报 enrolled，回滚零残留；mock 证明 CLI 入口使用验证。 |
+| 当前检查点 / 子项 | C3 / T19（BUG-SEC-05，独立）；T01–T08、T16、T37 review_pending |
+| next_action | T19：核对 gmail-oauth-loopback 与 gmail-token-exchange 的响应体截止（E07：loopback headers后清timer仍在；refresh路径不同）；用 drip-feed 响应复现「总期限被拉长/无字节上限」FAIL，再实现成功/错误 body 均受总期限与总字节限制、refresh 复用既有有效 timer 不误删保护。 |
+| 本子项通过条件 | loopback 成功/错误 body 均受总期限与总字节限制；drip-feed 不延长截止；refresh 复用已有有效 timer 并补缺口，不误删保护。 |
 | 全局阻塞 | 无已确认阻断所有核心实现的条件；T33/T34/T36各自有原门控，真实服务商验证另需明确授权 |
 
 ## 已交付与证据边界
@@ -63,6 +63,7 @@
 | T06 / review_pending | imap_download_attachment 迁移到共享 extractPdfPreview 隔离 worker（预算/截止/忙碌同预览入口），文本按 MAX_BODY_CHARS 截断，失败显式 textContentUnavailable | `fix/t06-pdf-isolated-download` @ `bd3a28e`，[PR #11](https://github.com/ertutio/mail-agent-mcp/pull/11)，独立基线 main@96f8864 | 反例（vi.mock 记录进程内 pdf-parse 导入）：修复前下载发生进程内导入且失败无原因（E09 复现，FAIL）；修复后零进程内导入、超预算/损坏 PDF 显式报因并保存。既有端到端提取与 worker 预算用例经 worker 路径通过。全量 665 passed/1 skipped；lint/build/check:secrets/diff --check 通过 | 评审等待中；响应新增可选 textContentTruncated/textContentUnavailable（附加字段）。Windows 子进程实境按 T35/T36 另行验证。next：T07（游标已更新） |
 | T07 / review_pending | 新增 validateAccountCandidate 纯校验/规范化（三白名单、类型、null 拒绝/空串占位兼容、默认值、auth 结构）；addAccount 前置校验、updateAccount 校验合并候选，非法候选零存储写入 | `fix/t07-account-candidate-schema` @ `040f1ae`，[PR #12](https://github.com/ertutio/mail-agent-mcp/pull/12)，独立基线 main@96f8864 | 反例（fs mock 断言零写入）：修复前 evilExtra/字符串端口被持久化、未知更新字段到达存储（FAIL）；修复后按名拒绝且零写入，setup API 形状与 enroll 候选兼容通过。全量 672 passed/1 skipped；lint/build/check:secrets/diff --check 通过 | 评审等待中；addAccount/updateAccount 对非法候选从静默接受变为拒绝（兼容变化）。T08 接 HTTP，T11 做 revision。next：T08（游标已更新） |
 | T08 / review_pending | setup API 账户 POST/PUT 的 HTTP 层验收：非法候选 400 且存储字节不变（写入前拒绝）、未知请求字段不入存储、SEC-01 会话门 403 保持、合法注册端到端通过 | `fix/t08-http-candidate-gate` @ `2ca230c`，[PR #13](https://github.com/ertutio/mail-agent-mcp/pull/13)，父PR #12（堆叠 T07→T08） | 用 main manager 跑同一测试：非法候选被持久化、PUT 改变存储（FAIL，4 例）；用 T07 接线后 5 例全过（真实 manager+临时配置+真实 HTTP）。全量 677 passed/1 skipped；lint/build/check:secrets/diff --check 通过 | 评审等待中；纯测试变更无行为改动。next：T16 独立提前（游标已更新），T09 排 #12→#13 链后 |
+| T16 / review_pending | CLI 注册（qq/gmail/netease 全系）注入登录验证：dependencies.authenticateOnly 或真实 ImapService 登录；失败走 persist 回滚，零持久、不报 enrolled | `fix/t16-cli-enroll-verify` @ `2b9f371`，[PR #14](https://github.com/ertutio/mail-agent-mcp/pull/14)，独立基线 main@96f8864 | 反例（真实临时配置目录+注入 mock）：修复前验证从未被调用、坏凭据仍报 enrolled（FAIL）；修复后验证调用一次、失败回滚（vault delete、无存储文件）、成功恰好提交一个账户。netease-cli fixture 同步注入 mock 验证并按后端布尔契约建模。全量 665 passed/1 skipped；lint/build/check:secrets/diff --check 通过 | 评审等待中；行为变化（安全收紧）：CLI 注册错误授权码即失败回滚。真实服务商登录 NOT RUN。next：T19 独立（游标已更新），T09 排 #12→#13 链后 |
 
 每个子项保留：基线与修复SHA、具体用例/输入、缺陷前FAIL/修复后PASS、相邻回归、精确副作用/零副作用断言、命令或run URL、环境/fixture、报告位置、失败/跳过/缓存/未执行、接口/兼容变化。进度只放必要摘要，凭据、真实邮件和完整日志不入文档。
 
