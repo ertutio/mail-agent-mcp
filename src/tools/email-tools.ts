@@ -15,6 +15,8 @@ import {
   resolveAttachmentInputPath,
   resolveAttachmentOutputPath,
 } from '../utils/attachment-root.js';
+import { extractPdfPreview } from '../utils/pdf-preview.js';
+import { MAX_BODY_CHARS } from '../utils/mail-resource-limits.js';
 
 // Reusable, backward-compatible account selector. accountId stays accepted as
 // before; accountName and the single-account default are additive conveniences.
@@ -526,20 +528,15 @@ export function emailTools(
       };
     }
 
-    // For PDFs, try to extract text inline
+    // For PDFs, try to extract text inline through the shared isolated worker.
+    let textExtractionUnavailable: string | undefined;
     if (isPdf && extractText) {
       try {
-        const { PDFParse } = await import('pdf-parse');
-        const pdfParser = new PDFParse({ data: content });
-        let pdfText: string;
-        let pdfPages: number;
-        try {
-          const pdfData = await pdfParser.getText({ pageJoiner: '' });
-          pdfText = pdfData.text;
-          pdfPages = pdfData.total;
-        } finally {
-          await pdfParser.destroy();
-        }
+        // MAIL-02 (T06): every PDF entry point shares the isolated, budgeted
+        // worker (byte budget, 5s deadline, busy limit) — the native parser
+        // must never run inside the MCP process, and the download path gets
+        // the same budgets as attachment text previews.
+        const preview = await extractPdfPreview(content, MAX_BODY_CHARS);
 
         // Also save the file for binary access
         const fs = await import('fs');
@@ -558,13 +555,16 @@ export function emailTools(
               filename: resolvedFilename,
               contentType,
               size: content.length,
-              pages: pdfPages,
-              textContent: pdfText,
+              ...(preview.pages !== undefined ? { pages: preview.pages } : {}),
+              textContent: preview.text,
+              ...(preview.truncated ? { textContentTruncated: true } : {}),
             }, null, 2)
           }]
         };
       } catch (err) {
-        // Fall through to save-only if PDF parsing fails
+        // Fall through to save-only if PDF parsing fails; surface why so an
+        // over-budget, timed-out or busy worker is observable in the response.
+        textExtractionUnavailable = err instanceof Error ? err.message : 'PDF text extraction failed';
         console.error('PDF text extraction failed:', err);
       }
     }
@@ -585,6 +585,7 @@ export function emailTools(
           filename: resolvedFilename,
           contentType,
           size: content.length,
+          ...(textExtractionUnavailable ? { textContentUnavailable: textExtractionUnavailable } : {}),
         }, null, 2)
       }]
     };
