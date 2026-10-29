@@ -1791,6 +1791,29 @@ export class ImapService {
     }
   }
 
+  /**
+   * Unread count for one folder via named STATUS (T29 / MAIL-06): the server
+   * counts server-side, so mailboxes past the search cap stay cheap, and a
+   * missing or failed answer is an explicit unknown instead of a silent zero.
+   */
+  async getFolderUnseenStatus(accountId: string, folderName: string): Promise<{ unseen?: number; unknownReason?: string }> {
+    const client = await this.ensureConnected(accountId);
+    try {
+      const status = await client.status(folderName, { unseen: true });
+      if (status?.unseen === undefined || status.unseen === null) {
+        return { unknownReason: 'status_unseen_missing' };
+      }
+      const unseen = Number(status.unseen);
+      if (!Number.isInteger(unseen) || unseen < 0) {
+        return { unknownReason: 'status_unseen_invalid' };
+      }
+      return { unseen };
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
+      return { unknownReason: `status_failed: ${reason}` };
+    }
+  }
+
   async authenticateOnly(account: ImapAccount): Promise<void> {
     if (!account.auth) assertCredentialsResolved(account, 'imap');
     const resolvedAuth = await this.authResolver.resolve(account, 'imap');

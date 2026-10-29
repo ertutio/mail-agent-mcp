@@ -8,12 +8,18 @@ const mockServer = {
     if (name === 'imap_folder_status') {
       folderStatusHandler = handler;
     }
+    toolHandlers[name] = handler;
   }),
 };
+
+const toolHandlers: Record<string, Function> = {};
 
 const mockImapService = {
   selectFolder: vi.fn(),
   getFolderStatus: vi.fn(),
+  getFolderUnseenStatus: vi.fn(),
+  listFolders: vi.fn(async () => []),
+  searchEmails: vi.fn(),
 };
 
 // What imapflow's mailboxOpen() actually resolves to (MailboxObject): flag
@@ -119,5 +125,67 @@ describe('imap_folder_status Tool Handler', () => {
 
     await runStatus();
     expect(order).toEqual(['status', 'select']);
+  });
+});
+
+// T29 / MAIL-06: unread counts come from named STATUS (no metadata download,
+// supports mailboxes past the search cap) and a failed or missing-unseen
+// folder is reported as unknown — never silently as zero.
+describe('T29: imap_get_unread_count semantics', () => {
+  let unreadHandler: Function;
+  beforeEach(() => {
+    unreadHandler = toolHandlers['imap_get_unread_count'];
+    mockImapService.searchEmails.mockReset();
+  });
+
+  const run = async (args: any) => JSON.parse((await unreadHandler({ accountId: 'acc1', ...args })).content[0].text);
+
+  it('T29-STATUS-COUNT: counts via STATUS without downloading metadata', async () => {
+    mockImapService.listFolders.mockResolvedValue([{ name: 'INBOX' }, { name: 'Archive' }]);
+    mockImapService.getFolderUnseenStatus
+      .mockResolvedValueOnce({ unseen: 3 })
+      .mockResolvedValueOnce({ unseen: 39 });
+
+    const parsed = await run({});
+
+    expect(mockImapService.searchEmails).not.toHaveBeenCalled();
+    expect(parsed.byFolder).toEqual({ INBOX: 3, Archive: 39 });
+    expect(parsed.totalUnread).toBe(42);
+    expect(parsed.complete).toBe(true);
+  });
+
+  it('T29-FAIL-NOT-ZERO: a folder that cannot be queried is unknown, not zero', async () => {
+    mockImapService.listFolders.mockResolvedValue([{ name: 'INBOX' }, { name: 'Locked' }]);
+    mockImapService.getFolderUnseenStatus
+      .mockResolvedValueOnce({ unseen: 1 })
+      .mockResolvedValueOnce({ unknownReason: 'status_failed: NO' });
+
+    const parsed = await run({});
+
+    expect(parsed.byFolder).toEqual({ INBOX: 1 });
+    expect(parsed.byFolder['Locked']).toBeUndefined();
+    expect(parsed.unknownFolders).toEqual(['Locked']);
+    expect(parsed.totalUnread).toBe(1);
+    expect(parsed.complete).toBe(false);
+  });
+
+  it('T29-LARGE-MAILBOX: STATUS counts past the search cap', async () => {
+    mockImapService.listFolders.mockResolvedValue([{ name: 'INBOX' }]);
+    mockImapService.getFolderUnseenStatus.mockResolvedValue({ unseen: 12000 });
+
+    const parsed = await run({});
+
+    expect(parsed.byFolder.INBOX).toBe(12000);
+    expect(parsed.totalUnread).toBe(12000);
+    expect(parsed.complete).toBe(true);
+  });
+
+  it('T29-EXPLICIT-FOLDERS: an explicitly requested unknown folder stays unknown', async () => {
+    mockImapService.getFolderUnseenStatus.mockResolvedValue({ unknownReason: 'status_failed: NO' });
+
+    const parsed = await run({ folders: ['Broken'] });
+
+    expect(parsed.unknownFolders).toEqual(['Broken']);
+    expect(parsed.complete).toBe(false);
   });
 });
