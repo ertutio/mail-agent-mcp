@@ -8,12 +8,14 @@ import { emailTools } from '../src/tools/email-tools.js';
 // both the legacy single-uid/no-body calls and the new batch/includeBody ones.
 
 const mockServer = {
-  registerTool: vi.fn((name: string, _schema: any, handler: Function) => {
+  registerTool: vi.fn((name: string, schema: any, handler: Function) => {
     toolHandlers[name] = handler;
+    toolSchemas[name] = schema;
   }),
 };
 
 const toolHandlers: Record<string, Function> = {};
+const toolSchemas: Record<string, any> = {};
 
 const mockImapService = {
   listFolders: vi.fn(),
@@ -368,5 +370,47 @@ describe('imap_move_email — batch UID', () => {
     expect(parsed.movedCount).toBe(2);
     expect(parsed.failedCount).toBe(1);
     expect(parsed.errors).toEqual([{ uid: 2, error: 'permission denied' }]);
+  });
+});
+
+// T28 / SA-05: every search entry point must reject bad dates, unordered
+// ranges and unbounded limits BEFORE any network I/O, with the same rules
+// the unified search already enforces.
+describe('T28: search input validation before the network', () => {
+  beforeEach(() => {
+    mockImapService.searchEmails.mockReset();
+    mockImapService.searchEmails.mockResolvedValue([]);
+  });
+
+  it('T28-NON-CALENDAR-DATE: 2026-02-30 is rejected instead of rolling over', async () => {
+    await expect(toolHandlers.imap_search_emails({ accountId: 'acc1', folder: 'INBOX', since: '2026-02-30' }))
+      .rejects.toThrow(/calendar/i);
+    expect(mockImapService.searchEmails).not.toHaveBeenCalled();
+  });
+
+  it('T28-GARBAGE-DATE: non-YYYY-MM-DD input never reaches the service', async () => {
+    await expect(toolHandlers.imap_search_emails({ accountId: 'acc1', folder: 'INBOX', since: 'not-a-date' }))
+      .rejects.toThrow(/YYYY-MM-DD/);
+    expect(mockImapService.searchEmails).not.toHaveBeenCalled();
+  });
+
+  it('T28-RANGE-ORDER: since must precede before', async () => {
+    await expect(toolHandlers.imap_search_emails({ accountId: 'acc1', folder: 'INBOX', since: '2026-02-10', before: '2026-02-01' }))
+      .rejects.toThrow(/precede/i);
+    expect(mockImapService.searchEmails).not.toHaveBeenCalled();
+  });
+
+  it('T28-LIMIT-BOUNDS: zero and negative limits are refused by the schema', () => {
+    const limitSchema = toolSchemas.imap_search_emails.inputSchema.limit;
+    expect(() => limitSchema.parse(0)).toThrow();
+    expect(() => limitSchema.parse(-3)).toThrow();
+    expect(() => limitSchema.parse('abc')).toThrow();
+    expect(limitSchema.parse(50)).toBe(50);
+  });
+
+  it('T28-DELETE-BY-SEARCH-DATES: bulk delete by search validates dates too', async () => {
+    await expect(toolHandlers.imap_bulk_delete_by_search({ accountId: 'acc1', folder: 'INBOX', from: 'a@b.com', since: 'not-a-date' }))
+      .rejects.toThrow(/YYYY-MM-DD/);
+    expect(mockImapService.searchEmails).not.toHaveBeenCalled();
   });
 });

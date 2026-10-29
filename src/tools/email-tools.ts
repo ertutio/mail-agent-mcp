@@ -17,6 +17,7 @@ import {
 } from '../utils/attachment-root.js';
 import { extractPdfPreview } from '../utils/pdf-preview.js';
 import { MAX_BODY_CHARS } from '../utils/mail-resource-limits.js';
+import { parseSearchDateBound, validateSearchRange } from '../utils/search-input.js';
 
 // Reusable, backward-compatible account selector. accountId stays accepted as
 // before; accountName and the single-account default are additive conveniences.
@@ -175,14 +176,9 @@ export function emailTools(
     1,
     1,
   );
-  const parseDateOnly = (value: string): Date => {
-    const parts = value.split('-').map(Number);
-    if (parts.length !== 3 || parts.some(Number.isNaN)) {
-      return new Date(value);
-    }
-    const [year, month, day] = parts;
-    return new Date(year, month - 1, day);
-  };
+  // T28 / SA-05: shared strict parsing — garbage and non-calendar dates are
+  // rejected before the network instead of being rolled over silently.
+  const parseDateOnly = (value: string): Date => parseSearchDateBound(value);
 
   // Search emails tool
   server.registerTool('imap_search_emails', {
@@ -205,7 +201,7 @@ export function emailTools(
       messageId: z.string().optional().describe('Search by RFC822 Message-ID header (substring match)'),
       keywords: z.array(z.string()).optional().describe('Match messages that have ANY of these CUSTOM keywords (server-side OR; not system flags like \\Seen/\\Flagged). Read a mailbox\'s available custom keywords from imap_folder_status\'s customKeywords field, then pass the ones you want here.'),
       unKeywords: z.array(z.string()).optional().describe('Exclude messages that have ANY of these CUSTOM keywords (server-side; result has NONE of them). Same keyword source as `keywords` — check imap_folder_status first.'),
-      limit: z.coerce.number().optional().default(50).describe('Maximum number of results'),
+      limit: z.coerce.number().int().min(1).max(5000).optional().default(50).describe('Maximum number of results (1-5000)'),
       includeBody: z.boolean().default(false).describe('If true, also fetch the parsed message body in the same round-trip and return it alongside headers (avoids the N+1 cost of calling imap_get_email per match). Body is rendered per `bodyFormat` and capped at `bodyMaxLength` characters per field. Off by default to preserve lightweight behavior.'),
       bodyFormat: z.enum(['markdown', 'text', 'html', 'auto']).default('markdown').describe('How to render the body when `includeBody` is true. Mirrors `imap_get_email` — "markdown" (default) returns clean Markdown and omits raw HTML so it never crosses the MCP boundary; "text" returns plain text; "html" returns raw HTML; "auto" prefers substantive text/plain, else Markdown.'),
       bodyMaxLength: z.coerce.number().int().min(1).max(100000).default(10000).describe('Per-message cap (in characters) for each rendered body field when `includeBody` is true. Defaults to 10000 to match `imap_get_email`.'),
@@ -220,6 +216,7 @@ export function emailTools(
     if (searchCriteria.body) criteria.body = searchCriteria.body;
     if (searchCriteria.since) criteria.since = parseDateOnly(searchCriteria.since);
     if (searchCriteria.before) criteria.before = parseDateOnly(searchCriteria.before);
+    validateSearchRange(criteria.since, criteria.before);
     if (searchCriteria.seen !== undefined) criteria.seen = searchCriteria.seen;
     if (searchCriteria.flagged !== undefined) criteria.flagged = searchCriteria.flagged;
     if (searchCriteria.messageId) criteria.messageId = searchCriteria.messageId;
@@ -913,6 +910,7 @@ export function emailTools(
     if (subject) criteria.subject = subject;
     if (before) criteria.before = parseDateOnly(before);
     if (since) criteria.since = parseDateOnly(since);
+    validateSearchRange(criteria.since, criteria.before);
 
     // Guard: never run with an empty criteria set. imapflow compiles an empty
     // search to IMAP "SEARCH ALL", which would match — and then delete — every
