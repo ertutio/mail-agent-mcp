@@ -73,6 +73,8 @@ export interface EmailContent extends EmailMessage {
   bodyFormat?: EmailBodyFormat;
   headers: Record<string, string | string[]>;
   attachments: Attachment[];
+  /** Original Cc recipients (single-message reads only). */
+  cc?: string[];
 }
 
 export interface Attachment {
