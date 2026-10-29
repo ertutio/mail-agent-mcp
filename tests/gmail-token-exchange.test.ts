@@ -217,4 +217,28 @@ describe('createGmailAccessTokenExchange', () => {
     expect(request).toHaveBeenCalledOnce();
     expect(close).toHaveBeenCalledOnce();
   });
+
+  it('T19-REFRESH-BODY-BYTES: an oversized refresh response body is rejected', async () => {
+    const padding = 'x'.repeat(2 * 1024 * 1024);
+    const tokenFetch = vi.fn<TokenFetch>().mockResolvedValue(
+      new Response(JSON.stringify({ access_token: padding }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }) as unknown as TokenResponse,
+    );
+    const exchange = createGmailAccessTokenExchange({ fetch: tokenFetch });
+    await expect(exchange('refresh-token', gmailAccount())).rejects.toThrow(/exceeded/i);
+  });
+
+  it('T19-REFRESH-ERROR-BODY-BYTES: an oversized error body still fails by status', async () => {
+    const padding = 'x'.repeat(2 * 1024 * 1024);
+    const tokenFetch = vi.fn<TokenFetch>().mockResolvedValue(
+      new Response(JSON.stringify({ error: padding }), {
+        status: 400,
+        headers: { 'content-type': 'application/json' },
+      }) as unknown as TokenResponse,
+    );
+    const exchange = createGmailAccessTokenExchange({ fetch: tokenFetch });
+    await expect(exchange('refresh-token', gmailAccount())).rejects.toThrow(/status 400/);
+  });
 });
