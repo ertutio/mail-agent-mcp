@@ -54,7 +54,7 @@ describe('frozen deletion and batch validation',()=>{
     expect(connect).not.toHaveBeenCalled();
   });
   it('stops remaining batches if validity changes after reconnection',async()=>{
-    const move=vi.fn();const client={getMailboxLock:async()=>({release(){}}),status:async()=>({uidValidity:456}),messageMove:move};
+    const move=vi.fn();const client={capabilities:new Map([['MOVE',true]]),getMailboxLock:async()=>({release(){}}),status:async()=>({uidValidity:456}),messageMove:move};
     const service=new ImapService();vi.spyOn(service as any,'ensureConnected').mockResolvedValue(client);vi.spyOn(service,'resolveTrashFolder').mockResolvedValue('Trash');
     const result=await service.bulkDelete('synthetic','INBOX',[7,8],1,undefined,123);
     expect(result.failed).toBe(2);expect(result.deleted).toBe(0);expect(move).not.toHaveBeenCalled();

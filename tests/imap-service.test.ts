@@ -23,6 +23,14 @@ class MockImapFlow {
   public statusMock = vi.fn().mockResolvedValue({ messages: 10 });
   public usable = true;
   public onMock = vi.fn();
+  // imapflow exposes the server's advertised capabilities as a Map. MOVE and
+  // UIDPLUS are on by default; T03 tests drop MOVE to model servers without
+  // the RFC 6851 MOVE extension.
+  public capabilities = new Map<string, boolean>([
+    ['IMAP4rev1', true],
+    ['MOVE', true],
+    ['UIDPLUS', true],
+  ]);
 
   connect() { return this.connectMock(); }
   logout() { return this.logoutMock(); }
@@ -1223,6 +1231,68 @@ describe('ImapService', () => {
       await expect(
         imapService.getAttachmentContent(mockAccount.id, 'INBOX', 42, 'missing-file.pdf')
       ).rejects.toThrow('Attachment "missing-file.pdf" not found in email UID 42');
+    });
+  });
+
+  // T03 / MAIL-09a: imapflow 1.6.5 emulates MOVE for servers without the
+  // RFC 6851 MOVE extension via COPY + \Deleted + EXPUNGE (lib/commands/move.js).
+  // That fallback is not a safe move: the deletion is not UIDPLUS-precise and
+  // runs even when the copy outcome is not a confirmed success. Every write
+  // path that would issue a MOVE must therefore check the capability first and
+  // refuse to act rather than let the library fall back.
+  describe('T03: native MOVE gate', () => {
+    const withoutNativeMove = () => {
+      mockInstance.capabilities = new Map<string, boolean>([['IMAP4rev1', true]]);
+    };
+
+    it('T03-MOVE-GATE-MOVE: moveEmail refuses to act when the server lacks MOVE', async () => {
+      withoutNativeMove();
+      await imapService.connect(mockAccount);
+
+      await expect(
+        imapService.moveEmail(mockAccount.id, 'INBOX', 123, 'Archive')
+      ).rejects.toThrow(/MOVE/i);
+      expect(mockInstance.messageMoveMock).not.toHaveBeenCalled();
+    });
+
+    it('T03-MOVE-GATE-DELETE: deleteEmail refuses the trash move when the server lacks MOVE', async () => {
+      withoutNativeMove();
+      await imapService.connect(mockAccount);
+
+      await expect(
+        imapService.deleteEmail(mockAccount.id, 'INBOX', 123)
+      ).rejects.toThrow(/MOVE/i);
+      expect(mockInstance.messageMoveMock).not.toHaveBeenCalled();
+      expect(mockInstance.messageDeleteMock).not.toHaveBeenCalled();
+    });
+
+    it('T03-MOVE-GATE-BULK: bulkDelete refuses the trash move when the server lacks MOVE', async () => {
+      withoutNativeMove();
+      await imapService.connect(mockAccount);
+
+      await expect(
+        imapService.bulkDelete(mockAccount.id, 'INBOX', [1, 2, 3], 2)
+      ).rejects.toThrow(/MOVE/i);
+      expect(mockInstance.messageMoveMock).not.toHaveBeenCalled();
+      expect(mockInstance.messageDeleteMock).not.toHaveBeenCalled();
+    });
+
+    it('T03-TRASH-UNAFFECTED: permanent delete inside Trash is not gated by the MOVE check', async () => {
+      // Boundary of T03: only MOVE-emulating paths are gated here; the
+      // permanent-delete capability gate is T04's separate contract.
+      withoutNativeMove();
+      await imapService.connect(mockAccount);
+
+      await imapService.deleteEmail(mockAccount.id, 'Trash', 123);
+      expect(mockInstance.messageDeleteMock).toHaveBeenCalledWith(123, { uid: true });
+      expect(mockInstance.messageMoveMock).not.toHaveBeenCalled();
+    });
+
+    it('T03-MOVE-GATE-OK: servers advertising MOVE keep the previous behavior', async () => {
+      await imapService.connect(mockAccount);
+
+      await imapService.moveEmail(mockAccount.id, 'INBOX', 123, 'Archive');
+      expect(mockInstance.messageMoveMock).toHaveBeenCalledWith(123, 'Archive', { uid: true });
     });
   });
 });

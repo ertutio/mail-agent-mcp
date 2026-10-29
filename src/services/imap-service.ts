@@ -1157,6 +1157,29 @@ export class ImapService {
     return isGmail ? '[Gmail]/Trash' : 'Trash';
   }
 
+  /**
+   * Gate for every write path that would issue a MOVE (T03 / MAIL-09a).
+   * imapflow emulates MOVE on servers without the RFC 6851 extension via
+   * COPY + \Deleted + EXPUNGE (lib/commands/move.js), which is not a safe
+   * move: the deletion is not UIDPLUS-precise and is not bound to a confirmed
+   * copy. Refuse before any write instead of letting the library fall back.
+   * Mirrors imapflow's own hasCapability(): MOVE is folded into the IMAP4rev2
+   * base spec, so a rev2 session has MOVE without advertising it separately.
+   */
+  private assertNativeMoveCapability(client: ImapFlow): void {
+    const caps = client.capabilities;
+    // Mirrors imapflow tools.isRev2Active().
+    const rev2Active = client.enabled?.has('IMAP4REV2') === true ||
+      (!!caps && caps.has('IMAP4rev2') && !caps.has('IMAP4rev1'));
+    const hasNativeMove = !!caps && (caps.has('MOVE') || rev2Active);
+    if (!hasNativeMove) {
+      throw new Error(
+        'Server does not advertise the IMAP MOVE extension (RFC 6851); ' +
+        'refusing to emulate a move with COPY+EXPUNGE. No messages were changed.'
+      );
+    }
+  }
+
   async deleteEmail(accountId: string, folderName: string, uid: number): Promise<void> {
     const client = await this.ensureConnected(accountId);
     const trashFolder = await this.resolveTrashFolder(accountId);
@@ -1172,6 +1195,7 @@ export class ImapService {
         await client.messageDelete(uid, { uid: true });
       } else {
         // Move to Trash instead of permanent expunge
+        this.assertNativeMoveCapability(client);
         await client.messageMove(uid, trashFolder, { uid: true });
       }
     } finally {
@@ -1203,6 +1227,11 @@ export class ImapService {
     }
     const isAlreadyInTrash = folderName === trashFolder;
     if(expectedPermanent!==undefined&&isAlreadyInTrash!==expectedPermanent)throw new Error('Trash mapping changed during deletion; create a new preview');
+    // Fail before the first chunk, then re-check after any mid-loop reconnect
+    // so a swapped-in client can never silently fall back to COPY+EXPUNGE.
+    if (!isAlreadyInTrash) {
+      this.assertNativeMoveCapability(client);
+    }
 
     let deleted = 0;
     let failed = 0;
@@ -1228,6 +1257,7 @@ export class ImapService {
         if (isAlreadyInTrash) {
           await client.messageDelete(uidSet, { uid: true });
         } else {
+          this.assertNativeMoveCapability(client);
           await client.messageMove(uidSet, trashFolder, { uid: true });
         }
 
@@ -1288,6 +1318,9 @@ export class ImapService {
     const uidList = isBatch ? (uids as number[]) : [uids as number];
 
     const client = await this.ensureConnected(accountId);
+
+    // Gate before any side effect, including the optional destination create.
+    this.assertNativeMoveCapability(client);
 
     let destinationCreated = false;
     if (options?.createDestinationIfMissing) {
