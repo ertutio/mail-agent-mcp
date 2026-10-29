@@ -4,14 +4,14 @@
 
 ## 当前游标
 
-| 字段 | 初始记录 |
+| 字段 | 当前记录 |
 | --- | --- |
-| 总任务状态 | `ready`：本 PR 仅准备计划，后续实现由使用者启动 |
-| 代码基线 | `main@96f8864fa5fb88d0d28e921ced7b8e8ad644d7ca`；实施前核对实际 main，保留后续改动，不重置分支 |
+| 总任务状态 | `in_progress`：T01 已实现并开 PR 等评审，循环继续 |
+| 代码基线 | `main@96f8864fa5fb88d0d28e921ced7b8e8ad644d7ca`（2026-10-30 核对未变）；实施分支从该基线拉出 |
 | 原计划来源 | [PR #3](https://github.com/ertutio/mail-agent-mcp/pull/3)，head `eee1daf88b52d4969f96c117dc93219b6dd5c7f3`，2026-10-17；计划未合并不等于其中修复已实现 |
-| 当前检查点 / 子项 | C0 / T01（MAIL-01） |
-| next_action | 核对当前 ImapService.selectFolder/getFolderStatus、folder_status handler 及UID读/旗标/移动/删除调用者；用同账户双邮箱、相同UID不同UIDVALIDITY和受控gate复现并发SELECT越过持锁操作，记录当前FAIL，再最小修复锁协议与稳定快照。 |
-| 本子项通过条件 | B等A释放锁；UID操作保持A；状态字段不混邮箱/时点；失败/取消准确释放锁，队列继续；实际service与handler、counts/Set序列化及相邻guarded-delete/move回归通过。 |
+| 当前检查点 / 子项 | C0 / T02（SEC-02）；T01 review_pending |
+| next_action | T02：核对 imap-service.ts 三个 ImapFlow 构造点（connect/authenticateOnly/testConnection）与 buildImapAuth；用合成 localhost 服务器复现无 STARTTLS/拒绝/证书失败时认证字节被发送的 FAIL，再实现三入口统一的安全连接策略（implicit TLS/required STARTTLS 无明文降级），补三入口回归与 buildImapAuth 单测。 |
+| 本子项通过条件 | 三个 IMAP 入口在无 STARTTLS/STARTTLS 拒绝/证书失败时认证字节为 0；bridge 例外（如有）单独决策并记录；既有 tls-host 回归保持。 |
 | 全局阻塞 | 无已确认阻断所有核心实现的条件；T33/T34/T36各自有原门控，真实服务商验证另需明确授权 |
 
 ## 已交付与证据边界
@@ -54,6 +54,7 @@
 | T编号 / 状态 | 行为与提交 | 分支 / PR / 父PR | 实际验收证据 | 未完成 / 阻塞 / next_action |
 | --- | --- | --- | --- | --- |
 | 计划初始化 / ready | 文档重构，未修改业务 | 当前计划PR | 原编号/依赖保留及文档静态检查；产品检查未运行 | 启动实现后执行T01具体动作并更新游标。 |
+| T01 / review_pending | `selectFolder` 改走 `getMailboxLock` 锁协议并返回稳定 `FolderSnapshot`（纯值+flags/permanentFlags数组副本）；handler 输出形状不变 | `fix/t01-folder-status-lock` @ `1a8f612`，[PR #5](https://github.com/ertutio/mail-agent-mcp/pull/5)，基线 main@96f8864 | 反例（同账户 INBOX/Archive 同UID 7 不同UIDVALIDITY，gate 暂停持锁后）：修复前 UID 命令 selection=Archive（FAIL），修复后保持 INBOX 且 B 等 `lock:released:INBOX` 后才 `select:Archive`；快照与活跃引用双向隔离；SELECT 失败不占锁、队列可继续。用例 `T01-LOCK-{READ,FLAGS,MOVE,DELETE}`、`T01-SNAPSHOT-01`、`T01-LOCK-FAIL-01`（tests/folder-status-lock-concurrency.test.ts）。lint/build/check:secrets 通过；全量 668 passed/1 skipped（browser-account-removal 首跑一次 ENOTEMPTY 临时目录竞争，单独重跑×2 与全量重跑均绿，与本改动无关）；folder-tools-status 7 例不变通过 | 评审等待中；接口变化：`selectFolder` 返回 `Promise<any>`→`Promise<FolderSnapshot>`，flags 由 Set 变数组副本，唯一生产调用者兼容。合并后跑受影响范围复验。next：T02（游标已更新） |
 
 每个子项保留：基线与修复SHA、具体用例/输入、缺陷前FAIL/修复后PASS、相邻回归、精确副作用/零副作用断言、命令或run URL、环境/fixture、报告位置、失败/跳过/缓存/未执行、接口/兼容变化。进度只放必要摘要，凭据、真实邮件和完整日志不入文档。
 
