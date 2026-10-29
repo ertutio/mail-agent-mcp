@@ -177,6 +177,19 @@ export class ImapService {
     this.accountManager = accountManager;
   }
 
+  /**
+   * One transport policy for every ImapFlow entry point (T02 / SEC-02):
+   * implicit TLS when the account asks for it, otherwise a REQUIRED STARTTLS
+   * upgrade before authentication. imapflow fails the connect when the server
+   * does not advertise STARTTLS or the upgrade fails, so authentication bytes
+   * never cross a cleartext transport and there is no opportunistic downgrade.
+   */
+  private imapTransportPolicy(account: ImapAccount): { secure: boolean; doSTARTTLS?: boolean } {
+    return account.tls
+      ? { secure: true }
+      : { secure: false, doSTARTTLS: true };
+  }
+
   async connect(account: ImapAccount): Promise<void> {
     const existing = this.connections.get(account.id);
     if (existing?.isConnected) {
@@ -192,7 +205,7 @@ export class ImapService {
     const client = new ImapFlow({ maxLiteralSize: MAX_MESSAGE_BYTES + 1,
       host: account.host,
       port: account.port,
-      secure: account.tls,
+      ...this.imapTransportPolicy(account),
       // Validate the certificate against the host we actually dial. On a
       // STARTTLS upgrade imapflow passes no host to Node's TLS layer, and for
       // an IP host it also omits the SNI servername, so Node would otherwise
@@ -1713,7 +1726,7 @@ export class ImapService {
       connectionTimeout: 30_000, greetingTimeout: 15_000, socketTimeout: 30_000,
       host: account.host,
       port: account.port,
-      secure: account.tls,
+      ...this.imapTransportPolicy(account),
       tls: { host: account.host },
       auth: { ...buildImapAuth(resolvedAuth), loginMethod: account.loginMethod },
       ...(proxy ? { proxy } : {}),
@@ -1742,7 +1755,7 @@ export class ImapService {
     const testClient = new ImapFlow({ maxLiteralSize: MAX_MESSAGE_BYTES + 1,
       host: account.host,
       port: account.port,
-      secure: account.tls,
+      ...this.imapTransportPolicy(account),
       // Validate the certificate against the host we actually dial; see connect().
       tls: { host: account.host },
       auth: { ...buildImapAuth(resolvedAuth), loginMethod: account.loginMethod },
