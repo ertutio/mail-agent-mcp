@@ -1232,7 +1232,14 @@ export class ImapService {
       if (folderName === trashFolder) {
         // Already in Trash, permanently delete
         this.assertPermanentDeleteCapability(client);
-        await client.messageDelete(uid, { uid: true });
+        const outcome = await client.messageDelete(uid, { uid: true });
+        if (!outcome) {
+          // Unconfirmed expunge (imapflow resolves false/undefined instead of
+          // throwing) — reporting success here would be a lie (T05 / MAIL-08).
+          throw new Error(
+            `Permanent delete of UID ${uid} was not confirmed by the server; outcome unknown`
+          );
+        }
       } else {
         // Move to Trash instead of permanent expunge
         this.assertNativeMoveCapability(client);
@@ -1296,18 +1303,31 @@ export class ImapService {
 
         // Use sequence set for bulk operations
         const uidSet = chunk.join(',');
+        // Re-check capabilities after any mid-loop reconnect so a swapped-in
+        // client can never silently fall back (T03/T04).
         if (isAlreadyInTrash) {
           this.assertPermanentDeleteCapability(client);
-          await client.messageDelete(uidSet, { uid: true });
         } else {
           this.assertNativeMoveCapability(client);
-          await client.messageMove(uidSet, trashFolder, { uid: true });
         }
-
-        deleted += chunk.length;
-
-        if (onProgress) {
-          onProgress(deleted, uids.length);
+        // imapflow resolves messageMove/messageDelete with false/undefined
+        // when the server rejected or the outcome is unconfirmed — without
+        // throwing (T05 / MAIL-08). Such a chunk's side effect is unknown:
+        // it must not be counted as deleted, only reported as failed/unknown.
+        const outcome = isAlreadyInTrash
+          ? await client.messageDelete(uidSet, { uid: true })
+          : await client.messageMove(uidSet, trashFolder, { uid: true });
+        if (!outcome) {
+          failed += chunk.length;
+          errors.push(
+            `No server confirmation for ${isAlreadyInTrash ? 'expunge' : 'move'} of UIDs ` +
+            `${chunk[0]}-${chunk[chunk.length - 1]}; outcome unknown, not counted as deleted`
+          );
+        } else {
+          deleted += chunk.length;
+          if (onProgress) {
+            onProgress(deleted, uids.length);
+          }
         }
       } catch (err) {
         if(err instanceof Error&&err.message==='Mailbox UIDVALIDITY changed during deletion'){

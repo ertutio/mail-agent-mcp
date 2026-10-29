@@ -17,7 +17,7 @@ class MockImapFlow {
   public fetchOneMock = vi.fn().mockResolvedValue(null);
   public messageFlagsAddMock = vi.fn().mockResolvedValue(true);
   public messageFlagsRemoveMock = vi.fn().mockResolvedValue(true);
-  public messageDeleteMock = vi.fn().mockResolvedValue(undefined);
+  public messageDeleteMock = vi.fn().mockResolvedValue(true);
   public messageMoveMock = vi.fn().mockResolvedValue({ path: 'INBOX', destination: 'Archive', uidMap: new Map([[123, 456]]) });
   public mailboxCreateMock = vi.fn().mockResolvedValue({ path: 'NewFolder', created: true });
   public statusMock = vi.fn().mockResolvedValue({ messages: 10 });
@@ -279,7 +279,8 @@ describe('ImapService', () => {
 
     it('should handle errors during bulk delete', async () => {
       mockInstance.messageMoveMock
-        .mockResolvedValueOnce(undefined)
+        // A confirmed chunk (imapflow resolves a result object on success).
+        .mockResolvedValueOnce({ path: 'INBOX', destination: 'Trash' })
         .mockRejectedValueOnce(new Error('Move failed'));
 
       await imapService.connect(mockAccount);
@@ -1379,6 +1380,76 @@ describe('ImapService', () => {
       await imapService.deleteEmail(mockAccount.id, 'Trash', 7);
       expect(mockInstance.trashMessages.has(7)).toBe(false);
       expect(mockInstance.trashMessages.get(9)).toBe('msg-9');
+    });
+  });
+
+  // T05 / MAIL-08: imapflow's messageMove/messageDelete return false or
+  // undefined when the server rejects or the outcome is unconfirmed — they do
+  // not always throw. A chunk that got no confirmation must not be counted as
+  // deleted, and an unconfirmed single delete must not report success.
+  describe('T05: delete completion counts vs unconfirmed results', () => {
+    it('T05-BULK-FALSE-MOVE: a falsy move result is not counted as deleted', async () => {
+      await imapService.connect(mockAccount);
+      mockInstance.messageMoveMock.mockResolvedValue(false);
+
+      const result = await imapService.bulkDelete(mockAccount.id, 'INBOX', [1, 2], 1);
+
+      expect(result.deleted).toBe(0);
+      expect(result.failed).toBe(2);
+      expect(result.errors.join(' ')).toMatch(/unknown/i);
+      expect(mockInstance.messageMoveMock).toHaveBeenCalledTimes(2);
+    });
+
+    it('T05-BULK-UNDEFINED-DELETE: an undefined expunge result is not counted as deleted', async () => {
+      await imapService.connect(mockAccount);
+      mockInstance.messageDeleteMock.mockResolvedValue(undefined);
+
+      const result = await imapService.bulkDelete(mockAccount.id, 'Trash', [7, 8], 2);
+
+      expect(result.deleted).toBe(0);
+      expect(result.failed).toBe(2);
+      expect(result.errors.join(' ')).toMatch(/unknown/i);
+    });
+
+    it('T05-BULK-CONFIRMED-COUNTS: confirmed chunks still count (regression)', async () => {
+      await imapService.connect(mockAccount);
+      mockInstance.messageMoveMock.mockResolvedValue({ path: 'INBOX', destination: 'Trash' });
+      mockInstance.messageDeleteMock.mockResolvedValue(true);
+
+      const moved = await imapService.bulkDelete(mockAccount.id, 'INBOX', [1, 2, 3], 2);
+      expect(moved.deleted).toBe(3);
+      expect(moved.failed).toBe(0);
+
+      const expunged = await imapService.bulkDelete(mockAccount.id, 'Trash', [7, 8], 10);
+      expect(expunged.deleted).toBe(2);
+      expect(expunged.failed).toBe(0);
+    });
+
+    it('T05-BULK-THROW-COUNTS: a thrown chunk still counts as failed, not deleted (regression)', async () => {
+      await imapService.connect(mockAccount);
+      mockInstance.messageMoveMock.mockRejectedValue(new Error('NO server refused'));
+
+      const result = await imapService.bulkDelete(mockAccount.id, 'INBOX', [1], 1);
+
+      expect(result.deleted).toBe(0);
+      expect(result.failed).toBe(1);
+      expect(result.errors.join(' ')).toMatch(/server refused/);
+    });
+
+    it('T05-DELETE-UNCONFIRMED: deleteEmail does not report success on a falsy expunge result', async () => {
+      await imapService.connect(mockAccount);
+      mockInstance.messageDeleteMock.mockResolvedValue(false);
+
+      await expect(
+        imapService.deleteEmail(mockAccount.id, 'Trash', 7)
+      ).rejects.toThrow(/not confirmed|unknown/i);
+    });
+
+    it('T05-DELETE-CONFIRMED: a confirmed expunge keeps resolving (regression)', async () => {
+      await imapService.connect(mockAccount);
+      mockInstance.messageDeleteMock.mockResolvedValue(true);
+
+      await expect(imapService.deleteEmail(mockAccount.id, 'Trash', 7)).resolves.toBeUndefined();
     });
   });
 });
