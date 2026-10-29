@@ -162,19 +162,36 @@ export class SmtpService {
       const transporter = await this.createTransporter(account);
       const mailOptions = this.toMailOptions(account, email);
 
-      // Build raw message for IMAP Sent folder append
-      let rawMessage: Buffer | undefined;
-      try {
-        rawMessage = await this.composeRaw(account, email);
-      } catch {
-        // Non-critical: sent folder copy will be skipped
-      }
-
-      const info = await transporter.sendMail(mailOptions);
+      // T22 / MAIL-03: ONE frozen MIME. The exact bytes composeRaw builds are
+      // both what SMTP submits and what the Sent copy appends, so Message-ID
+      // and Date cannot drift between the delivered message and its copy.
+      // A compose failure fails the whole send — nothing goes out that the
+      // Sent folder could not mirror. BCC stays envelope-only: the compiled
+      // raw never carries a Bcc header, and the envelope covers to+cc+bcc.
+      const rawMessage = await this.composeRaw(account, email);
+      const envelope = {
+        from: typeof mailOptions.from === 'string' ? mailOptions.from : account.email || account.user,
+        to: SmtpService.flattenAddresses([mailOptions.to, mailOptions.cc, mailOptions.bcc]),
+      };
+      const info = await transporter.sendMail({ envelope, raw: rawMessage });
       return { messageId: info.messageId, rawMessage };
     } catch (error) {
       throw new Error(`Failed to send email: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
+  }
+
+  private static flattenAddresses(values: unknown[]): string[] {
+    const out: string[] = [];
+    for (const value of values) {
+      if (typeof value === 'string') {
+        if (value.trim().length > 0) out.push(value.trim());
+      } else if (Array.isArray(value)) {
+        for (const entry of value) {
+          if (typeof entry === 'string' && entry.trim().length > 0) out.push(entry.trim());
+        }
+      }
+    }
+    return out;
   }
 
   async verifySmtpConnection(account: ImapAccount): Promise<boolean> {
