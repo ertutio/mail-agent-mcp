@@ -18,7 +18,7 @@ export function folderTools(
 ): void {
   // List folders tool
   server.registerTool('imap_list_folders', {
-    description: 'List all folders/mailboxes for an account (names, hierarchy delimiter, attributes, RFC 6154 special-use role). Use this first to discover exact folder names before searching, moving, or creating subfolders — folder naming varies by provider (e.g. "Archive" vs "[Gmail]/All Mail" vs "INBOX.Archive"). The specialUse field ("\\\\Sent", "\\\\Drafts", "\\\\Trash", "\\\\Junk", "\\\\Archive") identifies a folder\'s role independent of its localized name (e.g. "Gesendet" is the Sent folder when specialUse is "\\\\Sent").',
+    description: 'List all folders/mailboxes for an account (names, hierarchy delimiter, attributes, RFC 6154 special-use role). Use this first to discover exact folder names before searching, moving, or creating subfolders  folder naming varies by provider (e.g. "Archive" vs "[Gmail]/All Mail" vs "INBOX.Archive"). The specialUse field ("\\\\Sent", "\\\\Drafts", "\\\\Trash", "\\\\Junk", "\\\\Archive") identifies a folder\'s role independent of its localized name (e.g. "Gesendet" is the Sent folder when specialUse is "\\\\Sent").',
     inputSchema: {
       ...accountSelector,
     }
@@ -56,7 +56,10 @@ export function folderTools(
 
     // Counts come from STATUS, not SELECT: imapflow's mailboxOpen() reports
     // `exists` but neither RECENT nor UNSEEN. STATUS runs first because RFC 3501
-    // discourages issuing it against the currently selected mailbox.
+    // discourages issuing it against the currently selected mailbox. The SELECT
+    // side (selectFolder) runs under the same per-folder mailbox lock as every
+    // UID read/flag/move/delete, so this status call can never re-point an
+    // in-flight operation to a different folder (MAIL-01).
     const status = await imapService.getFolderStatus(accountId, folder);
     const box = await imapService.selectFolder(accountId, folder);
 

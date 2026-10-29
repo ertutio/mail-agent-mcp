@@ -125,6 +125,21 @@ export interface MoveEmailBatchResult {
 }
 
 /**
+ * Stable description of a selected mailbox, captured while its mailbox lock
+ * was held. Plain values only — the live imapflow MailboxObject keeps
+ * mutating after release (EXISTS updates etc.) and must not leak to callers.
+ */
+export interface FolderSnapshot {
+  path: string;
+  exists?: number;
+  uidValidity?: bigint;
+  uidNext?: number;
+  readOnly?: boolean;
+  flags: string[];
+  permanentFlags?: string[];
+}
+
+/**
  * Parse a raw RFC 822 header block into a map of lowercased header name → value.
  * Handles header folding (continuation lines starting with whitespace) and
  * joins repeated headers (e.g. multiple `Received`/`Authentication-Results`)
@@ -378,9 +393,37 @@ export class ImapService {
     }));
   }
 
-  async selectFolder(accountId: string, folderName: string): Promise<any> {
+  /**
+   * Select a folder through the same per-folder mailbox lock every UID read,
+   * flag change, move and delete uses (MAIL-01). A bare mailboxOpen() here
+   * would bypass the lock queue and re-point another operation's in-flight
+   * UID commands to this folder.
+   *
+   * Returns a stable snapshot (plain copies), not the live client.mailbox
+   * reference, and always releases the lock — success, failure or cancel.
+   */
+  async selectFolder(accountId: string, folderName: string): Promise<FolderSnapshot> {
     const client = await this.ensureConnected(accountId);
-    return await client.mailboxOpen(folderName);
+    const lock = await client.getMailboxLock(folderName);
+    try {
+      // The lock grant SELECTs folderName unless it is already selected, so
+      // client.mailbox is now that folder's live object.
+      const box = client.mailbox;
+      if (!box || box.path !== folderName) {
+        throw new Error(`Mailbox "${folderName}" is not selected after acquiring its lock`);
+      }
+      return {
+        path: box.path,
+        ...(box.exists !== undefined ? { exists: Number(box.exists) } : {}),
+        ...(box.uidValidity !== undefined ? { uidValidity: box.uidValidity } : {}),
+        ...(box.uidNext !== undefined ? { uidNext: Number(box.uidNext) } : {}),
+        ...(box.readOnly !== undefined ? { readOnly: Boolean(box.readOnly) } : {}),
+        flags: Array.from(box.flags ?? []),
+        ...(box.permanentFlags ? { permanentFlags: Array.from(box.permanentFlags) } : {}),
+      };
+    } finally {
+      lock.release();
+    }
   }
 
   async getFolderStatus(accountId: string, folderName: string): Promise<{
