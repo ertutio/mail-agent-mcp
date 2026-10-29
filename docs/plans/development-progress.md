@@ -9,9 +9,9 @@
 | 总任务状态 | `in_progress`：T01 已实现并开 PR 等评审，循环继续 |
 | 代码基线 | `main@96f8864fa5fb88d0d28e921ced7b8e8ad644d7ca`（2026-10-30 核对未变）；实施分支从该基线拉出 |
 | 原计划来源 | [PR #3](https://github.com/ertutio/mail-agent-mcp/pull/3)，head `eee1daf88b52d4969f96c117dc93219b6dd5c7f3`，2026-10-17；计划未合并不等于其中修复已实现 |
-| 当前检查点 / 子项 | C5 / T30（N-03，独立）；T01–T08、T16、T18、T19、T28、T31、T32、T37 review_pending |
-| next_action | T30：核对 IMAP APPEND 返回值在草稿与 Sent 两路径的贯穿（N-03/E06：APPEND false 被记成功）；用合成 false/undefined/throw 复现假成功 FAIL，再实现零假成功贯穿（草稿明确失败、Sent 给 warning 但不重发）。 |
-| 本子项通过条件 | APPEND false/undefined/throw 零假成功；草稿明确失败；Sent 给 warning 但不重发；调用者已有判断不重复修。 |
+| 当前检查点 / 子项 | C4 / T29（MAIL-06，独立）；T01–T08、T16、T18–T19、T28、T30–T32、T37 review_pending |
+| next_action | T29：核对未读统计的准确/未知语义（MAIL-06/E04/E02：5000上限/错误归零）；复现「查询失败被记为0」FAIL，再实现命名STATUS支持大邮箱且缺失/失败显式unknown/partial，不下载全量元数据。 |
+| 本子项通过条件 | 命名STATUS支持超过5000条；unseen缺失和查询失败显式unknown/partial，不为0。 |
 | 全局阻塞 | 无已确认阻断所有核心实现的条件；T33/T34/T36各自有原门控，真实服务商验证另需明确授权 |
 
 ## 已交付与证据边界
@@ -69,6 +69,7 @@
 | T28 / review_pending | 共享 search-input 校验：严格 YYYY-MM-DD+真实日历、since 严格早于 before、每 folder limit 1..5000；imap_search_emails/imap_bulk_delete_by_search/统一搜索三入口一致 | `fix/t28-search-input-validation` @ `36ec618`，[PR #17](https://github.com/ertutio/mail-agent-mcp/pull/17)，独立基线 main@96f8864 | 反例（5 例，断言 service 零调用）：修复前假日历/垃圾日期/无序范围/越界 limit 全部到达服务或静默空结果（FAIL）；修复后网络前拒绝且统一搜索测试经共享解析器保持绿色。全量 667 passed/1 skipped；lint/build/check:secrets/diff --check 通过 | 评审等待中；limit schema 新增 int/min/max 约束（正确性收紧）。UID 参数扩展另定范围。next：T31（游标已更新），T09 排 #12→#13 链后 |
 | T31 / review_pending | 配置更新提取到 applyClaudeConfigUpdate：仅 ENOENT 初始化、坏 JSON/拒读保留原字节、候选形态校验、其他 mcpServers 保留、同名差异条目 y/N 确认、临时+rename 原子替换 | `fix/t31-config-safe-write` @ `a74901f`，[PR #18](https://github.com/ertutio/mail-agent-mcp/pull/18)，独立基线 main@96f8864 | tests/claude-config.test.ts 6 例（真实临时文件+注入 I/O 拒读）：全部固定新契约；旧行为（坏 JSON 被空对象覆盖，E10）经原实现逐行核对确认后由新路径消除。全量 668 passed/1 skipped；lint/build/check:secrets/diff --check 通过 | 评审等待中；setup 流程坏配置从静默替换变为失败+指引、同名新增确认（行为变化）。next：T32（游标已更新），T09 排 #12→#13 链后 |
 | T32 / review_pending | setup 注册路径改为 resolveBundledServerPath(import.meta.url)（dist/setup.js 旁的 index.js），手动提示同步 | `fix/t32-install-paths` @ `96cb354`，[PR #19](https://github.com/ertutio/mail-agent-mcp/pull/19)，独立基线 main@96f8864 | tests/install-path-resolution.test.ts 3 例：模块相对解析（平台形状）+ 真实 stdio initialize 握手（OS 临时目录 cwd + 临时配置，~1.7s 应答）证明任意 cwd 隔离初始化。全量 665 passed/1 skipped；lint/build/check:secrets/diff --check 通过 | 评审等待中；从非根目录运行安装器时注册路径由错变对（行为变化）。T36 部署验收独立门控。next：T30（游标已更新），T09 排 #12→#13 链后 |
+| T30 / review_pending | 两处 append 站点核实 outcome：Sent 未确认返回 saved:false+append_failed（调用方既有 warning 不重发），appendMessage 返回 false（草稿调用者既有判断抛错） | `fix/t30-append-result-contract` @ `68ff632`，[PR #20](https://github.com/ertutio/mail-agent-mcp/pull/20)，独立基线 main@96f8864 | 反例（6 例）：修复前 false/undefined 产生 saved:true/true（FAIL，4 例）；修复后报告未保存，确认结果回归通过。sent-save fixture 默认值改为真实库成功形态。全量 668 passed/1 skipped；lint/build/check:secrets/diff --check 通过 | 评审等待中；未确认 APPEND 不再报成功（正确性收紧）。真实服务器 false 可达条件 NOT RUN。next：T29（游标已更新），T09 排 #12→#13 链后 |
 
 每个子项保留：基线与修复SHA、具体用例/输入、缺陷前FAIL/修复后PASS、相邻回归、精确副作用/零副作用断言、命令或run URL、环境/fixture、报告位置、失败/跳过/缓存/未执行、接口/兼容变化。进度只放必要摘要，凭据、真实邮件和完整日志不入文档。
 
