@@ -1,7 +1,10 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import type { CredentialBackend } from '../src/credentials/credential-backend.js';
 import { credentialTarget, gmailClientSecretTarget } from '../src/credentials/credential-backend.js';
 import { CredentialRollbackError, type CredentialRotationOptions } from '../src/credentials/credential-rotation.js';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import { rmSync, existsSync, readFileSync } from 'fs';
 import { runEnrollmentCli, type EnrollmentCliDependencies } from '../src/enroll.js';
 import type { ImapAccount } from '../src/types/index.js';
 
@@ -249,5 +252,72 @@ describe('gmail-repair enrollment CLI', () => {
     const state = gmailSetup([gmailAccount(), second]);
     await runEnrollmentCli(['gmail-repair', 'second-gmail'], state.deps);
     expect(state.rotate.mock.calls[0]![0].target).toBe(credentialTarget('gmail', 'second@gmail.com'));
+  });
+});
+
+// T16 / BUG-SEC-04: CLI enrollment must verify the credentials with a real
+// login before anything is committed — the same verify the web wizard injects
+// (account => imapService.authenticateOnly). Case IDs:
+//   T16-VERIFY-CALLED — the enroll path invokes the injected login verification
+//   T16-VERIFY-FAIL-ROLLBACK — a failed verification rolls the vault write back
+//     and never reports the account as enrolled
+//   T16-VERIFY-PASS-COMMITS — a passed verification commits the account
+describe('T16: CLI enrollment requires login verification', () => {
+  let configDir: string;
+
+  beforeEach(() => {
+    configDir = join(tmpdir(), 'imap-mcp-t16-' + process.pid + '-' + Math.random().toString(36).slice(2));
+    process.env.IMAP_MCP_CONFIG_DIR = configDir;
+  });
+  afterEach(() => {
+    delete process.env.IMAP_MCP_CONFIG_DIR;
+    rmSync(configDir, { recursive: true, force: true });
+  });
+
+  const enrollSetup = (authenticateOnly: ReturnType<typeof vi.fn>) => {
+    const output: string[] = [];
+    const credentials = {
+      read: vi.fn(() => null),
+      write: vi.fn(() => true),
+      delete: vi.fn(() => true),
+    } as unknown as CredentialBackend;
+    const prompt = vi.fn(async () => 'user@qq.synth.test');
+    const deps: EnrollmentCliDependencies = {
+      platform: 'win32',
+      stdinIsTTY: true,
+      credentials,
+      prompt,
+      authenticateOnly: authenticateOnly as any,
+      writeOutput: (text) => { output.push(text); },
+    };
+    return { deps, credentials, authenticateOnly, output };
+  };
+
+  it('T16-VERIFY-CALLED: qq enrollment invokes the injected login verification', async () => {
+    const state = enrollSetup(vi.fn(async () => undefined));
+    await runEnrollmentCli(['qq'], state.deps);
+    expect(state.authenticateOnly).toHaveBeenCalledTimes(1);
+    expect(state.output.join('')).toContain('enrolled');
+  });
+
+  it('T16-VERIFY-FAIL-ROLLBACK: a failed verification rolls back and never reports enrolled', async () => {
+    const state = enrollSetup(vi.fn(async () => { throw new Error('IMAP login failed'); }));
+    await expect(runEnrollmentCli(['qq'], state.deps)).rejects.toThrow(/IMAP login failed/);
+    expect(state.authenticateOnly).toHaveBeenCalledTimes(1);
+    expect(state.output.join('')).not.toContain('enrolled');
+    // The freshly written vault secret is rolled back (deleted).
+    expect(state.credentials.delete).toHaveBeenCalled();
+    const store = join(configDir, 'accounts.json');
+    expect(existsSync(store)).toBe(false);
+  });
+
+  it('T16-VERIFY-PASS-COMMITS: a passed verification commits the account to the store', async () => {
+    const state = enrollSetup(vi.fn(async () => undefined));
+    await runEnrollmentCli(['qq'], state.deps);
+    const store = join(configDir, 'accounts.json');
+    expect(existsSync(store)).toBe(true);
+    const stored = JSON.parse(readFileSync(store, 'utf8'));
+    expect(stored).toHaveLength(1);
+    expect(stored[0].host).toBe('imap.qq.com');
   });
 });
