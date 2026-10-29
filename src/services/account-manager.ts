@@ -9,6 +9,7 @@ import { accountForPersistence, assertCredentialTarget } from '../credentials/ac
 import type { CredentialBackend } from '../credentials/credential-backend.js';
 import {AsyncLocalStorage} from 'node:async_hooks';
 import {withAccountStoreLock} from '../utils/account-store-lock.js';
+import {validateAccountCandidate, type AccountCandidate} from '../utils/account-candidate.js';
 
 
 type ProviderAccountCandidate = Pick<ImapAccount, 'host' | 'smtp' | 'auth'>;
@@ -80,15 +81,20 @@ export class AccountManager {
     return this.withStoreTransaction(()=>this.addAccountUnlocked(account));
   }
   private async addAccountUnlocked(account: Omit<ImapAccount,'id'>):Promise<ImapAccount>{
-    assertProviderAccountAuth(account);
+    // Pure candidate validation (T07 / BUG-SEC-06): schema, types, credential
+    // placeholder rules and unknown-field rejection happen before any store
+    // access, so an invalid candidate can never reach accounts.json. The
+    // normalized candidate — never the raw input — is persisted.
+    const candidate = validateAccountCandidate(account);
+    assertProviderAccountAuth(candidate);
     for (const existing of this.accounts.values()) {
-      if (existing.name === account.name) throw new Error('Account name already exists; choose a unique name');
-      if (account.auth && existing.auth?.provider === account.auth.provider && existing.user === account.user) {
+      if (existing.name === candidate.name) throw new Error('Account name already exists; choose a unique name');
+      if (candidate.auth && existing.auth?.provider === candidate.auth.provider && existing.user === candidate.user) {
         throw new Error('Credential-backed account already exists; repair it instead of enrolling twice');
       }
     }
     const id = crypto.randomUUID();
-    const persistenceInput = accountForPersistence({ ...account, id });
+    const persistenceInput = accountForPersistence({ ...candidate, id });
     const newAccount: ImapAccount = {
       ...persistenceInput,
       id,
@@ -192,11 +198,14 @@ export class AccountManager {
       throw new Error(`Account with id ${id} not found`);
     }
 
-    const candidate = {
+    // The merged result is a candidate too: schema and unknown-field rules
+    // apply before anything is written (T07). The stored (encrypted) password
+    // flows through as a string, so the merge stays compatible.
+    const candidate = validateAccountCandidate({
       ...existingAccount,
       ...updates,
       smtp: updates.smtp ?? existingAccount.smtp,
-    };
+    });
     for (const [otherId, other] of this.accounts) {
       if (otherId !== id && other.name === candidate.name) {
         throw new Error('Account name already exists; choose a unique name');

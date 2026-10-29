@@ -35,6 +35,7 @@ vi.mock('fs', async () => {
 // Need to import after mocking
 import { AccountManager } from '../src/services/account-manager.js';
 import { credentialTarget, gmailClientSecretTarget, type CredentialBackend } from '../src/credentials/credential-backend.js';
+import { validateAccountCandidate } from '../src/utils/account-candidate.js';
 import { readFileSync, writeFileSync, mkdirSync } from 'fs';
 
 describe('AccountManager', () => {
@@ -853,4 +854,135 @@ describe('AccountManager', () => {
       expect(updated.id).toBe(account.id);
     });
   });
+// T07 / BUG-SEC-06 (candidate contract): account candidates are validated as a
+// pure step before any store write. Only known fields pass; garbage types,
+// null credentials and unknown extras are rejected; the empty-string
+// placeholder rule (env-managed credentials) stays compatible.
+describe('T07: account candidate schema', () => {
+  const baseCandidate = {
+    name: 'T07 Candidate',
+    host: 'imap.synth.test',
+    port: 993,
+    user: 'user@synth.test',
+    password: ['t07-', 'synthetic', '-pw'].join(''),
+    tls: true,
+  };
+
+  describe('validateAccountCandidate (pure)', () => {
+    it('T07-SCHEMA-UNKNOWN-FIELD: rejects unknown extra fields by name', () => {
+      expect(() => validateAccountCandidate({ ...baseCandidate, evilExtra: 'x' }))
+        .toThrow(/evilExtra/);
+    });
+
+    it('T07-SCHEMA-TYPES: rejects wrong types and out-of-range ports', () => {
+      for (const broken of [
+        { ...baseCandidate, port: '993' },
+        { ...baseCandidate, port: 0 },
+        { ...baseCandidate, port: 70000 },
+        { ...baseCandidate, tls: 'yes' },
+        { ...baseCandidate, name: '   ' },
+        { ...baseCandidate, host: 993 },
+        { ...baseCandidate, user: 42 },
+      ]) {
+        expect(() => validateAccountCandidate(broken)).toThrow();
+      }
+      expect(() => validateAccountCandidate(null)).toThrow();
+      expect(() => validateAccountCandidate([baseCandidate])).toThrow();
+      expect(() => validateAccountCandidate('nope')).toThrow();
+    });
+
+    it('T07-SCHEMA-NULL-CREDENTIALS: null credentials rejected, empty-string placeholders accepted', () => {
+      expect(() => validateAccountCandidate({ ...baseCandidate, password: null })).toThrow();
+      const placeholder = validateAccountCandidate({ ...baseCandidate, user: '', password: '' });
+      expect(placeholder.user).toBe('');
+      expect(placeholder.password).toBe('');
+    });
+
+    it('T07-SCHEMA-NORMALIZES: applies defaults and drops nothing silently', () => {
+      const normalized = validateAccountCandidate({ ...baseCandidate, port: undefined, tls: undefined });
+      expect(normalized.port).toBe(993);
+      expect(normalized.tls).toBe(true);
+      const starttls = validateAccountCandidate({ ...baseCandidate, port: undefined, tls: false });
+      expect(starttls.port).toBe(143);
+      expect(Object.keys(normalized).sort()).toEqual(
+        ['host', 'name', 'password', 'port', 'tls', 'user']
+      );
+    });
+
+    it('T07-SCHEMA-WEB-SHAPE: accepts the exact shape the setup API builds', () => {
+      const shape = {
+        name: 'Web Shape',
+        host: 'imap.synth.test',
+        port: 993,
+        user: 'user@synth.test',
+        password: '',
+        tls: true,
+        email: 'user@synth.test',
+        smtp: { host: 'smtp.synth.test', port: 465, secure: true, user: 'user@synth.test', password: '' },
+        sentFolder: 'Gesendet',
+        defaultBcc: ['audit@synth.test'],
+      };
+      const normalized = validateAccountCandidate(shape);
+      expect(normalized.smtp?.host).toBe('smtp.synth.test');
+      expect(normalized.defaultBcc).toEqual(['audit@synth.test']);
+      expect(() => validateAccountCandidate({ ...shape, smtp: { ...shape.smtp, port: '465' } })).toThrow();
+      expect(() => validateAccountCandidate({ ...shape, smtp: { ...shape.smtp, authMethod: 'BOGUS' } })).toThrow();
+    });
+
+    it('T07-SCHEMA-AUTH: accepts known provider auth references, rejects unknown auth fields', () => {
+      const qq = validateAccountCandidate({
+        ...baseCandidate,
+        auth: { kind: 'credential', provider: 'qq', credentialTarget: 'MailAgentMCP:qq:synth' },
+      });
+      expect(qq.auth?.kind).toBe('credential');
+      expect(() => validateAccountCandidate({
+        ...baseCandidate,
+        auth: { kind: 'credential', provider: 'qq', credentialTarget: 'MailAgentMCP:qq:synth', evilAuthField: 1 },
+      })).toThrow(/evilAuthField/);
+      expect(() => validateAccountCandidate({
+        ...baseCandidate,
+        auth: { kind: 'oauth2', provider: 'gmail' },
+      })).toThrow(/credentialTarget/);
+    });
+  });
+
+  describe('addAccount / updateAccount wiring', () => {
+    it('T07-ADD-REJECTS-NO-WRITE: an invalid candidate is refused with zero store writes', async () => {
+      const manager = new AccountManager();
+      await expect(
+        manager.addAccount({ ...baseCandidate, evilExtra: 'x' } as any)
+      ).rejects.toThrow(/evilExtra/);
+      expect(vi.mocked(fs.writeFile)).not.toHaveBeenCalled();
+      expect(vi.mocked(writeFileSync)).not.toHaveBeenCalled();
+    });
+
+    it('T07-ADD-TYPE-REJECT: a string port never reaches the store', async () => {
+      const manager = new AccountManager();
+      await expect(
+        manager.addAccount({ ...baseCandidate, port: '993' } as any)
+      ).rejects.toThrow();
+      expect(vi.mocked(fs.writeFile)).not.toHaveBeenCalled();
+    });
+
+    it('T07-ADD-COMPAT: a valid web-shape candidate persists only known fields', async () => {
+      const manager = new AccountManager();
+      const account = await manager.addAccount({ ...baseCandidate });
+      const stored = JSON.parse(String(vi.mocked(fs.writeFile).mock.calls[0][1]));
+      expect(stored[0].name).toBe('T07 Candidate');
+      expect(Object.keys(stored[0]).sort()).toEqual(
+        ['host', 'id', 'name', 'password', 'port', 'tls', 'user']
+      );
+    });
+
+    it('T07-UPDATE-REJECTS-UNKNOWN-FIELD: unknown update fields never reach the store', async () => {
+      const manager = new AccountManager();
+      const account = await manager.addAccount({ ...baseCandidate });
+      vi.mocked(fs.writeFile).mockClear();
+      await expect(
+        manager.updateAccount(account.id, { evilExtra: 'x' } as any)
+      ).rejects.toThrow(/evilExtra/);
+      expect(vi.mocked(fs.writeFile)).not.toHaveBeenCalled();
+    });
+  });
+});
 });
