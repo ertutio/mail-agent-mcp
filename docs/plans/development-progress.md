@@ -9,9 +9,9 @@
 | 总任务状态 | `in_progress`：T01 已实现并开 PR 等评审，循环继续 |
 | 代码基线 | `main@96f8864fa5fb88d0d28e921ced7b8e8ad644d7ca`（2026-10-30 核对未变）；实施分支从该基线拉出 |
 | 原计划来源 | [PR #3](https://github.com/ertutio/mail-agent-mcp/pull/3)，head `eee1daf88b52d4969f96c117dc93219b6dd5c7f3`，2026-10-17；计划未合并不等于其中修复已实现 |
-| 当前检查点 / 子项 | C6 / T31（ENG-02，独立）；T01–T08、T16、T18、T19、T28、T37 review_pending |
-| next_action | T31：核对 setup 客户端配置写入（ENG-02/E10：坏配置被空对象覆盖）；用坏 JSON/拒读复现「覆盖原文件」FAIL，再实现仅 ENOENT 初始化、坏/拒读保留原字节、候选校验后原子替换并保留其他服务。 |
-| 本子项通过条件 | 仅 ENOENT 初始化；坏 JSON/拒读不覆盖原字节；候选校验后原子替换并保留其他服务。 |
+| 当前检查点 / 子项 | C6 / T32（ENG-03，独立）；T01–T08、T16、T18、T19、T28、T31、T37 review_pending |
+| next_action | T32：核对安装位置对 cwd 的依赖（ENG-03/E10：路径取cwd）；用任意 cwd + 临时配置复现 stdio 初始化不可达正确产物的 FAIL，再实现从模块位置定位启动产物并以任意 cwd 完成隔离 stdio 初始化。 |
+| 本子项通过条件 | 从模块位置定位启动产物；任意 cwd + 临时配置的隔离 stdio 初始化可达正确产物。 |
 | 全局阻塞 | 无已确认阻断所有核心实现的条件；T33/T34/T36各自有原门控，真实服务商验证另需明确授权 |
 
 ## 已交付与证据边界
@@ -67,6 +67,7 @@
 | T19 / review_pending | OAuth body 纳入截止与预算：loopback token timer 覆盖 body 全消费（成功/错误），readBoundedJson 64KB 流式预算（OAuthBodyBudgetError 即时中断）；refresh 保持整调用 timer 并接入预算 | `fix/t19-oauth-body-budgets` @ `27ea25d`，[PR #15](https://github.com/ertutio/mail-agent-mcp/pull/15)，独立基线 main@96f8864 | 反例（真实流式 Response+注入 fetch，drip mock 遵约 signal 以 AbortError 切断）：修复前 drip-fed 成功/错误 body 拖过截止（4s harness 截止，FAIL）、2MB body 被接受；修复后按截止报 timed out、错误按状态码、超限显式预算错误。全量 667 passed/1 skipped；lint/build/check:secrets/diff --check 通过 | 评审等待中；新增错误信息 "OAuth response body exceeded 65536 bytes"。真实 Google 端点 NOT RUN。next：T18（游标已更新），T09 排 #12→#13 链后 |
 | T18 / review_pending | /api/test-connection 的 disconnect 移入 finally；testConnection 的 logout 移入 finally 并带硬关回退；首错不被清理遮蔽，容忍性 STATUS 语义保持 | `fix/t18-owner-cleanup` @ `4426f06`，[PR #16](https://github.com/ertutio/mail-agent-mcp/pull/16)，独立基线 main@96f8864 | 反例：修复前 LIST/STATUS 失败跳过 logout、web 端 test-<id> 连接泄漏（FAIL，3 例）；修复后均结束连接、LIST 错误浮出、logout 失败回退硬关。全量 666 passed/1 skipped；lint/build/check:secrets/diff --check 通过 | 评审等待中；index shutdown 接线按计划先明确范围再接入，未捆绑。next：T28（游标已更新），T09 排 #12→#13 链后 |
 | T28 / review_pending | 共享 search-input 校验：严格 YYYY-MM-DD+真实日历、since 严格早于 before、每 folder limit 1..5000；imap_search_emails/imap_bulk_delete_by_search/统一搜索三入口一致 | `fix/t28-search-input-validation` @ `36ec618`，[PR #17](https://github.com/ertutio/mail-agent-mcp/pull/17)，独立基线 main@96f8864 | 反例（5 例，断言 service 零调用）：修复前假日历/垃圾日期/无序范围/越界 limit 全部到达服务或静默空结果（FAIL）；修复后网络前拒绝且统一搜索测试经共享解析器保持绿色。全量 667 passed/1 skipped；lint/build/check:secrets/diff --check 通过 | 评审等待中；limit schema 新增 int/min/max 约束（正确性收紧）。UID 参数扩展另定范围。next：T31（游标已更新），T09 排 #12→#13 链后 |
+| T31 / review_pending | 配置更新提取到 applyClaudeConfigUpdate：仅 ENOENT 初始化、坏 JSON/拒读保留原字节、候选形态校验、其他 mcpServers 保留、同名差异条目 y/N 确认、临时+rename 原子替换 | `fix/t31-config-safe-write` @ `a74901f`，[PR #18](https://github.com/ertutio/mail-agent-mcp/pull/18)，独立基线 main@96f8864 | tests/claude-config.test.ts 6 例（真实临时文件+注入 I/O 拒读）：全部固定新契约；旧行为（坏 JSON 被空对象覆盖，E10）经原实现逐行核对确认后由新路径消除。全量 668 passed/1 skipped；lint/build/check:secrets/diff --check 通过 | 评审等待中；setup 流程坏配置从静默替换变为失败+指引、同名新增确认（行为变化）。next：T32（游标已更新），T09 排 #12→#13 链后 |
 
 每个子项保留：基线与修复SHA、具体用例/输入、缺陷前FAIL/修复后PASS、相邻回归、精确副作用/零副作用断言、命令或run URL、环境/fixture、报告位置、失败/跳过/缓存/未执行、接口/兼容变化。进度只放必要摘要，凭据、真实邮件和完整日志不入文档。
 
