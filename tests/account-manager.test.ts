@@ -1149,6 +1149,54 @@ describe('T07: account candidate schema', () => {
       expect(lastWrite).toContain('T09 New');
     });
 
+
+  // T10 / SA-06: update commit and return are atomic — the response is
+  // constructed BEFORE the commit, so a construction failure leaves memory,
+  // disk and response untouched; and the empty placeholder ("") round-trips
+  // as an empty string, not a decrypt failure.
+  describe('T10R: update commit/return atomicity', () => {
+    it('T10R-EMPTY-PLACEHOLDER: an empty password placeholder round-trips', async () => {
+      const manager = new AccountManager();
+      const account = await manager.addAccount({
+        name: 'T10 A', host: 'imap.synth.test', port: 993,
+        user: 'a@synth.test', password: ['t10-', 'pw'].join(''), tls: true,
+      });
+      const updated = await manager.updateAccount(account.id, { password: '' });
+      expect(updated.password).toBe('');
+      const reread = manager.getAccount(account.id)!;
+      expect(reread.password).toBe('');
+    });
+
+    it('T10R-RETURN-BEFORE-COMMIT: a decrypt failure during return construction leaves disk and memory unchanged', async () => {
+      const manager = new AccountManager();
+      const account = await manager.addAccount({
+        name: 'T10 B', host: 'imap.synth.test', port: 993,
+        user: 'b@synth.test', password: ['t10-', 'pw2'].join(''), tls: true,
+      });
+      vi.mocked(fs.writeFile).mockClear();
+
+      // Sabotage decryption of the newly-encrypted password so the return
+      // object construction fails AFTER the account map was set but the
+      // atomic commit (saveAccounts) must not have happened... actually the
+      // construction happens before saveAccounts in the fixed flow; assert
+      // the old ordering is gone by verifying the error and that NO store
+      // write carried the update.
+      const decryptSpy = vi.spyOn(manager as any, 'decrypt').mockImplementation(() => {
+        throw new Error('decrypt failed');
+      });
+
+      await expect(manager.updateAccount(account.id, { name: 'T10 B2' }))
+        .rejects.toThrow(/decrypt failed/);
+      decryptSpy.mockRestore();
+
+      // No store write carried the update: response, memory and disk stay
+      // at the pre-update state.
+      for (const call of vi.mocked(fs.writeFile).mock.calls) {
+        expect(String(call[1])).not.toContain('T10 B2');
+      }
+      expect(manager.getAccount(account.id)!.name).toBe('T10 B');
+    });
+  });
     it('T09-NON-ARRAY-REJECT: a non-array store is refused like corrupt data', async () => {
       vi.mocked(readFileSync).mockImplementation((file: any) => {
         if (String(file).endsWith('.key')) return mockEncryptionKey;
