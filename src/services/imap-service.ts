@@ -375,6 +375,15 @@ export class ImapService {
     return state.client;
   }
 
+  /**
+   * The account's current identity revision (T11/T13): undefined when the
+   * account is not configured. Delegates to the account manager's record.
+   */
+  getAccountRevision(accountId: string): string | undefined {
+    const account = this.accountManager?.getAccount(accountId);
+    return account ? accountRevision(account) : undefined;
+  }
+
   async listFolders(accountId: string): Promise<Folder[]> {
     const client = await this.ensureConnected(accountId);
     const folders: Folder[] = [];

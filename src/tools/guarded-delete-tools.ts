@@ -3,9 +3,10 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { ImapService } from '../services/imap-service.js';
+import { accountRevision } from '../utils/account-revision.js';
 
 const DELETE_TOOLS = new Set(['imap_delete_email','imap_bulk_delete','imap_bulk_delete_by_search','imap_delete_spam','imap_delete_by_domain']);
-interface Operation { accountId:string; folder:string; uids:number[]; chunkSize:number; uidValidity:number; permanent:boolean }
+interface Operation { accountId:string; folder:string; uids:number[]; chunkSize:number; uidValidity:number; permanent:boolean; accountRevision?:string }
 interface Preview { expiresAt:number; state:'pending'|'executing'|'finished'|'ambiguous'; operations:Operation[] }
 interface Collection { operations:Array<Omit<Operation,'permanent'>>; versions:Map<string,number>; expectedValidity?:number }
 const response = (value:unknown) => ({content:[{type:'text' as const,text:JSON.stringify(value,null,2)}]});
@@ -56,7 +57,9 @@ export function guardedDeletion(server:McpServer, imap:ImapService, clock:()=>nu
           if(!Number.isInteger(status.uidValidity)||status.uidValidity<=0) throw new Error('Cannot freeze deletion without UIDVALIDITY');
           if(status.uidValidity!==op.uidValidity)throw new Error('Mailbox changed during deletion selection; create a new preview');
           const trash=await imap.resolveTrashFolder(op.accountId);
-          frozen.push({...op,uidValidity:status.uidValidity,permanent:op.folder===trash});
+          // T13 / SA-01: freeze the account identity alongside the mailbox state.
+          const accountRevision=await imap.getAccountRevision(op.accountId);
+          frozen.push({...op,uidValidity:status.uidValidity,permanent:op.folder===trash,accountRevision});
         }
         const previewId=randomUUID(); const expiresAt=clock()+300000;
         previews.set(previewId,{expiresAt,state:'pending',operations:frozen});
@@ -81,6 +84,13 @@ export function guardedDeletion(server:McpServer, imap:ImapService, clock:()=>nu
     preview.state='executing';
     try{
       for(const op of preview.operations){
+        // T13 / SA-01: the account identity revision is re-verified BEFORE the
+        // mailbox checks — an identity change (host, send policy, credential
+        // reference) invalidates the preview even when UIDVALIDITY happens to
+        // be equal.
+        const currentRev=await imap.getAccountRevision(op.accountId);
+        if(currentRev===undefined) throw new Error('Account was removed or not found; create a new preview');
+        if(currentRev!==op.accountRevision) throw new Error('Account identity changed since the preview was created; create a new preview');
         const status=await imap.getFolderStatus(op.accountId,op.folder);
         if(status.uidValidity!==op.uidValidity) throw new Error('Mailbox UIDVALIDITY changed; create a new preview');
         if((op.folder===await imap.resolveTrashFolder(op.accountId))!==op.permanent) throw new Error('Trash mapping changed; create a new preview');
