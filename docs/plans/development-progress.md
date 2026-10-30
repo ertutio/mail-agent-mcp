@@ -6,13 +6,49 @@
 
 | 字段 | 当前记录 |
 | --- | --- |
-| 总任务状态 | `in_progress`：T01 已实现并开 PR 等评审，循环继续 |
-| 代码基线 | `main@96f8864fa5fb88d0d28e921ced7b8e8ad644d7ca`（2026-10-30 核对未变）；实施分支从该基线拉出 |
+| 总任务状态 | `in_progress`：2026-10-30 集中验收 PR #3–25；确定缺口的 PR 暂缓，合格范围集中集成；下表本轮记录优先于历史 review_pending 回执 |
+| 代码基线 | 验收起点 `main@96f8864fa5fb88d0d28e921ced7b8e8ad644d7ca`；本轮候选 `codex/accepted-integration-20261030`，最终身份和质量检查见本轮记录 |
 | 原计划来源 | [PR #3](https://github.com/ertutio/mail-agent-mcp/pull/3)，head `eee1daf88b52d4969f96c117dc93219b6dd5c7f3`，2026-10-17；计划未合并不等于其中修复已实现 |
-| 当前检查点 / 子项 | C5 / T25（MAIL-11，独立）；T01–T09、T16、T18–T19、T22–T24、T28–T32、T37 review_pending |
-| next_action | T25：核对附件 part 身份与一次物化（MAIL-11/E09：同名附件取第一份）；用同名不同字节附件复现取错 part 的 FAIL，再实现 part 稳定身份/一次物化/字节哈希，UIDVALIDITY 或账户版本变化拒绝旧定位（依赖 T11 revision，未合入前先落 part 消歧）。 |
-| 本子项通过条件 | 同名不同字节、顺序和CID保持；一次物化/字节哈希正确；UIDVALIDITY/账户版本改变拒绝原part定位（revision 部分依 T11）。 |
-| 全局阻塞 | 无已确认阻断所有核心实现的条件；T33/T34/T36各自有原门控，真实服务商验证另需明确授权 |
+| 当前检查点 / 子项 | `T35 BLOCKED`：生产/全量依赖审计失败；现有 PR 已分类验收，未满足全部门禁，尚未合并 main。 |
+| next_action | 先由维护者决定依赖修复范围：生产高危必须处理，开发链 T33 仍需解除排除；不自动 audit fix、不降低阈值。获授权后最小修复并重验受影响范围及 Node22/24 CI，再合并候选。功能队列优先修正 T07：SMTP 缺 port/secure 必须拒绝或按明确契约归一化；updateAccount 持久化经过校验的候选。补真实 HTTP/账户写前零副作用断言，再重验 #12→#13→#24。并行就绪项按下方暂缓表领取，不能把本地候选集成视为全部完成。 |
+| 本子项通过条件 | 缺失/空值/错误类型和未知字段在写前被拒；归一化结果实际持久；失败账户文件及 vault 不变；T09 ENOENT/坏JSON/拒读语义及相关回归通过。 |
+| 全局阻塞 | 当前 prod audit（3 high）/full audit（4 high）失败；原 T33/T34/T36 门控保留；真实服务商、WinCred、部署和发布不由本轮代码验收替代。 |
+
+## 2026-10-30 集中验收
+
+本轮审查每个 PR 相对其真实 base 的差异。#3 的历史分析保留，#4 的持续计划为当前入口；#18/#19 的 setup 冲突同时保留安全原子更新和模块相对路径。合并范围与尚未通过的 T 编号分开记录，不因 PR 已提交而改写为完成。
+
+| 范围 | 本轮状态 / 证据 |
+| --- | --- |
+| 集成候选 | `BLOCKED（T35）`：源码候选 `0ba339e80227335f8d9b9920ee512ffa57985097` 包含 #3、#4、#6、#7、#8、#11、#18、#19、#20；共 9 项候选、14 项暂缓。生产/全量 audit 未通过，尚未合并 main。#7→#8 保留原堆叠关系；其余阻断分支不纳入候选祖先。 |
+| 本地质量门禁 | 源码 `0ba339e80227335f8d9b9920ee512ffa57985097`：build、lint、release secrets（192 files）、working/origin-main diff-check、pack dry-run（13 files）通过；最终 coverage exit 0：71 passed / 1 skipped files，693 passed / 1 skipped tests。Statements 79.40% (2837/3573)、Branches 70.56% (1949/2762)、Functions 82.00% (492/600)、Lines 82.24% (2524/3069)。 |
+| 验证环境与复用 | 首次 Vite 缓存因系统 TEMP rename EPERM 未执行测试，改用 workspace TEMP/TMP。随后三条 attachment-root junction 用例在沙箱受 EPERM 阻止，提升权限定点重跑 10/10；最终 coverage 在可写临时目录和必要权限下完整执行。移除 #22 后 SMTP 28/28 与 build 重跑；其余无关证据复用。临时环境失败未作为产品失败，也未用跳过替代目标断言。 |
+| T32 安装路径补证 | `PASS（隔离握手）`：真实构建 dist/index.js 从临时任意 cwd、新建 IMAP_MCP_CONFIG_DIR 成功 initialize，protocol 2024-11-05、serverInfo mail-agent-mcp 0.1.1；仅生成测试 .key，无账户。结束时未收到 shutdown 响应；探针已终止子进程，此项只验证 initialize。 |
+| 依赖审计 | `FAIL`：生产 8 个受影响包节点（5 moderate / 3 high），undici 7.30.0、zod 4.4.3 含高危（公告范围分别 7.0.0–7.30.0、<4.6.6）；全量 12 个（8 moderate / 4 high），另含 Vite 8.1.4 开发链高危（范围 8.0.0–8.1.5）。普通 fixAvailable 不能充当修复后证据；Nodemailer 的 moderate 建议 force 到 10.3.1，超出当前声明范围，未执行。两个 package 文件相对 main 未变，但既有缺陷仍是门禁失败。 |
+| 公告定位 | [undici GHSA-4qv8-2p9j-2685](https://github.com/advisories/GHSA-4qv8-2p9j-2685)、[zod GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5)、[Vite GHSA-698v-4r3x-3vcv](https://github.com/advisories/GHSA-698v-4r3x-3vcv) 为当前 audit 中的代表定位，非完整公告数；完整输出和可达性须随依赖修复复核，不能把受影响包节点数当作独立漏洞数。 |
+| CI | `PENDING`：将对可审查候选触发 Ubuntu Node22/24，实际 run/结果附候选 PR；无 run 不能视作 PASS。 |
+| 独立审计 | `PASS（读取覆盖）`：未参与实现的 DeepSeek 只读审计 review/read、仅 Read、空写入清单；21 个 PR 差异的 35 块均实际读取且无失败，审计 session `1824a5e0-4e3a-4bac-ae48-606576364c09`。报告不是产品测试，所提问题逐项核源码；rev2 capability 大小写疑虑被当前 imapflow/lib/tools.js 的特殊归一化规则推翻，未采纳。 |
+| 成本边界 | 外部审计耗时 144.125 秒；CLI 报告 USD 1.63894（costBasis=unknown，未核对实际账单），input 129076 / output 23320 / cache-read 821120 tokens。Codex 开发协作费用未知；产品运行时未新增模型请求。 |
+| 安全删除集成 | `PARTIAL`：T03/T04 能力门禁可独立审查；T01/T05 未完整通过，不能宣称 C0 联合安全删除验收关闭。 |
+| 运行与发布 | `NOT_RUN`：没有替换现有安装、重启 MCP、真实邮箱/WinCred 操作或 npm/MCP Registry 发布。T36 保留独立验收。 |
+
+| 暂缓 PR / T | 具体原因、证据及解除条件 |
+| --- | --- |
+| #5 / T01 | `PARTIAL`：SELECT 锁旁路已修正，但 folder_status 仍先 STATUS 后单独 SELECT，counts 与 flags 可来自不同时点；与总计划稳定状态要求不符。合成 gate 在两次读取间改变 UIDVALIDITY/计数/flags，验证最终快照一致并保留 read/flags/move/delete 锁回归后重验。 |
+| #9 / T05 | `FAIL`：deleteEmail 非 Trash 分支仍丢弃 messageMove 的 false/undefined；bulkDelete 收到仅覆盖部分 UID 的 truthy uidMap 仍计整个 chunk。补单条 MOVE 未确认与分块部分确认反例，未知结果不冒充完成、不提示安全重试。 |
+| #10 / T37 | `FAIL`：正则取第一个尖括号地址，显示名 `Offer <decoy@example.test>`、实际地址 `actual@other.test` 被格式化后错误命中 example.test。实际 spamTools+guardedDeletion 合成探针冻结 UID [77]，证明误选；改用结构化地址/可靠解析后验证精确集合、预览与确认不重搜。 |
+| #12 / T07 | `FAIL`：validateSmtp 对缺 port/secure 返回 undefined（非空断言只影响 TS）；updateAccount 验证候选后仍持久化原始 updates。补缺字段/null/默认值持久化及零写断言。 |
+| #13 / T08、#24 / T09 | `BLOCKED`：分别堆叠在 #12、#13 上；各自差异未发现同等级确定缺陷，但不能为合入后代而带入未通过的 T07。修正父分支并复验 HTTP gate/存储加载。 |
+| #14 / T16 | `PARTIAL / NOT_RUN`：QQ 新注册验证失败回滚有测试；网易/Gmail 新注册认证失败时 vault 回滚、账户零写尚无当前证据，Gmail repair 不替代新注册。源码未发现确定回归；补两 provider 的合成失败路径后重验，不以真实登录补普通开发证据。 |
+| #15 / T19 | `PARTIAL / NOT_RUN`：loopback 成功/错误滴流截止、refresh 请求超时及两种 body 字节上限已有测试；refresh headers 到达后成功/错误 body 的总截止未覆盖。补 AbortSignal 约束的滴流金样，断言同一 deadline 包含完整 body 后重验。 |
+| #16 / T18 | `FAIL`：Web finally 调 disconnect，而 disconnect 在 logout 抛错后只删除连接 map、不调用 close；LIST 错误虽保留，socket 可能泄漏。补 LIST+logout 双失败真实 close 断言及 stop 拥有者清理。 |
+| #17 / T28 | `FAIL`：三入口 truthy 日期判断使已提供的空字符串跳过解析，日期范围可能变宽；显式 !== undefined 检查并验证搜索/删除网络前拒绝。 |
+| #21 / T29 | `FAIL`：getFolderUnseenStatus 的 ensureConnected 位于 try 外，重连/认证失败使整次统计抛错，丢失已取得的部分结果；覆盖成功一夹后重连失败并返回 unknown/complete:false。 |
+| #22 / T22 | `FAIL`：真实 SmtpService.sendEmail + Nodemailer 10.1.0 streamTransport（buffer:true，无网络）得到 info.messageId/服务返回 ID 与冻结 raw 及 transport 邮件头 ID 不一致；mock 自行从 raw 构造返回值掩盖此差异。Envelope 五个 To/Cc/Bcc 地址齐全且 raw 无 Bcc；探针 newline:unix 仅使 CRLF→LF，归一后字节相等，不作为生产字节漂移证据。明确设置冻结 Message-ID 或从冻结 MIME 返回真实 ID，并用真实 transport 断言返回/头/Sent 一致后重验。 |
+| #23 / T24 | `PARTIAL`：新增 HTML 转义与附言有效，但原 HTML-only 邮件的 text 视图仍无原正文；属于既有问题，仍未满足 T24 明确金样要求。用真实 HTML-only MIME 检查两视图正文/附言/头完整；CID 字符串保持不等于 T25 part 端到端通过。 |
+| #25 / T23 | `FAIL`：mailparser 的 AddressObject.text 通常把多人拼成一个字符串；extractEmail 只识别第一个地址，自己在首位时整组被丢弃，否则可能保留自己/重复。应由结构化 value 扁平化真实 Reply-To/To/Cc，并用真实 MIME 验证不漏人/排自身/去重。 |
+
+本轮没有对上述阻断尝试产品修正，失败修正计数为 0；现有 PR 的反例与修复记录另行保留，不因这次审查重置已有排障历史。
 
 ## 已交付与证据边界
 
@@ -49,7 +85,9 @@
 | V-01/V-02 | 当前运行进程、实际MCP调用、服务商差异、WinCred、最低Node和跨平台等按变更列待验证；mock/Ubuntu CI不能充当这些证据。 |
 | R1–R5/F1–F8 | 按总计划原表保留风险/延期；可信审批、跨平台vault、全文索引、新provider等不自动扩入实现。 |
 
-## 保存点记录格式
+## 历史提交回执（不代表本轮验收）
+
+以下保留各实现 PR 提交时的原始回执与当时游标。当前状态以上方 2026-10-30 集中验收为准，历史 PASS/test 数字不覆盖本轮 FAIL、BLOCKED 或 NOT_RUN。
 
 | T编号 / 状态 | 行为与提交 | 分支 / PR / 父PR | 实际验收证据 | 未完成 / 阻塞 / next_action |
 | --- | --- | --- | --- | --- |
