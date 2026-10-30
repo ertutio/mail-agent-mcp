@@ -1,0 +1,1306 @@
+{
+  "batchFiles": [
+    {
+      "path": ".github/ISSUE_TEMPLATE/bug_report.yml",
+      "language": "yaml",
+      "sizeLines": 54,
+      "fileCategory": "config"
+    },
+    {
+      "path": ".github/ISSUE_TEMPLATE/config.yml",
+      "language": "yaml",
+      "sizeLines": 1,
+      "fileCategory": "config"
+    },
+    {
+      "path": ".github/ISSUE_TEMPLATE/feature_request.yml",
+      "language": "yaml",
+      "sizeLines": 37,
+      "fileCategory": "config"
+    },
+    {
+      "path": ".github/dependabot.yml",
+      "language": "yaml",
+      "sizeLines": 50,
+      "fileCategory": "config"
+    },
+    {
+      "path": ".github/workflow-drafts/release.yml",
+      "language": "yaml",
+      "sizeLines": 48,
+      "fileCategory": "config"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "language": "yaml",
+      "sizeLines": 63,
+      "fileCategory": "infra"
+    },
+    {
+      "path": "AGENTS.md",
+      "language": "markdown",
+      "sizeLines": 55,
+      "fileCategory": "docs"
+    },
+    {
+      "path": "CHANGELOG.md",
+      "language": "markdown",
+      "sizeLines": 229,
+      "fileCategory": "docs"
+    },
+    {
+      "path": "CLAUDE.md",
+      "language": "markdown",
+      "sizeLines": 25,
+      "fileCategory": "docs"
+    },
+    {
+      "path": "CONTRIBUTING.md",
+      "language": "markdown",
+      "sizeLines": 48,
+      "fileCategory": "docs"
+    },
+    {
+      "path": "README.en.md",
+      "language": "markdown",
+      "sizeLines": 376,
+      "fileCategory": "docs"
+    },
+    {
+      "path": "README.md",
+      "language": "markdown",
+      "sizeLines": 254,
+      "fileCategory": "docs"
+    },
+    {
+      "path": "SECURITY.md",
+      "language": "markdown",
+      "sizeLines": 55,
+      "fileCategory": "docs"
+    },
+    {
+      "path": "build.mjs",
+      "language": "javascript",
+      "sizeLines": 58,
+      "fileCategory": "code"
+    },
+    {
+      "path": "docs/agent-integration.md",
+      "language": "markdown",
+      "sizeLines": 128,
+      "fileCategory": "docs"
+    },
+    {
+      "path": "docs/audits/supplemental-findings-2026-10-15.json",
+      "language": "json",
+      "sizeLines": 53,
+      "fileCategory": "config"
+    },
+    {
+      "path": "docs/audits/supplied-audit-findings-2026-10-15.json",
+      "language": "json",
+      "sizeLines": 835,
+      "fileCategory": "config"
+    },
+    {
+      "path": "docs/plans/audit-remediation-2026-10-15.md",
+      "language": "markdown",
+      "sizeLines": 171,
+      "fileCategory": "docs"
+    },
+    {
+      "path": "docs/release/provider-smoke-checklist.md",
+      "language": "markdown",
+      "sizeLines": 55,
+      "fileCategory": "docs"
+    },
+    {
+      "path": "docs/release/release-candidate-inventory.md",
+      "language": "markdown",
+      "sizeLines": 40,
+      "fileCategory": "docs"
+    },
+    {
+      "path": "docs/release/release-workflow.md",
+      "language": "markdown",
+      "sizeLines": 27,
+      "fileCategory": "docs"
+    },
+    {
+      "path": "example-usage.md",
+      "language": "markdown",
+      "sizeLines": 29,
+      "fileCategory": "docs"
+    },
+    {
+      "path": "install.ps1",
+      "language": "powershell",
+      "sizeLines": 19,
+      "fileCategory": "script"
+    },
+    {
+      "path": "install.sh",
+      "language": "shell",
+      "sizeLines": 22,
+      "fileCategory": "script"
+    },
+    {
+      "path": "package.json",
+      "language": "json",
+      "sizeLines": 119,
+      "fileCategory": "config"
+    },
+    {
+      "path": "public/css/setup.css",
+      "language": "css",
+      "sizeLines": 7,
+      "fileCategory": "markup"
+    },
+    {
+      "path": "public/index.html",
+      "language": "html",
+      "sizeLines": 28,
+      "fileCategory": "markup"
+    },
+    {
+      "path": "public/js/app.js",
+      "language": "javascript",
+      "sizeLines": 221,
+      "fileCategory": "code"
+    },
+    {
+      "path": "quick-install.sh",
+      "language": "shell",
+      "sizeLines": 6,
+      "fileCategory": "script"
+    },
+    {
+      "path": "scripts/check-release-secrets.mjs",
+      "language": "javascript",
+      "sizeLines": 105,
+      "fileCategory": "code"
+    },
+    {
+      "path": "scripts/open-setup.cjs",
+      "language": "javascript",
+      "sizeLines": 15,
+      "fileCategory": "code"
+    },
+    {
+      "path": "server.json",
+      "language": "json",
+      "sizeLines": 20,
+      "fileCategory": "config"
+    },
+    {
+      "path": "src/credentials/account-auth.ts",
+      "language": "typescript",
+      "sizeLines": 137,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/credentials/account-enrollment.ts",
+      "language": "typescript",
+      "sizeLines": 191,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/credentials/credential-backend.ts",
+      "language": "typescript",
+      "sizeLines": 54,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/credentials/credential-rotation.ts",
+      "language": "typescript",
+      "sizeLines": 65,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/credentials/gmail-oauth-loopback.ts",
+      "language": "typescript",
+      "sizeLines": 329,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/credentials/gmail-token-exchange.ts",
+      "language": "typescript",
+      "sizeLines": 181,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/credentials/proxy-fetch.ts",
+      "language": "typescript",
+      "sizeLines": 106,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/credentials/windows-credential-backend.ts",
+      "language": "typescript",
+      "sizeLines": 141,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/enroll.ts",
+      "language": "typescript",
+      "sizeLines": 360,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/index.ts",
+      "language": "typescript",
+      "sizeLines": 57,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/providers/email-providers.ts",
+      "language": "typescript",
+      "sizeLines": 271,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/services/account-manager.ts",
+      "language": "typescript",
+      "sizeLines": 568,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/services/html-to-markdown.ts",
+      "language": "typescript",
+      "sizeLines": 149,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/services/imap-service.ts",
+      "language": "typescript",
+      "sizeLines": 1972,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/services/safe-send-service.ts",
+      "language": "typescript",
+      "sizeLines": 264,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/services/smtp-service.ts",
+      "language": "typescript",
+      "sizeLines": 204,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/services/spam-service.ts",
+      "language": "typescript",
+      "sizeLines": 449,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/setup.ts",
+      "language": "typescript",
+      "sizeLines": 145,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/tools/account-tools.ts",
+      "language": "typescript",
+      "sizeLines": 116,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/tools/email-tools.ts",
+      "language": "typescript",
+      "sizeLines": 1340,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/tools/folder-tools.ts",
+      "language": "typescript",
+      "sizeLines": 166,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/tools/guarded-delete-tools.ts",
+      "language": "typescript",
+      "sizeLines": 95,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/tools/index.ts",
+      "language": "typescript",
+      "sizeLines": 181,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/tools/safe-send-tools.ts",
+      "language": "typescript",
+      "sizeLines": 244,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/tools/spam-tools.ts",
+      "language": "typescript",
+      "sizeLines": 378,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/tools/unified-search-tools.ts",
+      "language": "typescript",
+      "sizeLines": 145,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/types/index.ts",
+      "language": "typescript",
+      "sizeLines": 197,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/types/turndown-plugin-gfm.d.ts",
+      "language": "typescript",
+      "sizeLines": 13,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/utils/account-store-lock.ts",
+      "language": "typescript",
+      "sizeLines": 18,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/utils/array-input.ts",
+      "language": "typescript",
+      "sizeLines": 81,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/utils/attachment-root.ts",
+      "language": "typescript",
+      "sizeLines": 110,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/utils/default-bcc.ts",
+      "language": "typescript",
+      "sizeLines": 35,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/utils/env-credentials.ts",
+      "language": "typescript",
+      "sizeLines": 71,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/utils/gmail-proxy.ts",
+      "language": "typescript",
+      "sizeLines": 22,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/utils/mail-proxy.ts",
+      "language": "typescript",
+      "sizeLines": 56,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/utils/mail-resource-limits.ts",
+      "language": "typescript",
+      "sizeLines": 25,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/utils/pdf-preview.ts",
+      "language": "typescript",
+      "sizeLines": 56,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/utils/search-folders.ts",
+      "language": "typescript",
+      "sizeLines": 64,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/utils/windows-system-proxy.ts",
+      "language": "typescript",
+      "sizeLines": 14,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/web/enrollment-router.ts",
+      "language": "typescript",
+      "sizeLines": 92,
+      "fileCategory": "code"
+    },
+    {
+      "path": "src/web/server.ts",
+      "language": "typescript",
+      "sizeLines": 470,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/account-enrollment.test.ts",
+      "language": "typescript",
+      "sizeLines": 296,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/account-manager-permissions.test.ts",
+      "language": "typescript",
+      "sizeLines": 50,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/account-manager.test.ts",
+      "language": "typescript",
+      "sizeLines": 856,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/account-runtime-removal.test.ts",
+      "language": "typescript",
+      "sizeLines": 35,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/account-store-concurrency.test.ts",
+      "language": "typescript",
+      "sizeLines": 40,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/account-tools-readonly.test.ts",
+      "language": "typescript",
+      "sizeLines": 10,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/account-tools-sent-folder.test.ts",
+      "language": "typescript",
+      "sizeLines": 29,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/attachment-root.test.ts",
+      "language": "typescript",
+      "sizeLines": 85,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/auth-builders.test.ts",
+      "language": "typescript",
+      "sizeLines": 23,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/browser-account-removal.test.ts",
+      "language": "typescript",
+      "sizeLines": 82,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/browser-enrollment.test.ts",
+      "language": "typescript",
+      "sizeLines": 115,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/check-release-secrets.test.ts",
+      "language": "typescript",
+      "sizeLines": 68,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/credential-auth.test.ts",
+      "language": "typescript",
+      "sizeLines": 221,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/credential-rotation.test.ts",
+      "language": "typescript",
+      "sizeLines": 138,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/default-bcc.test.ts",
+      "language": "typescript",
+      "sizeLines": 105,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/dependencies.test.ts",
+      "language": "typescript",
+      "sizeLines": 61,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/email-tools-attachment-path-traversal.test.ts",
+      "language": "typescript",
+      "sizeLines": 112,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/email-tools-bulk-delete-guard.test.ts",
+      "language": "typescript",
+      "sizeLines": 81,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/email-tools-include-body-and-batch.test.ts",
+      "language": "typescript",
+      "sizeLines": 371,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/email-tools-move.test.ts",
+      "language": "typescript",
+      "sizeLines": 150,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/email-tools-pdf-extract.test.ts",
+      "language": "typescript",
+      "sizeLines": 127,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/email-tools-search-all.test.ts",
+      "language": "typescript",
+      "sizeLines": 226,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/email-tools-sent-save.test.ts",
+      "language": "typescript",
+      "sizeLines": 113,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/email-tools-thread.test.ts",
+      "language": "typescript",
+      "sizeLines": 81,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/enroll-cli.test.ts",
+      "language": "typescript",
+      "sizeLines": 253,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/env-credentials.test.ts",
+      "language": "typescript",
+      "sizeLines": 87,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/folder-tools-create.test.ts",
+      "language": "typescript",
+      "sizeLines": 68,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/folder-tools-list.test.ts",
+      "language": "typescript",
+      "sizeLines": 49,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/folder-tools-status.test.ts",
+      "language": "typescript",
+      "sizeLines": 123,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/gmail-oauth-loopback.test.ts",
+      "language": "typescript",
+      "sizeLines": 283,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/gmail-oauth-wire.test.ts",
+      "language": "typescript",
+      "sizeLines": 88,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/gmail-token-exchange.test.ts",
+      "language": "typescript",
+      "sizeLines": 220,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/guarded-delete.test.ts",
+      "language": "typescript",
+      "sizeLines": 67,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/html-to-markdown.test.ts",
+      "language": "typescript",
+      "sizeLines": 83,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/imap-service-latest-no-search.test.ts",
+      "language": "typescript",
+      "sizeLines": 103,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/imap-service-reconnect.test.ts",
+      "language": "typescript",
+      "sizeLines": 84,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/imap-service-sent-save.test.ts",
+      "language": "typescript",
+      "sizeLines": 94,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/imap-service-special-use.test.ts",
+      "language": "typescript",
+      "sizeLines": 87,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/imap-service-tls-host.test.ts",
+      "language": "typescript",
+      "sizeLines": 53,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/imap-service.test.ts",
+      "language": "typescript",
+      "sizeLines": 1228,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/mail-resource-limits.test.ts",
+      "language": "typescript",
+      "sizeLines": 30,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/mail-transport-proxy.test.ts",
+      "language": "typescript",
+      "sizeLines": 152,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/netease-cli.test.ts",
+      "language": "typescript",
+      "sizeLines": 26,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/netease-enrollment.test.ts",
+      "language": "typescript",
+      "sizeLines": 23,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/node-engines.test.ts",
+      "language": "typescript",
+      "sizeLines": 76,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/oauth-transport-lifecycle.test.ts",
+      "language": "typescript",
+      "sizeLines": 122,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/parse-raw-headers.test.ts",
+      "language": "typescript",
+      "sizeLines": 38,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/phase1-contract-hardening.test.ts",
+      "language": "typescript",
+      "sizeLines": 106,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/provider-endpoint-binding.test.ts",
+      "language": "typescript",
+      "sizeLines": 24,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/provider-proxy-routing.test.ts",
+      "language": "typescript",
+      "sizeLines": 46,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/proxy-fetch.test.ts",
+      "language": "typescript",
+      "sizeLines": 76,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/public-release-surface.test.ts",
+      "language": "typescript",
+      "sizeLines": 138,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/safe-send-memory.test.ts",
+      "language": "typescript",
+      "sizeLines": 23,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/safe-send-service.test.ts",
+      "language": "typescript",
+      "sizeLines": 187,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/safe-send-tools.test.ts",
+      "language": "typescript",
+      "sizeLines": 182,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/search-folders.test.ts",
+      "language": "typescript",
+      "sizeLines": 87,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/serialized-array-input.test.ts",
+      "language": "typescript",
+      "sizeLines": 263,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/setup-session.test.ts",
+      "language": "typescript",
+      "sizeLines": 205,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/setup-ui-xss.test.ts",
+      "language": "typescript",
+      "sizeLines": 53,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/spam-service.test.ts",
+      "language": "typescript",
+      "sizeLines": 309,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/tool-access.test.ts",
+      "language": "typescript",
+      "sizeLines": 200,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/tools.test.ts",
+      "language": "typescript",
+      "sizeLines": 102,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/unified-search-pagination.test.ts",
+      "language": "typescript",
+      "sizeLines": 198,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/unified-search.test.ts",
+      "language": "typescript",
+      "sizeLines": 68,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/web-server-accounts.test.ts",
+      "language": "typescript",
+      "sizeLines": 90,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/web-server-hardening.test.ts",
+      "language": "typescript",
+      "sizeLines": 142,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/windows-credential-backend.test.ts",
+      "language": "typescript",
+      "sizeLines": 86,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tests/windows-system-proxy.test.ts",
+      "language": "typescript",
+      "sizeLines": 23,
+      "fileCategory": "code"
+    },
+    {
+      "path": "tsconfig.json",
+      "language": "json",
+      "sizeLines": 20,
+      "fileCategory": "config"
+    },
+    {
+      "path": "vitest.config.ts",
+      "language": "typescript",
+      "sizeLines": 21,
+      "fileCategory": "code"
+    }
+  ],
+  "batchImportData": {
+    ".github/ISSUE_TEMPLATE/bug_report.yml": [],
+    ".github/ISSUE_TEMPLATE/config.yml": [],
+    ".github/ISSUE_TEMPLATE/feature_request.yml": [],
+    ".github/dependabot.yml": [],
+    ".github/workflow-drafts/release.yml": [],
+    ".github/workflows/ci.yml": [],
+    "AGENTS.md": [],
+    "CHANGELOG.md": [],
+    "CLAUDE.md": [],
+    "CONTRIBUTING.md": [],
+    "README.en.md": [],
+    "README.md": [],
+    "SECURITY.md": [],
+    "build.mjs": [],
+    "docs/agent-integration.md": [],
+    "docs/audits/supplemental-findings-2026-10-15.json": [],
+    "docs/audits/supplied-audit-findings-2026-10-15.json": [],
+    "docs/plans/audit-remediation-2026-10-15.md": [],
+    "docs/release/provider-smoke-checklist.md": [],
+    "docs/release/release-candidate-inventory.md": [],
+    "docs/release/release-workflow.md": [],
+    "example-usage.md": [],
+    "install.ps1": [],
+    "install.sh": [],
+    "package.json": [],
+    "public/css/setup.css": [],
+    "public/index.html": [],
+    "public/js/app.js": [],
+    "quick-install.sh": [],
+    "scripts/check-release-secrets.mjs": [],
+    "scripts/open-setup.cjs": [],
+    "server.json": [],
+    "src/credentials/account-auth.ts": [
+      "src/credentials/credential-backend.ts",
+      "src/types/index.ts"
+    ],
+    "src/credentials/account-enrollment.ts": [
+      "src/credentials/credential-backend.ts",
+      "src/services/account-manager.ts",
+      "src/types/index.ts"
+    ],
+    "src/credentials/credential-backend.ts": [],
+    "src/credentials/credential-rotation.ts": [
+      "src/credentials/credential-backend.ts"
+    ],
+    "src/credentials/gmail-oauth-loopback.ts": [
+      "src/credentials/proxy-fetch.ts"
+    ],
+    "src/credentials/gmail-token-exchange.ts": [
+      "src/credentials/credential-backend.ts",
+      "src/credentials/proxy-fetch.ts",
+      "src/types/index.ts"
+    ],
+    "src/credentials/proxy-fetch.ts": [
+      "src/utils/gmail-proxy.ts"
+    ],
+    "src/credentials/windows-credential-backend.ts": [
+      "src/credentials/credential-backend.ts"
+    ],
+    "src/enroll.ts": [
+      "src/credentials/account-auth.ts",
+      "src/credentials/account-enrollment.ts",
+      "src/credentials/credential-backend.ts",
+      "src/credentials/credential-rotation.ts",
+      "src/credentials/gmail-oauth-loopback.ts",
+      "src/credentials/gmail-token-exchange.ts",
+      "src/credentials/windows-credential-backend.ts",
+      "src/services/account-manager.ts",
+      "src/services/imap-service.ts",
+      "src/types/index.ts"
+    ],
+    "src/index.ts": [
+      "src/credentials/account-auth.ts",
+      "src/credentials/gmail-token-exchange.ts",
+      "src/credentials/windows-credential-backend.ts",
+      "src/services/account-manager.ts",
+      "src/services/imap-service.ts",
+      "src/services/smtp-service.ts",
+      "src/services/spam-service.ts",
+      "src/tools/index.ts"
+    ],
+    "src/providers/email-providers.ts": [],
+    "src/services/account-manager.ts": [
+      "src/credentials/account-auth.ts",
+      "src/credentials/credential-backend.ts",
+      "src/types/index.ts",
+      "src/utils/account-store-lock.ts",
+      "src/utils/env-credentials.ts"
+    ],
+    "src/services/html-to-markdown.ts": [],
+    "src/services/imap-service.ts": [
+      "src/credentials/account-auth.ts",
+      "src/services/account-manager.ts",
+      "src/services/html-to-markdown.ts",
+      "src/types/index.ts",
+      "src/utils/env-credentials.ts",
+      "src/utils/mail-proxy.ts",
+      "src/utils/mail-resource-limits.ts",
+      "src/utils/pdf-preview.ts"
+    ],
+    "src/services/safe-send-service.ts": [
+      "src/types/index.ts",
+      "src/utils/mail-resource-limits.ts"
+    ],
+    "src/services/smtp-service.ts": [
+      "src/credentials/account-auth.ts",
+      "src/types/index.ts",
+      "src/utils/array-input.ts",
+      "src/utils/env-credentials.ts",
+      "src/utils/mail-proxy.ts",
+      "src/utils/mail-resource-limits.ts"
+    ],
+    "src/services/spam-service.ts": [],
+    "src/setup.ts": [
+      "src/web/server.ts"
+    ],
+    "src/tools/account-tools.ts": [
+      "src/services/account-manager.ts",
+      "src/services/imap-service.ts"
+    ],
+    "src/tools/email-tools.ts": [
+      "src/services/account-manager.ts",
+      "src/services/imap-service.ts",
+      "src/services/smtp-service.ts",
+      "src/types/index.ts",
+      "src/utils/array-input.ts",
+      "src/utils/attachment-root.ts",
+      "src/utils/default-bcc.ts",
+      "src/utils/search-folders.ts"
+    ],
+    "src/tools/folder-tools.ts": [
+      "src/services/account-manager.ts",
+      "src/services/imap-service.ts",
+      "src/types/index.ts"
+    ],
+    "src/tools/guarded-delete-tools.ts": [
+      "src/services/imap-service.ts"
+    ],
+    "src/tools/index.ts": [
+      "src/services/account-manager.ts",
+      "src/services/imap-service.ts",
+      "src/services/smtp-service.ts",
+      "src/services/spam-service.ts",
+      "src/tools/account-tools.ts",
+      "src/tools/email-tools.ts",
+      "src/tools/folder-tools.ts",
+      "src/tools/guarded-delete-tools.ts",
+      "src/tools/safe-send-tools.ts",
+      "src/tools/spam-tools.ts",
+      "src/tools/unified-search-tools.ts"
+    ],
+    "src/tools/safe-send-tools.ts": [
+      "src/services/account-manager.ts",
+      "src/services/imap-service.ts",
+      "src/services/safe-send-service.ts",
+      "src/services/smtp-service.ts",
+      "src/types/index.ts",
+      "src/utils/attachment-root.ts",
+      "src/utils/mail-resource-limits.ts"
+    ],
+    "src/tools/spam-tools.ts": [
+      "src/services/imap-service.ts",
+      "src/services/spam-service.ts"
+    ],
+    "src/tools/unified-search-tools.ts": [
+      "src/services/account-manager.ts",
+      "src/services/imap-service.ts",
+      "src/types/index.ts",
+      "src/utils/search-folders.ts"
+    ],
+    "src/types/index.ts": [],
+    "src/types/turndown-plugin-gfm.d.ts": [],
+    "src/utils/account-store-lock.ts": [],
+    "src/utils/array-input.ts": [],
+    "src/utils/attachment-root.ts": [],
+    "src/utils/default-bcc.ts": [],
+    "src/utils/env-credentials.ts": [
+      "src/types/index.ts"
+    ],
+    "src/utils/gmail-proxy.ts": [
+      "src/utils/windows-system-proxy.ts"
+    ],
+    "src/utils/mail-proxy.ts": [
+      "src/credentials/proxy-fetch.ts",
+      "src/utils/gmail-proxy.ts"
+    ],
+    "src/utils/mail-resource-limits.ts": [],
+    "src/utils/pdf-preview.ts": [],
+    "src/utils/search-folders.ts": [
+      "src/types/index.ts"
+    ],
+    "src/utils/windows-system-proxy.ts": [],
+    "src/web/enrollment-router.ts": [
+      "src/credentials/account-enrollment.ts",
+      "src/credentials/gmail-oauth-loopback.ts",
+      "src/services/account-manager.ts"
+    ],
+    "src/web/server.ts": [
+      "src/credentials/account-auth.ts",
+      "src/credentials/account-enrollment.ts",
+      "src/credentials/credential-backend.ts",
+      "src/credentials/gmail-oauth-loopback.ts",
+      "src/credentials/gmail-token-exchange.ts",
+      "src/credentials/windows-credential-backend.ts",
+      "src/providers/email-providers.ts",
+      "src/services/account-manager.ts",
+      "src/services/imap-service.ts",
+      "src/types/index.ts",
+      "src/web/enrollment-router.ts"
+    ],
+    "tests/account-enrollment.test.ts": [
+      "src/credentials/account-enrollment.ts",
+      "src/credentials/credential-backend.ts",
+      "src/services/account-manager.ts",
+      "src/types/index.ts"
+    ],
+    "tests/account-manager-permissions.test.ts": [],
+    "tests/account-manager.test.ts": [
+      "src/credentials/credential-backend.ts",
+      "src/services/account-manager.ts"
+    ],
+    "tests/account-runtime-removal.test.ts": [
+      "src/services/account-manager.ts",
+      "src/services/imap-service.ts"
+    ],
+    "tests/account-store-concurrency.test.ts": [
+      "src/services/account-manager.ts"
+    ],
+    "tests/account-tools-readonly.test.ts": [
+      "src/tools/account-tools.ts"
+    ],
+    "tests/account-tools-sent-folder.test.ts": [
+      "src/web/server.ts"
+    ],
+    "tests/attachment-root.test.ts": [
+      "src/utils/attachment-root.ts"
+    ],
+    "tests/auth-builders.test.ts": [
+      "src/credentials/account-auth.ts"
+    ],
+    "tests/browser-account-removal.test.ts": [
+      "src/credentials/account-enrollment.ts",
+      "src/services/account-manager.ts",
+      "src/web/server.ts"
+    ],
+    "tests/browser-enrollment.test.ts": [
+      "src/credentials/account-enrollment.ts",
+      "src/credentials/credential-backend.ts",
+      "src/web/server.ts"
+    ],
+    "tests/check-release-secrets.test.ts": [],
+    "tests/credential-auth.test.ts": [
+      "src/credentials/account-auth.ts",
+      "src/credentials/credential-backend.ts",
+      "src/types/index.ts"
+    ],
+    "tests/credential-rotation.test.ts": [
+      "src/credentials/credential-backend.ts",
+      "src/credentials/credential-rotation.ts"
+    ],
+    "tests/default-bcc.test.ts": [
+      "src/tools/email-tools.ts",
+      "src/utils/default-bcc.ts"
+    ],
+    "tests/dependencies.test.ts": [],
+    "tests/email-tools-attachment-path-traversal.test.ts": [],
+    "tests/email-tools-bulk-delete-guard.test.ts": [
+      "src/tools/email-tools.ts"
+    ],
+    "tests/email-tools-include-body-and-batch.test.ts": [
+      "src/tools/email-tools.ts"
+    ],
+    "tests/email-tools-move.test.ts": [
+      "src/tools/email-tools.ts"
+    ],
+    "tests/email-tools-pdf-extract.test.ts": [],
+    "tests/email-tools-search-all.test.ts": [
+      "src/tools/email-tools.ts"
+    ],
+    "tests/email-tools-sent-save.test.ts": [
+      "src/tools/email-tools.ts"
+    ],
+    "tests/email-tools-thread.test.ts": [
+      "src/tools/email-tools.ts"
+    ],
+    "tests/enroll-cli.test.ts": [
+      "src/credentials/credential-backend.ts",
+      "src/credentials/credential-rotation.ts",
+      "src/enroll.ts",
+      "src/types/index.ts"
+    ],
+    "tests/env-credentials.test.ts": [
+      "src/types/index.ts",
+      "src/utils/env-credentials.ts"
+    ],
+    "tests/folder-tools-create.test.ts": [
+      "src/tools/folder-tools.ts"
+    ],
+    "tests/folder-tools-list.test.ts": [
+      "src/tools/folder-tools.ts"
+    ],
+    "tests/folder-tools-status.test.ts": [
+      "src/tools/folder-tools.ts"
+    ],
+    "tests/gmail-oauth-loopback.test.ts": [
+      "src/credentials/gmail-oauth-loopback.ts"
+    ],
+    "tests/gmail-oauth-wire.test.ts": [
+      "src/credentials/gmail-oauth-loopback.ts"
+    ],
+    "tests/gmail-token-exchange.test.ts": [
+      "src/credentials/credential-backend.ts",
+      "src/credentials/gmail-token-exchange.ts",
+      "src/types/index.ts"
+    ],
+    "tests/guarded-delete.test.ts": [
+      "src/services/imap-service.ts",
+      "src/tools/email-tools.ts",
+      "src/tools/guarded-delete-tools.ts",
+      "src/tools/spam-tools.ts"
+    ],
+    "tests/html-to-markdown.test.ts": [
+      "src/services/html-to-markdown.ts"
+    ],
+    "tests/imap-service-latest-no-search.test.ts": [
+      "src/services/imap-service.ts"
+    ],
+    "tests/imap-service-reconnect.test.ts": [
+      "src/services/imap-service.ts",
+      "src/types/index.ts"
+    ],
+    "tests/imap-service-sent-save.test.ts": [
+      "src/services/imap-service.ts"
+    ],
+    "tests/imap-service-special-use.test.ts": [
+      "src/services/imap-service.ts",
+      "src/types/index.ts"
+    ],
+    "tests/imap-service-tls-host.test.ts": [
+      "src/services/imap-service.ts",
+      "src/types/index.ts"
+    ],
+    "tests/imap-service.test.ts": [
+      "src/services/imap-service.ts",
+      "src/types/index.ts"
+    ],
+    "tests/mail-resource-limits.test.ts": [
+      "src/services/imap-service.ts",
+      "src/utils/mail-resource-limits.ts",
+      "src/utils/pdf-preview.ts"
+    ],
+    "tests/mail-transport-proxy.test.ts": [
+      "src/services/imap-service.ts",
+      "src/services/smtp-service.ts",
+      "src/utils/mail-proxy.ts"
+    ],
+    "tests/netease-cli.test.ts": [
+      "src/enroll.ts"
+    ],
+    "tests/netease-enrollment.test.ts": [
+      "src/credentials/account-auth.ts",
+      "src/credentials/account-enrollment.ts"
+    ],
+    "tests/node-engines.test.ts": [],
+    "tests/oauth-transport-lifecycle.test.ts": [
+      "src/credentials/gmail-oauth-loopback.ts",
+      "src/credentials/gmail-token-exchange.ts",
+      "src/types/index.ts"
+    ],
+    "tests/parse-raw-headers.test.ts": [
+      "src/services/imap-service.ts"
+    ],
+    "tests/phase1-contract-hardening.test.ts": [
+      "src/services/account-manager.ts",
+      "src/services/safe-send-service.ts",
+      "src/types/index.ts"
+    ],
+    "tests/provider-endpoint-binding.test.ts": [
+      "src/credentials/account-auth.ts",
+      "src/credentials/credential-backend.ts",
+      "src/types/index.ts"
+    ],
+    "tests/provider-proxy-routing.test.ts": [
+      "src/credentials/proxy-fetch.ts",
+      "src/utils/gmail-proxy.ts",
+      "src/utils/mail-proxy.ts"
+    ],
+    "tests/proxy-fetch.test.ts": [
+      "src/credentials/proxy-fetch.ts"
+    ],
+    "tests/public-release-surface.test.ts": [],
+    "tests/safe-send-memory.test.ts": [
+      "src/services/safe-send-service.ts"
+    ],
+    "tests/safe-send-service.test.ts": [
+      "src/services/safe-send-service.ts"
+    ],
+    "tests/safe-send-tools.test.ts": [
+      "src/tools/safe-send-tools.ts"
+    ],
+    "tests/search-folders.test.ts": [
+      "src/types/index.ts",
+      "src/utils/search-folders.ts"
+    ],
+    "tests/serialized-array-input.test.ts": [
+      "src/services/smtp-service.ts",
+      "src/tools/email-tools.ts",
+      "src/utils/array-input.ts"
+    ],
+    "tests/setup-session.test.ts": [
+      "src/web/server.ts"
+    ],
+    "tests/setup-ui-xss.test.ts": [],
+    "tests/spam-service.test.ts": [
+      "src/services/spam-service.ts"
+    ],
+    "tests/tool-access.test.ts": [
+      "src/tools/index.ts"
+    ],
+    "tests/tools.test.ts": [],
+    "tests/unified-search-pagination.test.ts": [
+      "src/services/imap-service.ts",
+      "src/tools/unified-search-tools.ts"
+    ],
+    "tests/unified-search.test.ts": [
+      "src/tools/unified-search-tools.ts"
+    ],
+    "tests/web-server-accounts.test.ts": [
+      "src/web/server.ts"
+    ],
+    "tests/web-server-hardening.test.ts": [
+      "src/web/server.ts"
+    ],
+    "tests/windows-credential-backend.test.ts": [
+      "src/credentials/windows-credential-backend.ts"
+    ],
+    "tests/windows-system-proxy.test.ts": [
+      "src/utils/windows-system-proxy.ts"
+    ],
+    "tsconfig.json": [],
+    "vitest.config.ts": []
+  },
+  "projectRoot": "<analysis-snapshot>"
+}
