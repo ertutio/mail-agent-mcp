@@ -1324,9 +1324,23 @@ export class ImapService {
             `${chunk[0]}-${chunk[chunk.length - 1]}; outcome unknown, not counted as deleted`
           );
         } else {
-          deleted += chunk.length;
-          if (onProgress) {
-            onProgress(deleted, uids.length);
+          // T05 review: a UIDPLUS uidMap that covers only part of the chunk
+          // means only the mapped UIDs are verifiably done — the rest stay
+          // unconfirmed and must not be counted as deleted.
+          const uidMap = (outcome as { uidMap?: Map<unknown, unknown> }).uidMap;
+          if (uidMap instanceof Map && uidMap.size < chunk.length) {
+            const unconfirmed = chunk.length - uidMap.size;
+            deleted += uidMap.size;
+            failed += unconfirmed;
+            errors.push(
+              `Server confirmed only ${uidMap.size}/${chunk.length} UIDs in ` +
+              `${chunk[0]}-${chunk[chunk.length - 1]}; ${unconfirmed} unconfirmed`
+            );
+          } else {
+            deleted += chunk.length;
+            if (onProgress) {
+              onProgress(deleted, uids.length);
+            }
           }
         }
       } catch (err) {

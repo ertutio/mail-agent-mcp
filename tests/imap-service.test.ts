@@ -257,6 +257,8 @@ describe('ImapService', () => {
   describe('bulkDelete', () => {
     it('should move emails to Trash in chunks', async () => {
       await imapService.connect(mockAccount);
+      // Chunked moves without a UIDPLUS map confirm the whole chunk.
+      mockInstance.messageMoveMock.mockResolvedValue({ path: 'INBOX', destination: 'Trash' });
 
       const uids = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
       const result = await imapService.bulkDelete(mockAccount.id, 'INBOX', uids, 5);
@@ -295,6 +297,7 @@ describe('ImapService', () => {
 
     it('should call progress callback', async () => {
       await imapService.connect(mockAccount);
+      mockInstance.messageMoveMock.mockResolvedValue({ path: 'INBOX', destination: 'Trash' });
 
       const progressFn = vi.fn();
       const uids = [1, 2, 3, 4, 5, 6];
@@ -1450,6 +1453,52 @@ describe('ImapService', () => {
       mockInstance.messageDeleteMock.mockResolvedValue(true);
 
       await expect(imapService.deleteEmail(mockAccount.id, 'Trash', 7)).resolves.toBeUndefined();
+    });
+  });
+  // T05 review: a non-Trash single MOVE that settles false/undefined must
+  // not report completion, and a chunked MOVE whose UIDPLUS uidMap covers
+  // only part of the chunk counts only the confirmed UIDs.
+  describe('T05R: move completion honesty', () => {
+    it('T05R-MOVE-SINGLE-FALSE: a false single-uid move result is refused', async () => {
+      await imapService.connect(mockAccount);
+      mockInstance.messageMoveMock.mockResolvedValueOnce(false);
+      await expect(
+        imapService.moveEmail(mockAccount.id, 'INBOX', 123, 'Archive')
+      ).rejects.toThrow(/no result/i);
+    });
+
+    it('T05R-MOVE-SINGLE-UNDEFINED: an undefined single-uid move result is refused', async () => {
+      await imapService.connect(mockAccount);
+      mockInstance.messageMoveMock.mockResolvedValueOnce(undefined);
+      await expect(
+        imapService.moveEmail(mockAccount.id, 'INBOX', 123, 'Archive')
+      ).rejects.toThrow(/no result/i);
+    });
+
+    it('T05R-BULK-PARTIAL-UIDMAP: only uidMap-confirmed UIDs count as deleted', async () => {
+      await imapService.connect(mockAccount);
+      mockInstance.messageMoveMock.mockResolvedValueOnce({
+        path: 'INBOX', destination: 'Trash',
+        uidMap: new Map([[1, 101], [2, 102]]), // 2 of the 3 chunk UIDs confirmed
+      });
+
+      const result = await imapService.bulkDelete(mockAccount.id, 'INBOX', [1, 2, 3], 10);
+
+      expect(result.deleted).toBe(2);
+      expect(result.failed).toBe(1);
+      expect(result.errors.join(' ')).toMatch(/unconfirmed/i);
+    });
+
+    it('T05R-BULK-FULL-UIDMAP: a fully mapped chunk still counts completely', async () => {
+      await imapService.connect(mockAccount);
+      mockInstance.messageMoveMock.mockResolvedValueOnce({
+        path: 'INBOX', destination: 'Trash',
+        uidMap: new Map([[1, 101], [2, 102], [3, 103]]),
+      });
+
+      const result = await imapService.bulkDelete(mockAccount.id, 'INBOX', [1, 2, 3], 10);
+      expect(result.deleted).toBe(3);
+      expect(result.failed).toBe(0);
     });
   });
 });
