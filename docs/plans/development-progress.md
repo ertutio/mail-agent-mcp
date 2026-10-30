@@ -1,0 +1,135 @@
+# Mail Agent MCP：进度与续接
+
+执行规则及 T01–T37 完成标准见[总计划](development-roadmap.md)，证据要求见[验收约定](../acceptance.md)。保存点更新本文件，不再为每轮制造一份平行路线。
+
+## 当前游标
+
+| 字段 | 当前记录 |
+| --- | --- |
+| 总任务状态 | `in_progress`：2026-10-30 集中验收 PR #3–25；确定缺口的 PR 暂缓，合格范围集中集成；下表本轮记录优先于历史 review_pending 回执 |
+| 代码基线 | 验收起点 `main@96f8864fa5fb88d0d28e921ced7b8e8ad644d7ca`；本轮候选 `codex/accepted-integration-20261030`，已验收依赖源码 `3ea1a9b466d5ce6bbcc996c5f855bb297288f34e`；最终文档 head 与 merge SHA 见 [PR #26](https://github.com/ertutio/mail-agent-mcp/pull/26) |
+| 原计划来源 | [PR #3](https://github.com/ertutio/mail-agent-mcp/pull/3)，head `eee1daf88b52d4969f96c117dc93219b6dd5c7f3`，2026-10-17；计划未合并不等于其中修复已实现 |
+| 当前检查点 / 子项 | `T35 PASS（本轮选定候选）`：高危依赖修复、本地门禁及准确源码 SHA 的 Node22/24 CI 全部通过；最终文档 head 的 CI/合并状态见 PR #26。9 项候选通过；14 项暂缓，不代表完整 T01–T37 完成。 |
+| next_action | PR #26 合并后，从 main 开后续修复；优先修正 T07 候选契约并验证域伪装/返回一致性，解除 T08/T09 堆叠依赖；其余 14 个暂缓 PR 按下文逐项解除条件推进，不自动合入。下一轮开发依当次授权，不顺带部署或发布。 |
+| 本子项通过条件 | 本轮选定候选 build、coverage、lint、diff、secrets、生产/全量 high audit、pack 及准确 head 的 Node22/24 CI 全过；14 个暂缓 PR 不扩入。后续 T07 需验证写前校验、域名真实性与归一化持久结果，T08/T09 按其原解除条件。 |
+| 全局阻塞 | 本轮高危 audit 已解除，剩余 prod 5 / full 8 moderate；14 个功能 PR 暂缓及其重验条件保留。T33 本次所需范围外维护、T34/T36 门控保留；真实服务商、WinCred、部署和发布不由本轮代码验收替代。 |
+
+## 2026-10-30 依赖修复与合并续接
+
+维护者本轮明确授权使用 Terra 修复上一轮依赖阻断并在验收通过后合并候选 PR #26；T33 开发依赖排除仅在本次高危修复所需范围解除。不扩大到暂缓的 14 个功能 PR，T34/T36 和真实邮箱、部署、发布边界保留。以下记录本轮实际验收证据；最终文档提交只补记录，合并须继续核对该 head 的 CI，结果统一链接 PR #26。
+
+| 项目 | 当前结果 |
+| --- | --- |
+| 修复基线 | PR #26 / `a5653ca4b3e8623be4c03c4961e919a58eefb091`；上一轮 Node22/24 CI [41008759422](https://github.com/ertutio/mail-agent-mcp/actions/runs/41008759422) 测试、构建等通过，生产 audit 失败，全量 audit/pack 跳过。 |
+| 依赖修复 | `PASS（高危审计）`：Terra 更新 body-parser 2.3.0→2.4.0、undici 7.30.0→7.30.1、zod 4.4.3→4.6.7；间接 Vite 8.1.4→8.3.5，连同其 rolldown/lightningcss 开发链更新。生产与全量 audit 均 exit 0、0 high / 0 critical，分别保留 5 / 8 moderate；不降低 high 门禁，也不将中危记为已修。 |
+| 兼容性与复用 | 官方 npm 包元数据与锁文件：body-parser 要求 Node>=18，undici>=20.18.1，Vite/rolldown 要求 ^20.19.0 或 >=22.12.0；Zod 未声明 Node 引擎。所选版本声明兼容项目最低 Node22.12；主要包 MIT，开发间接 Lightning CSS MPL-2.0。升级沿用既有依赖和接口，未新增运行时模型请求。schema、web JSON、代理 OAuth fetch 与测试工具链由完整回归验证，声明兼容不代替最低版本实测。 |
+| 本地验证 | 从 lock 执行 npm ci 成功且安装前后 lock SHA256 相同；build、完整 coverage、lint、secrets（192 files）、pack dry-run 通过。693 passed / 1 skipped tests；Lines 82.24%、Branches 70.56%。普通沙箱因 node_modules mkdir、junction/symlink 的 EPERM 未完成检查，使用工作区 TEMP/TMP 及必要权限后完整通过；未跳过目标断言。两项 high audit 的同版本成功证据复用。 |
+| 格式检查 | 原索引的两个 package 文件均为全 CRLF，新行被普通 git diff --check 报 trailing whitespace；仅统一为 LF 保持 JSON 解析值不变，普通 git diff --check 已补查通过。该规范化会增加文本差异行数，依赖实际变化以上表为准。 |
+| 新 CI / 合并 | `PASS（源码门禁）`：[run 41012567518](https://github.com/ertutio/mail-agent-mcp/actions/runs/41012567518)，head `3ea1a9b466d5ce6bbcc996c5f855bb297288f34e`，Node22/24 的安装、测试、构建、产物、lint、diff、secrets、生产 audit、全量 audit、pack 全部 success，无所需步骤跳过。此后仅补本文与路线图；最终文档 head 的强制 CI 和 merge 结果见 [PR #26](https://github.com/ertutio/mail-agent-mcp/pull/26)。最低 Node22.12、WinCred 和真实服务商未在本轮验证，T36 保持独立。 |
+
+## 2026-10-30 集中验收
+
+以下保留上一轮依赖修复前的验收快照；当前依赖与合并状态以上方续接记录为准。
+
+本轮审查每个 PR 相对其真实 base 的差异。#3 的历史分析保留，#4 的持续计划为当前入口；#18/#19 的 setup 冲突同时保留安全原子更新和模块相对路径。合并范围与尚未通过的 T 编号分开记录，不因 PR 已提交而改写为完成。
+
+| 范围 | 本轮状态 / 证据 |
+| --- | --- |
+| 集成候选 | `BLOCKED（T35）`：源码候选 `0ba339e80227335f8d9b9920ee512ffa57985097` 包含 #3、#4、#6、#7、#8、#11、#18、#19、#20；共 9 项候选、14 项暂缓。生产/全量 audit 未通过，尚未合并 main。#7→#8 保留原堆叠关系；其余阻断分支不纳入候选祖先。 |
+| 本地质量门禁 | 源码 `0ba339e80227335f8d9b9920ee512ffa57985097`：build、lint、release secrets（192 files）、working/origin-main diff-check、pack dry-run（13 files）通过；最终 coverage exit 0：71 passed / 1 skipped files，693 passed / 1 skipped tests。Statements 79.40% (2837/3573)、Branches 70.56% (1949/2762)、Functions 82.00% (492/600)、Lines 82.24% (2524/3069)。 |
+| 验证环境与复用 | 首次 Vite 缓存因系统 TEMP rename EPERM 未执行测试，改用 workspace TEMP/TMP。随后三条 attachment-root junction 用例在沙箱受 EPERM 阻止，提升权限定点重跑 10/10；最终 coverage 在可写临时目录和必要权限下完整执行。移除 #22 后 SMTP 28/28 与 build 重跑；其余无关证据复用。临时环境失败未作为产品失败，也未用跳过替代目标断言。 |
+| T32 安装路径补证 | `PASS（隔离握手）`：真实构建 dist/index.js 从临时任意 cwd、新建 IMAP_MCP_CONFIG_DIR 成功 initialize，protocol 2024-11-05、serverInfo mail-agent-mcp 0.1.1；仅生成测试 .key，无账户。结束时未收到 shutdown 响应；探针已终止子进程，此项只验证 initialize。 |
+| 依赖审计 | `FAIL`：生产 8 个受影响包节点（5 moderate / 3 high），undici 7.30.0、zod 4.4.3 含高危（公告范围分别 7.0.0–7.30.0、<4.6.6）；全量 12 个（8 moderate / 4 high），另含 Vite 8.1.4 开发链高危（范围 8.0.0–8.1.5）。普通 fixAvailable 不能充当修复后证据；Nodemailer 的 moderate 建议 force 到 10.3.1，超出当前声明范围，未执行。两个 package 文件相对 main 未变，但既有缺陷仍是门禁失败。 |
+| 公告定位 | [undici GHSA-4qv8-2p9j-2685](https://github.com/advisories/GHSA-4qv8-2p9j-2685)、[zod GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5)、[Vite GHSA-698v-4r3x-3vcv](https://github.com/advisories/GHSA-698v-4r3x-3vcv) 为当前 audit 中的代表定位，非完整公告数；完整输出和可达性须随依赖修复复核，不能把受影响包节点数当作独立漏洞数。 |
+| CI | `FAIL（首轮）`：[run 41007167287](https://github.com/ertutio/mail-agent-mcp/actions/runs/41007167287)，精确 SHA e84d085307e105a100bd95f2d7fe6d89ed9fb4ae；Ubuntu Node22/24 均在 install-path-resolution.test.ts 的固定 Windows 路径断言失败，后续 build/lint/audit/pack 被跳过，不能拿本地成功代替。 |
+| CI 夹具补正 | 只将 tests/install-path-resolution.test.ts 的 C:/synth 固定路径改为当前平台的绝对 distDir，经 pathToFileURL 生成模块 URL，并完整断言同目录 index.js；不跳过 Linux、不改业务源码或依赖。本地定点及补正后准确 SHA 的 Node22/24 CI 结果附[候选 PR #26](https://github.com/ertutio/mail-agent-mcp/pull/26)，旧失败保留。生产代码仍为上述 0ba339e，其他有效证据复用。 |
+| 独立审计 | `PASS（读取覆盖）`：未参与实现的 DeepSeek 只读审计 review/read、仅 Read、空写入清单；21 个 PR 差异的 35 块均实际读取且无失败，审计 session `1824a5e0-4e3a-4bac-ae48-606576364c09`。报告不是产品测试，所提问题逐项核源码；rev2 capability 大小写疑虑被当前 imapflow/lib/tools.js 的特殊归一化规则推翻，未采纳。 |
+| 成本边界 | 外部审计耗时 144.125 秒；CLI 报告 USD 1.63894（costBasis=unknown，未核对实际账单），input 129076 / output 23320 / cache-read 821120 tokens。Codex 开发协作费用未知；产品运行时未新增模型请求。 |
+| 安全删除集成 | `PARTIAL`：T03/T04 能力门禁可独立审查；T01/T05 未完整通过，不能宣称 C0 联合安全删除验收关闭。 |
+| 运行与发布 | `NOT_RUN`：没有替换现有安装、重启 MCP、真实邮箱/WinCred 操作或 npm/MCP Registry 发布。T36 保留独立验收。 |
+
+| 暂缓 PR / T | 具体原因、证据及解除条件 |
+| --- | --- |
+| #5 / T01 | `PARTIAL`：SELECT 锁旁路已修正，但 folder_status 仍先 STATUS 后单独 SELECT，counts 与 flags 可来自不同时点；与总计划稳定状态要求不符。合成 gate 在两次读取间改变 UIDVALIDITY/计数/flags，验证最终快照一致并保留 read/flags/move/delete 锁回归后重验。 |
+| #9 / T05 | `FAIL`：deleteEmail 非 Trash 分支仍丢弃 messageMove 的 false/undefined；bulkDelete 收到仅覆盖部分 UID 的 truthy uidMap 仍计整个 chunk。补单条 MOVE 未确认与分块部分确认反例，未知结果不冒充完成、不提示安全重试。 |
+| #10 / T37 | `FAIL`：正则取第一个尖括号地址，显示名 `Offer <decoy@example.test>`、实际地址 `actual@other.test` 被格式化后错误命中 example.test。实际 spamTools+guardedDeletion 合成探针冻结 UID [77]，证明误选；改用结构化地址/可靠解析后验证精确集合、预览与确认不重搜。 |
+| #12 / T07 | `FAIL`：validateSmtp 对缺 port/secure 返回 undefined（非空断言只影响 TS）；updateAccount 验证候选后仍持久化原始 updates。补缺字段/null/默认值持久化及零写断言。 |
+| #13 / T08、#24 / T09 | `BLOCKED`：分别堆叠在 #12、#13 上；各自差异未发现同等级确定缺陷，但不能为合入后代而带入未通过的 T07。修正父分支并复验 HTTP gate/存储加载。 |
+| #14 / T16 | `PARTIAL / NOT_RUN`：QQ 新注册验证失败回滚有测试；网易/Gmail 新注册认证失败时 vault 回滚、账户零写尚无当前证据，Gmail repair 不替代新注册。源码未发现确定回归；补两 provider 的合成失败路径后重验，不以真实登录补普通开发证据。 |
+| #15 / T19 | `PARTIAL / NOT_RUN`：loopback 成功/错误滴流截止、refresh 请求超时及两种 body 字节上限已有测试；refresh headers 到达后成功/错误 body 的总截止未覆盖。补 AbortSignal 约束的滴流金样，断言同一 deadline 包含完整 body 后重验。 |
+| #16 / T18 | `FAIL`：Web finally 调 disconnect，而 disconnect 在 logout 抛错后只删除连接 map、不调用 close；LIST 错误虽保留，socket 可能泄漏。补 LIST+logout 双失败真实 close 断言及 stop 拥有者清理。 |
+| #17 / T28 | `FAIL`：三入口 truthy 日期判断使已提供的空字符串跳过解析，日期范围可能变宽；显式 !== undefined 检查并验证搜索/删除网络前拒绝。 |
+| #21 / T29 | `FAIL`：getFolderUnseenStatus 的 ensureConnected 位于 try 外，重连/认证失败使整次统计抛错，丢失已取得的部分结果；覆盖成功一夹后重连失败并返回 unknown/complete:false。 |
+| #22 / T22 | `FAIL`：真实 SmtpService.sendEmail + Nodemailer 10.1.0 streamTransport（buffer:true，无网络）得到 info.messageId/服务返回 ID 与冻结 raw 及 transport 邮件头 ID 不一致；mock 自行从 raw 构造返回值掩盖此差异。Envelope 五个 To/Cc/Bcc 地址齐全且 raw 无 Bcc；探针 newline:unix 仅使 CRLF→LF，归一后字节相等，不作为生产字节漂移证据。明确设置冻结 Message-ID 或从冻结 MIME 返回真实 ID，并用真实 transport 断言返回/头/Sent 一致后重验。 |
+| #23 / T24 | `PARTIAL`：新增 HTML 转义与附言有效，但原 HTML-only 邮件的 text 视图仍无原正文；属于既有问题，仍未满足 T24 明确金样要求。用真实 HTML-only MIME 检查两视图正文/附言/头完整；CID 字符串保持不等于 T25 part 端到端通过。 |
+| #25 / T23 | `FAIL`：mailparser 的 AddressObject.text 通常把多人拼成一个字符串；extractEmail 只识别第一个地址，自己在首位时整组被丢弃，否则可能保留自己/重复。应由结构化 value 扁平化真实 Reply-To/To/Cc，并用真实 MIME 验证不漏人/排自身/去重。 |
+
+本轮没有对上述阻断尝试产品修正，失败修正计数为 0；现有 PR 的反例与修复记录另行保留，不因这次审查重置已有排障历史。
+
+## 已交付与证据边界
+
+- PR #1/#2 已合并。原 SA-08 跨账户分页、SEC-01 `/api` 保护已修复：保留回归，不再排待修；T26/T27 与 T08 修改时复用/补验其相邻断言。
+- 当前代码已有 Gmail OAuth、QQ/Windows Credential Manager、安全附件根、账号选择、发送/回复/转发预览及 literal `confirmed:true` 的 imap_confirm_send。旧直接发信工具不注册，继续保留现有安全边界。
+- safe-send 已有进程内 pending/sending/sent/ambiguous/expired、TTL、活动草稿与附件上限，进程内并发/重复确认保护；执行异常进入 ambiguous，不自动重试。它不证明人类在场、不提供跨进程持久幂等，也不等于账户/凭据revision绑定已完成。
+- 已冻结 accountId 和邮件内容/附件字节，不等于冻结执行时同ID账户的身份/端点/发送策略。T11–T13 仍需完成；游标N-02/T26、APPEND N-03/T30不能由预览状态或Sent warning替代。
+- SMTP接受、Sent保存和最终投递是不同事实；T21/T22/T30分别验收。普通开发不得真实发信来填证据。
+- 原路线的 662 通过/1 跳过、81.93% coverage 是 2026-10-17 同源码tree的历史结果，本计划未重跑；历史全量audit失败也不是当前查询，更不能写零漏洞。保存原开发依赖排除，T33未经解除不自动修复/升级。
+- 历史磁盘overlay/注册/版本号不证明当前进程加载版本或本轮MCP调用成功。T36仍待独立授权和实际运行证据。
+
+## 初始就绪队列
+
+子项状态：`ready / in_progress / verifying / review_pending / blocked / accepted`；总状态另有 `awaiting_human / complete`。表中的就绪准备范围不授权提前接通未定共享契约。一个检查点可拆为多个原 T 子项保存，每个原编号独立对账。
+
+| 检查点 | 初始状态与依赖 |
+| --- | --- |
+| C0 / T01–T06、T37 | T01 ready；其余依原完成标准逐项推进。安全删除集成点联合验收T01/T03/T04/T05。 |
+| C1 / T07–T13 | T07候选契约ready；T08–T11依T07；T12依T11，T13依T11/T12。 |
+| C2 / T16/T17/T20/T21/T30/T26 | T16、T21、T30无真实技术前置；T17依T09/T11，T20依T11/T17，T26依T11。T16可在T02后提前。 |
+| C3 / T14/T15/T18/T19 | T18/T19可独立；T14依T12，T15依T14。 |
+| C4 / T27–T29 | T28/T29可独立；T27依T26，不能用失败恢复关闭游标身份。 |
+| C5 / T22–T25 | T22–T24可独立，保留SMTP回执契约；T25依T11。 |
+| C6 / T31/T32/T35 | T31/T32可独立；T35在受影响接口稳定时贯穿执行。 |
+| C7 / T33/T34/T36 | blocked：分别等开发依赖范围决定、fork身份决定、候选通过T35及部署授权；其他核心工作继续。 |
+
+## 范围与验证缺口
+
+| 项 | 当前结论 / 下一步 |
+| --- | --- |
+| N-01 | 预览revision契约未由进程内草稿状态解决；发送有历史mock证据，删除同ID/相同UIDVALIDITY是条件风险。接入T11–T13，不重复计为另一SA-01修复。 |
+| N-02 | 游标账户/版本/范围绑定为T26独立契约；T27有限恢复不能替代它。 |
+| N-03 | APPEND false的草稿与Sent语义在T30核对；不把历史mock当真实服务商时序复现。 |
+| V-01/V-02 | 当前运行进程、实际MCP调用、服务商差异、WinCred、最低Node和跨平台等按变更列待验证；mock/Ubuntu CI不能充当这些证据。 |
+| R1–R5/F1–F8 | 按总计划原表保留风险/延期；可信审批、跨平台vault、全文索引、新provider等不自动扩入实现。 |
+
+## 历史提交回执（不代表本轮验收）
+
+以下保留各实现 PR 提交时的原始回执与当时游标。当前状态以上方 2026-10-30 集中验收为准，历史 PASS/test 数字不覆盖本轮 FAIL、BLOCKED 或 NOT_RUN。
+
+| T编号 / 状态 | 行为与提交 | 分支 / PR / 父PR | 实际验收证据 | 未完成 / 阻塞 / next_action |
+| --- | --- | --- | --- | --- |
+| 计划初始化 / ready | 文档重构，未修改业务 | 当前计划PR | 原编号/依赖保留及文档静态检查；产品检查未运行 | 启动实现后执行T01具体动作并更新游标。 |
+| T01 / review_pending | `selectFolder` 改走 `getMailboxLock` 锁协议并返回稳定 `FolderSnapshot`（纯值+flags/permanentFlags数组副本）；handler 输出形状不变 | `fix/t01-folder-status-lock` @ `1a8f612`，[PR #5](https://github.com/ertutio/mail-agent-mcp/pull/5)，基线 main@96f8864 | 反例（同账户 INBOX/Archive 同UID 7 不同UIDVALIDITY，gate 暂停持锁后）：修复前 UID 命令 selection=Archive（FAIL），修复后保持 INBOX 且 B 等 `lock:released:INBOX` 后才 `select:Archive`；快照与活跃引用双向隔离；SELECT 失败不占锁、队列可继续。用例 `T01-LOCK-{READ,FLAGS,MOVE,DELETE}`、`T01-SNAPSHOT-01`、`T01-LOCK-FAIL-01`（tests/folder-status-lock-concurrency.test.ts）。lint/build/check:secrets 通过；全量 668 passed/1 skipped（browser-account-removal 首跑一次 ENOTEMPTY 临时目录竞争，单独重跑×2 与全量重跑均绿，与本改动无关）；folder-tools-status 7 例不变通过 | 评审等待中；接口变化：`selectFolder` 返回 `Promise<any>`→`Promise<FolderSnapshot>`，flags 由 Set 变数组副本，唯一生产调用者兼容。合并后跑受影响范围复验。next：T02（游标已更新） |
+| T02 / review_pending | 三个 ImapFlow 构造点共用 `imapTransportPolicy`：tls→隐式 TLS；明文账户→`secure:false, doSTARTTLS:true` 必需 STARTTLS，失败于 authenticate 前关闭 | `fix/t02-starttls-policy` @ `93c3118`，[PR #6](https://github.com/ertutio/mail-agent-mcp/pull/6)，基线 main@96f8864 | 字节级（真实 imapflow + 合成 localhost 服务器，tests/imap-starttls-policy.test.ts）：修复前 STARTTLS 被拒场景凭据明文过线（authReachedWire=true，FAIL），修复后两场景（无 STARTTLS/被拒）线上零 LOGIN/AUTHENTICATE 字节且 connect 以 STARTTLS 错误失败；配置级 T02-POLICY-IMPLICIT/STARTTLS 固定三入口同策略。全量 666 passed/1 skipped；lint/build/check:secrets 通过；git diff --check 干净 | 评审等待中；兼容变化：tls:false 且服务器无 STARTTLS 时连接失败（安全收紧，bridge 完全无 STARTTLS 的例外按原计划留待单独决策）。完整 STARTTLS 升级成功路径未做字节级验证（库流程+配置级覆盖，见 PR #6）。next：T03（游标已更新） |
+| T03 / review_pending | 三个写路径共用 `assertNativeMoveCapability`（含 IMAP4rev2 折叠语义）：moveEmail 在目的文件夹创建前、deleteEmail/bulkDelete 在首个分块前拒绝无 MOVE 服务器的移动；bulkDelete 循环内重连后复查 | `fix/t03-move-gate` @ `ce26d04`，[PR #7](https://github.com/ertutio/mail-agent-mcp/pull/7)，基线 main@96f8864 | 反例（capability map 去 MOVE）：修复前三例继续调用 messageMove（FAIL，库将走 COPY+EXPUNGE），修复后以 /MOVE/ 错误拒绝且零写调用；T03-MOVE-GATE-OK 固定有 MOVE 行为不变；T03-TRASH-UNAFFECTED 固定永久删除不受此门禁（归 T04）。全量 667 passed/1 skipped；lint/build/check:secrets/diff --check 通过 | 评审等待中；兼容变化：无 MOVE 服务器移动报错零改动（安全收紧）。与 T01 的合并顺序需协调：后合并方需在 folder-status-lock-concurrency.test.ts 的 mock 上补 capabilities。next：T04（游标已更新） |
+| T04 / review_pending | 新增 `assertPermanentDeleteCapability`（与 T03 共用 `hasCapabilityCompat`，rev2 折叠语义）：deleteEmail/bulkDelete 的 Trash 内永久删除在打旗标前核实 UIDPLUS，首个分块前拒绝+循环内重连复查 | `fix/t04-uidplus-gate` @ `725b95c`，[PR #8](https://github.com/ertutio/mail-agent-mcp/pull/8)，父PR #7（堆叠），base fix/t03-move-gate | 反例（mock 按真实 expunge.js 语义，Trash 持 UID7=确认集合、UID9=集外已Deleted）：修复前永久删除 UID7 连带 EXPUNGE UID9（FAIL）；修复后两入口 /UIDPLUS/ 拒绝且零写、UID9 保留；T04-UIDPLUS-OK/T04-REV2-FOLDED 固定精确清除。T03-TRASH-UNAFFECTED fixture 相应补 UIDPLUS。全量 671 passed/1 skipped；lint/build/check:secrets/diff --check 通过 | 评审等待中；兼容变化：无 UIDPLUS 且非 rev2 服务器永久删除报错零改动（安全收紧）。服务端并发 EXPUNGE 竞态归 T05 范围。next：T05（游标已更新） |
+| T05 / review_pending | bulkDelete 的 falsy 结果按「副作用未知」计入 failed/errors 不计 deleted，onProgress 仅确认分块触发；deleteEmail Trash 内未确认 EXPUNGE 抛错不再静默成功 | `fix/t05-delete-counts` @ `ccb7c96`，[PR #9](https://github.com/ertutio/mail-agent-mcp/pull/9)，父PR #8（堆叠链 #7→#8→#9），base fix/t04-uidplus-gate | 反例（合成返回值）：修复前 false/undefined 分块计为 deleted、deleteEmail 静默成功（FAIL）；修复后 deleted=0 且 failed/errors 可见未知；确认分块与抛错分块回归不变。bulk-delete 错误处理 fixture 原断言即旧行为，改为「确认+抛错」组合。全量 677 passed/1 skipped；lint/build/check:secrets/diff --check 通过 | 评审等待中；flagBatch 对 messageFlagsAdd 返回值的核实不在 T05 边界，如需可独立领取。next：T37（游标已更新） |
+| T37 / review_pending | imap_delete_by_domain 在预览/冻结前按解析地址做二次精确域匹配（显示名文本绝不参与，子域保持排除）；预览与冻结集合同源 | `fix/t37-domain-candidates` @ `d4753be`，[PR #10](https://github.com/ertutio/mail-agent-mcp/pull/10)，父PR #9（堆叠链 #7→#8→#9→#10） | 反例（候选含精确/后缀相似域/显示名陷阱/显示名+精确地址）：修复前冻结并删除全部 4 条（FAIL）；修复后仅 2 条精确域命中进入预览与确认，确认不重搜索。既有 frozen-confirmation 用例不受影响。全量 679 passed/1 skipped（account-runtime-removal 首跑临时目录竞争，重跑均绿）；lint/build/check:secrets/diff --check 通过 | 评审等待中；域规范化（IDN/punycode）未处理，小写精确比较。next：T06（游标已更新） |
+| T06 / review_pending | imap_download_attachment 迁移到共享 extractPdfPreview 隔离 worker（预算/截止/忙碌同预览入口），文本按 MAX_BODY_CHARS 截断，失败显式 textContentUnavailable | `fix/t06-pdf-isolated-download` @ `bd3a28e`，[PR #11](https://github.com/ertutio/mail-agent-mcp/pull/11)，独立基线 main@96f8864 | 反例（vi.mock 记录进程内 pdf-parse 导入）：修复前下载发生进程内导入且失败无原因（E09 复现，FAIL）；修复后零进程内导入、超预算/损坏 PDF 显式报因并保存。既有端到端提取与 worker 预算用例经 worker 路径通过。全量 665 passed/1 skipped；lint/build/check:secrets/diff --check 通过 | 评审等待中；响应新增可选 textContentTruncated/textContentUnavailable（附加字段）。Windows 子进程实境按 T35/T36 另行验证。next：T07（游标已更新） |
+| T07 / review_pending | 新增 validateAccountCandidate 纯校验/规范化（三白名单、类型、null 拒绝/空串占位兼容、默认值、auth 结构）；addAccount 前置校验、updateAccount 校验合并候选，非法候选零存储写入 | `fix/t07-account-candidate-schema` @ `040f1ae`，[PR #12](https://github.com/ertutio/mail-agent-mcp/pull/12)，独立基线 main@96f8864 | 反例（fs mock 断言零写入）：修复前 evilExtra/字符串端口被持久化、未知更新字段到达存储（FAIL）；修复后按名拒绝且零写入，setup API 形状与 enroll 候选兼容通过。全量 672 passed/1 skipped；lint/build/check:secrets/diff --check 通过 | 评审等待中；addAccount/updateAccount 对非法候选从静默接受变为拒绝（兼容变化）。T08 接 HTTP，T11 做 revision。next：T08（游标已更新） |
+| T08 / review_pending | setup API 账户 POST/PUT 的 HTTP 层验收：非法候选 400 且存储字节不变（写入前拒绝）、未知请求字段不入存储、SEC-01 会话门 403 保持、合法注册端到端通过 | `fix/t08-http-candidate-gate` @ `2ca230c`，[PR #13](https://github.com/ertutio/mail-agent-mcp/pull/13)，父PR #12（堆叠 T07→T08） | 用 main manager 跑同一测试：非法候选被持久化、PUT 改变存储（FAIL，4 例）；用 T07 接线后 5 例全过（真实 manager+临时配置+真实 HTTP）。全量 677 passed/1 skipped；lint/build/check:secrets/diff --check 通过 | 评审等待中；纯测试变更无行为改动。next：T16 独立提前（游标已更新），T09 排 #12→#13 链后 |
+| T16 / review_pending | CLI 注册（qq/gmail/netease 全系）注入登录验证：dependencies.authenticateOnly 或真实 ImapService 登录；失败走 persist 回滚，零持久、不报 enrolled | `fix/t16-cli-enroll-verify` @ `2b9f371`，[PR #14](https://github.com/ertutio/mail-agent-mcp/pull/14)，独立基线 main@96f8864 | 反例（真实临时配置目录+注入 mock）：修复前验证从未被调用、坏凭据仍报 enrolled（FAIL）；修复后验证调用一次、失败回滚（vault delete、无存储文件）、成功恰好提交一个账户。netease-cli fixture 同步注入 mock 验证并按后端布尔契约建模。全量 665 passed/1 skipped；lint/build/check:secrets/diff --check 通过 | 评审等待中；行为变化（安全收紧）：CLI 注册错误授权码即失败回滚。真实服务商登录 NOT RUN。next：T19 独立（游标已更新），T09 排 #12→#13 链后 |
+| T19 / review_pending | OAuth body 纳入截止与预算：loopback token timer 覆盖 body 全消费（成功/错误），readBoundedJson 64KB 流式预算（OAuthBodyBudgetError 即时中断）；refresh 保持整调用 timer 并接入预算 | `fix/t19-oauth-body-budgets` @ `27ea25d`，[PR #15](https://github.com/ertutio/mail-agent-mcp/pull/15)，独立基线 main@96f8864 | 反例（真实流式 Response+注入 fetch，drip mock 遵约 signal 以 AbortError 切断）：修复前 drip-fed 成功/错误 body 拖过截止（4s harness 截止，FAIL）、2MB body 被接受；修复后按截止报 timed out、错误按状态码、超限显式预算错误。全量 667 passed/1 skipped；lint/build/check:secrets/diff --check 通过 | 评审等待中；新增错误信息 "OAuth response body exceeded 65536 bytes"。真实 Google 端点 NOT RUN。next：T18（游标已更新），T09 排 #12→#13 链后 |
+| T18 / review_pending | /api/test-connection 的 disconnect 移入 finally；testConnection 的 logout 移入 finally 并带硬关回退；首错不被清理遮蔽，容忍性 STATUS 语义保持 | `fix/t18-owner-cleanup` @ `4426f06`，[PR #16](https://github.com/ertutio/mail-agent-mcp/pull/16)，独立基线 main@96f8864 | 反例：修复前 LIST/STATUS 失败跳过 logout、web 端 test-<id> 连接泄漏（FAIL，3 例）；修复后均结束连接、LIST 错误浮出、logout 失败回退硬关。全量 666 passed/1 skipped；lint/build/check:secrets/diff --check 通过 | 评审等待中；index shutdown 接线按计划先明确范围再接入，未捆绑。next：T28（游标已更新），T09 排 #12→#13 链后 |
+| T28 / review_pending | 共享 search-input 校验：严格 YYYY-MM-DD+真实日历、since 严格早于 before、每 folder limit 1..5000；imap_search_emails/imap_bulk_delete_by_search/统一搜索三入口一致 | `fix/t28-search-input-validation` @ `36ec618`，[PR #17](https://github.com/ertutio/mail-agent-mcp/pull/17)，独立基线 main@96f8864 | 反例（5 例，断言 service 零调用）：修复前假日历/垃圾日期/无序范围/越界 limit 全部到达服务或静默空结果（FAIL）；修复后网络前拒绝且统一搜索测试经共享解析器保持绿色。全量 667 passed/1 skipped；lint/build/check:secrets/diff --check 通过 | 评审等待中；limit schema 新增 int/min/max 约束（正确性收紧）。UID 参数扩展另定范围。next：T31（游标已更新），T09 排 #12→#13 链后 |
+| T31 / review_pending | 配置更新提取到 applyClaudeConfigUpdate：仅 ENOENT 初始化、坏 JSON/拒读保留原字节、候选形态校验、其他 mcpServers 保留、同名差异条目 y/N 确认、临时+rename 原子替换 | `fix/t31-config-safe-write` @ `a74901f`，[PR #18](https://github.com/ertutio/mail-agent-mcp/pull/18)，独立基线 main@96f8864 | tests/claude-config.test.ts 6 例（真实临时文件+注入 I/O 拒读）：全部固定新契约；旧行为（坏 JSON 被空对象覆盖，E10）经原实现逐行核对确认后由新路径消除。全量 668 passed/1 skipped；lint/build/check:secrets/diff --check 通过 | 评审等待中；setup 流程坏配置从静默替换变为失败+指引、同名新增确认（行为变化）。next：T32（游标已更新），T09 排 #12→#13 链后 |
+| T32 / review_pending | setup 注册路径改为 resolveBundledServerPath(import.meta.url)（dist/setup.js 旁的 index.js），手动提示同步 | `fix/t32-install-paths` @ `96cb354`，[PR #19](https://github.com/ertutio/mail-agent-mcp/pull/19)，独立基线 main@96f8864 | tests/install-path-resolution.test.ts 3 例：模块相对解析（平台形状）+ 真实 stdio initialize 握手（OS 临时目录 cwd + 临时配置，~1.7s 应答）证明任意 cwd 隔离初始化。全量 665 passed/1 skipped；lint/build/check:secrets/diff --check 通过 | 评审等待中；从非根目录运行安装器时注册路径由错变对（行为变化）。T36 部署验收独立门控。next：T30（游标已更新），T09 排 #12→#13 链后 |
+| T30 / review_pending | 两处 append 站点核实 outcome：Sent 未确认返回 saved:false+append_failed（调用方既有 warning 不重发），appendMessage 返回 false（草稿调用者既有判断抛错） | `fix/t30-append-result-contract` @ `68ff632`，[PR #20](https://github.com/ertutio/mail-agent-mcp/pull/20)，独立基线 main@96f8864 | 反例（6 例）：修复前 false/undefined 产生 saved:true/true（FAIL，4 例）；修复后报告未保存，确认结果回归通过。sent-save fixture 默认值改为真实库成功形态。全量 668 passed/1 skipped；lint/build/check:secrets/diff --check 通过 | 评审等待中；未确认 APPEND 不再报成功（正确性收紧）。真实服务器 false 可达条件 NOT RUN。next：T29（游标已更新），T09 排 #12→#13 链后 |
+| T29 / review_pending | 新增 getFolderUnseenStatus（命名 STATUS unseen，缺失/畸形/失败→显式 unknownReason）；imap_get_unread_count 改为 STATUS 计数，unknown 文件夹排除出 totalUnread 并列入 unknownFolders + complete 标志 | `fix/t29-unread-semantics` @ `e77e0c7`，[PR #21](https://github.com/ertutio/mail-agent-mcp/pull/21)，独立基线 main@96f8864 | 反例（4 例 handler 级）：修复前驱动元数据搜索且失败记 0（FAIL）；修复后零 searchEmails 调用、12000 未读如实报告、失败文件夹显式 unknown。全量 666 passed/1 skipped；lint/build/check:secrets/diff --check 通过 | 评审等待中；byFolder 不再含 0 占位（附加 complete/unknownFolders）。真实服务器省略 UNSEEN NOT RUN。next：T22（游标已更新） |
+| T22 / review_pending | sendEmail 冻结单一 MIME：composeRaw 字节经显式 envelope（to+cc+bcc）提交，同一 raw 归 Sent 副本；compose 失败整体失败；实证 raw 无 Bcc 头 | `fix/t22-frozen-mime` @ `8be6422`，[PR #22](https://github.com/ertutio/mail-agent-mcp/pull/22)，独立基线 main@96f8864 | 反例（3 例 mock transporter）：修复前 transport 收 mail options 无 raw、compose 失败静默跳过（FAIL）；修复后 raw 即提交字节且 messageId 锚定其 Message-ID，envelope 全覆盖而 raw 无密送地址，超限整体失败零调用。全量 665 passed/1 skipped；lint/build/check:secrets/diff --check 通过 | 评审等待中；compose 失败从静默跳过变为整体失败（行为变化）。T21/T23/T24 相邻独立。next：T24（游标已更新） |
+| T24 / review_pending | 转发 HTML 视图镜像 text 视图：转义附言 + 转义转发头块 + 原始 htmlContent 原样（cid 保留）；无 HTML 原件不产 HTML 部分 | `fix/t24-forward-views` @ `6eb73f7`，[PR #23](https://github.com/ertutio/mail-agent-mcp/pull/23)，独立基线 main@96f8864 | 反例（5 例）：修复前 HTML 缺附言/头、hostile 无转义（FAIL，3 例）；修复后齐备且 <script> 转义、中文保留、cid 原样、纯文本原件无 HTML 部分。全量 667 passed/1 skipped；lint/build/check:secrets/diff --check 通过 | 评审等待中；HTML 视图内容变化（正确性收紧）。next：T09 或 T23（游标已更新） |
+| T09 / review_pending | loadAccountsSync 载入校验（JSON数组+string id）与失效语义：任何失败先清空内存账户；ENOENT=空、其余错误读取显式拒绝；strict 写前拒绝保持原字节；构造容忍启动（浏览器 setup 恢复路径可用） | `fix/t09-store-load` @ `4b10e4b`，[PR #24](https://github.com/ertutio/mail-agent-mcp/pull/24)，父PR #13（堆叠 #12→#13→#24） | 反例（5 例 mocked fs）：修复前删存储后旧账户可见、损坏静默服务旧数据、addAccount 覆盖损坏字节、删除后新增复活旧记录（FAIL）；修复后全按契约。全量 682 passed/1 skipped；lint/build/check:secrets/diff --check 通过 | 评审等待中；损坏/拒读存储上的读取从静默变为显式错误（行为变化）。next：T23（游标已更新） |
+| T23 / review_pending | EmailContent 增 cc；reply 处理器 Reply-To 优先、reply-all 覆盖 Reply-To+To+Cc（排自身/按裸地址去重、显示名保留）、线程头不变 | `fix/t23-reply-addresses` @ `2b8548c`，[PR #25](https://github.com/ertutio/mail-agent-mcp/pull/25)，独立基线 main@96f8864 | 反例（5 例 composer 结构断言）：修复前 Reply-To 被忽略、reply-all 漏 Cc（FAIL，2 例）；修复后全按契约，无 Reply-To 回退/去重/线程头回归通过。全量 667 passed/1 skipped；lint/build/check:secrets/diff --check 通过 | 评审等待中；带 Reply-To 的消息回复地址变化（正确性收紧）。next：T25（游标已更新） |
+
+每个子项保留：基线与修复SHA、具体用例/输入、缺陷前FAIL/修复后PASS、相邻回归、精确副作用/零副作用断言、命令或run URL、环境/fixture、报告位置、失败/跳过/缓存/未执行、接口/兼容变化。进度只放必要摘要，凭据、真实邮件和完整日志不入文档。
+
+每个阻塞保留：所缺条件、累计失败次数与假设、已试结果、解除条件、谁需决定什么、可继续的独立项。PR待评审时继续就绪项；发生硬中断先保存未提交改动及运行检查状态，恢复后核对再续接。

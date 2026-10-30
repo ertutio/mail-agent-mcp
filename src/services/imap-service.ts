@@ -177,6 +177,19 @@ export class ImapService {
     this.accountManager = accountManager;
   }
 
+  /**
+   * One transport policy for every ImapFlow entry point (T02 / SEC-02):
+   * implicit TLS when the account asks for it, otherwise a REQUIRED STARTTLS
+   * upgrade before authentication. imapflow fails the connect when the server
+   * does not advertise STARTTLS or the upgrade fails, so authentication bytes
+   * never cross a cleartext transport and there is no opportunistic downgrade.
+   */
+  private imapTransportPolicy(account: ImapAccount): { secure: boolean; doSTARTTLS?: boolean } {
+    return account.tls
+      ? { secure: true }
+      : { secure: false, doSTARTTLS: true };
+  }
+
   async connect(account: ImapAccount): Promise<void> {
     const existing = this.connections.get(account.id);
     if (existing?.isConnected) {
@@ -192,7 +205,7 @@ export class ImapService {
     const client = new ImapFlow({ maxLiteralSize: MAX_MESSAGE_BYTES + 1,
       host: account.host,
       port: account.port,
-      secure: account.tls,
+      ...this.imapTransportPolicy(account),
       // Validate the certificate against the host we actually dial. On a
       // STARTTLS upgrade imapflow passes no host to Node's TLS layer, and for
       // an IP host it also omits the SNI servername, so Node would otherwise
@@ -1157,6 +1170,55 @@ export class ImapService {
     return isGmail ? '[Gmail]/Trash' : 'Trash';
   }
 
+  /**
+   * Gate for every write path that would issue a MOVE (T03 / MAIL-09a).
+   * imapflow emulates MOVE on servers without the RFC 6851 extension via
+   * COPY + \Deleted + EXPUNGE (lib/commands/move.js), which is not a safe
+   * move: the deletion is not UIDPLUS-precise and is not bound to a confirmed
+   * copy. Refuse before any write instead of letting the library fall back.
+   * Mirrors imapflow's own hasCapability(): MOVE is folded into the IMAP4rev2
+   * base spec, so a rev2 session has MOVE without advertising it separately.
+   */
+  /**
+   * Mirrors imapflow's tools.hasCapability(): extensions RFC 9051 folds into
+   * the IMAP4rev2 base spec count as available on rev2 sessions even when the
+   * server does not advertise them separately.
+   */
+  private hasCapabilityCompat(client: ImapFlow, capability: string): boolean {
+    const caps = client.capabilities;
+    if (!caps) return false;
+    if (caps.has(capability)) return true;
+    const rev2Active = client.enabled?.has('IMAP4REV2') === true ||
+      (caps.has('IMAP4rev2') && !caps.has('IMAP4rev1'));
+    return rev2Active;
+  }
+
+  private assertNativeMoveCapability(client: ImapFlow): void {
+    if (!this.hasCapabilityCompat(client, 'MOVE')) {
+      throw new Error(
+        'Server does not advertise the IMAP MOVE extension (RFC 6851); ' +
+        'refusing to emulate a move with COPY+EXPUNGE. No messages were changed.'
+      );
+    }
+  }
+
+  /**
+   * Gate for every permanent-delete path (T04 / MAIL-09b). Without UIDPLUS
+   * imapflow's messageDelete falls back to a plain EXPUNGE, which clears
+   * EVERY \Deleted message in the mailbox — including UIDs deleted outside
+   * the current confirmation set. Verify the capability (or the IMAP4rev2
+   * fold) before any \Deleted flag is set.
+   */
+  private assertPermanentDeleteCapability(client: ImapFlow): void {
+    if (!this.hasCapabilityCompat(client, 'UIDPLUS')) {
+      throw new Error(
+        'Server does not advertise UIDPLUS (RFC 4315); refusing a permanent ' +
+        'delete whose plain EXPUNGE would also clear \\Deleted messages outside ' +
+        'this confirmation set. No messages were changed.'
+      );
+    }
+  }
+
   async deleteEmail(accountId: string, folderName: string, uid: number): Promise<void> {
     const client = await this.ensureConnected(accountId);
     const trashFolder = await this.resolveTrashFolder(accountId);
@@ -1169,9 +1231,11 @@ export class ImapService {
       lock = await client.getMailboxLock(folderName);
       if (folderName === trashFolder) {
         // Already in Trash, permanently delete
+        this.assertPermanentDeleteCapability(client);
         await client.messageDelete(uid, { uid: true });
       } else {
         // Move to Trash instead of permanent expunge
+        this.assertNativeMoveCapability(client);
         await client.messageMove(uid, trashFolder, { uid: true });
       }
     } finally {
@@ -1203,6 +1267,13 @@ export class ImapService {
     }
     const isAlreadyInTrash = folderName === trashFolder;
     if(expectedPermanent!==undefined&&isAlreadyInTrash!==expectedPermanent)throw new Error('Trash mapping changed during deletion; create a new preview');
+    // Fail before the first chunk, then re-check after any mid-loop reconnect
+    // so a swapped-in client can never silently fall back.
+    if (isAlreadyInTrash) {
+      this.assertPermanentDeleteCapability(client);
+    } else {
+      this.assertNativeMoveCapability(client);
+    }
 
     let deleted = 0;
     let failed = 0;
@@ -1226,8 +1297,10 @@ export class ImapService {
         // Use sequence set for bulk operations
         const uidSet = chunk.join(',');
         if (isAlreadyInTrash) {
+          this.assertPermanentDeleteCapability(client);
           await client.messageDelete(uidSet, { uid: true });
         } else {
+          this.assertNativeMoveCapability(client);
           await client.messageMove(uidSet, trashFolder, { uid: true });
         }
 
@@ -1288,6 +1361,9 @@ export class ImapService {
     const uidList = isBatch ? (uids as number[]) : [uids as number];
 
     const client = await this.ensureConnected(accountId);
+
+    // Gate before any side effect, including the optional destination create.
+    this.assertNativeMoveCapability(client);
 
     let destinationCreated = false;
     if (options?.createDestinationIfMissing) {
@@ -1615,7 +1691,15 @@ export class ImapService {
 
     try {
       const client = await this.ensureConnected(accountId);
-      await client.append(folder, rawMessage, ['\\Seen']);
+      // T30 / N-03: imapflow resolves append with false (server NO) or
+      // undefined (preconditions unmet) instead of throwing — an unconfirmed
+      // result must never be reported as a saved copy.
+      const outcome = await client.append(folder, rawMessage, ['\\Seen']);
+      if (!outcome) {
+        const error = `Sent-folder APPEND to "${folder}" was not confirmed by the server (no result); treating the copy as not saved`;
+        console.error(`[IMAP] ${error}`);
+        return { saved: false, folder, errorCategory: 'append_failed', error };
+      }
       return { saved: true, folder };
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
@@ -1697,8 +1781,10 @@ export class ImapService {
   async appendMessage(accountId: string, folder: string, rawMessage: Buffer | string, flags?: string[]): Promise<boolean> {
     const client = await this.ensureConnected(accountId);
     try {
-      await client.append(folder, rawMessage, flags ?? []);
-      return true;
+      // T30 / N-03: false (server NO) or undefined (preconditions unconfirmed)
+      // resolves instead of throwing — only a confirmed append is success.
+      const outcome = await client.append(folder, rawMessage, flags ?? []);
+      return Boolean(outcome);
     } catch (err) {
       console.error(`[IMAP] Failed to append to ${folder}:`, err instanceof Error ? err.message : err);
       return false;
@@ -1713,7 +1799,7 @@ export class ImapService {
       connectionTimeout: 30_000, greetingTimeout: 15_000, socketTimeout: 30_000,
       host: account.host,
       port: account.port,
-      secure: account.tls,
+      ...this.imapTransportPolicy(account),
       tls: { host: account.host },
       auth: { ...buildImapAuth(resolvedAuth), loginMethod: account.loginMethod },
       ...(proxy ? { proxy } : {}),
@@ -1742,7 +1828,7 @@ export class ImapService {
     const testClient = new ImapFlow({ maxLiteralSize: MAX_MESSAGE_BYTES + 1,
       host: account.host,
       port: account.port,
-      secure: account.tls,
+      ...this.imapTransportPolicy(account),
       // Validate the certificate against the host we actually dial; see connect().
       tls: { host: account.host },
       auth: { ...buildImapAuth(resolvedAuth), loginMethod: account.loginMethod },

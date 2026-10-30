@@ -1,4 +1,8 @@
+> **历史计划**：后续开发以[当前正式路线图](development-roadmap.md)和[agent 阅读入口](../analysis/mail-mcp-20261017/START-HERE.md)为准。下文保留原审计与批次记录；“尚未合并/部署”是历史状态，SA-08 / SEC-01 已由 PR #2 合并。
+
 # 2026-10-15 审计整改开发计划（草案）
+
+> 历史计划（2026-10-15）。当前执行顺序与持续循环以 [development-roadmap.md](development-roadmap.md) 为准，状态见 [development-progress.md](development-progress.md)，证据约定见 [验收文档](../acceptance.md)。原文保留作问题来源，不作为第二个任务入口；其中当时的合并/部署状态不是当前运行证明。
 
 > 本 PR 包含开发计划、审计资料，以及 2026-10-16 获授权的 SA-08 / SEC-01 两项修复；本地功能验收已完成，其余 30 项仍待处理。保持草稿，尚未部署或合并。
 

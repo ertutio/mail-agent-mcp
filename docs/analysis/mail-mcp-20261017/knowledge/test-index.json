@@ -1,0 +1,3467 @@
+{
+  "commit": "524e1b34c89ebe2834a27b948371227f142d346d",
+  "testFiles": 68,
+  "tests": [
+    {
+      "file": "tests/account-enrollment.test.ts",
+      "internalImports": [
+        "src/credentials/account-enrollment.ts",
+        "src/credentials/credential-backend.ts",
+        "src/services/account-manager.ts",
+        "src/types/index.ts"
+      ],
+      "staticTitles": [
+        {
+          "line": 66,
+          "title": "AccountEnrollmentService"
+        },
+        {
+          "line": 67,
+          "title": "persists a QQ account schema without putting the authorization code in JSON"
+        },
+        {
+          "line": 100,
+          "title": "persists Gmail metadata without putting the refresh token in JSON"
+        },
+        {
+          "line": 145,
+          "title": "rejects a missing Gmail client secret before any mutation"
+        },
+        {
+          "line": 160,
+          "title": "rejects an invalid target account before mutation"
+        },
+        {
+          "line": 173,
+          "title": "does not add an account when credential write fails"
+        },
+        {
+          "line": 186,
+          "title": "deletes a newly written credential when account persistence fails"
+        },
+        {
+          "line": 198,
+          "title": "restores an existing credential and disposes its handle"
+        },
+        {
+          "line": 215,
+          "title": "keeps QQ and Gmail targets isolated"
+        },
+        {
+          "line": 233,
+          "title": "rolls back the first Gmail credential when the second write fails"
+        },
+        {
+          "line": 251,
+          "title": "restores both prior Gmail credentials when account persistence fails"
+        },
+        {
+          "line": 273,
+          "title": "uses a generic secret-free error if rollback fails"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/account-manager-permissions.test.ts",
+      "internalImports": [],
+      "staticTitles": [
+        {
+          "line": 30,
+          "title": "writes .key, accounts.json and their directory owner-only"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/account-manager.test.ts",
+      "internalImports": [
+        "src/credentials/credential-backend.ts",
+        "src/services/account-manager.ts"
+      ],
+      "staticTitles": [
+        {
+          "line": 40,
+          "title": "AccountManager"
+        },
+        {
+          "line": 80,
+          "title": "constructor"
+        },
+        {
+          "line": 81,
+          "title": "should create account manager with correct config path"
+        },
+        {
+          "line": 86,
+          "title": "uses an explicit isolated config directory without touching the default profile"
+        },
+        {
+          "line": 108,
+          "title": "should create encryption key if not exists"
+        },
+        {
+          "line": 119,
+          "title": "addAccount"
+        },
+        {
+          "line": 120,
+          "title": "rejects generic Gmail password fallback before persistence"
+        },
+        {
+          "line": 129,
+          "title": "rejects generic QQ SMTP password fallback before persistence"
+        },
+        {
+          "line": 142,
+          "title": "rejects mismatched credential targets before persistence"
+        },
+        {
+          "line": 155,
+          "title": "should add account with generated id"
+        },
+        {
+          "line": 174,
+          "title": "should save accounts after adding"
+        },
+        {
+          "line": 189,
+          "title": "should encrypt password when storing"
+        },
+        {
+          "line": 210,
+          "title": "should handle SMTP config with encrypted password"
+        },
+        {
+          "line": 232,
+          "title": "getAccount"
+        },
+        {
+          "line": 233,
+          "title": "should return undefined for non-existent account"
+        },
+        {
+          "line": 239,
+          "title": "should return decrypted account"
+        },
+        {
+          "line": 258,
+          "title": "getAllAccounts"
+        },
+        {
+          "line": 259,
+          "title": "should return empty array when no accounts"
+        },
+        {
+          "line": 265,
+          "title": "should return all accounts with decrypted passwords"
+        },
+        {
+          "line": 294,
+          "title": "getAccountByName"
+        },
+        {
+          "line": 295,
+          "title": "should find account by name"
+        },
+        {
+          "line": 313,
+          "title": "should return undefined for non-existent name"
+        },
+        {
+          "line": 320,
+          "title": "resolveAccountId"
+        },
+        {
+          "line": 325,
+          "title": "returns the id when an explicit accountId exists"
+        },
+        {
+          "line": 331,
+          "title": "throws for an unknown accountId"
+        },
+        {
+          "line": 337,
+          "title": "resolves by accountName"
+        },
+        {
+          "line": 343,
+          "title": "throws for an unknown accountName"
+        },
+        {
+          "line": 349,
+          "title": "defaults to the only account when none is specified"
+        },
+        {
+          "line": 355,
+          "title": "throws when no accounts are configured"
+        },
+        {
+          "line": 360,
+          "title": "throws when multiple accounts exist and none is specified"
+        },
+        {
+          "line": 368,
+          "title": "environment variable credential overrides"
+        },
+        {
+          "line": 378,
+          "title": "overrides IMAP user and password from env vars in getAccount"
+        },
+        {
+          "line": 390,
+          "title": "normalizes the account name to build the env var prefix"
+        },
+        {
+          "line": 407,
+          "title": "applies overrides in getAllAccounts and getAccountByName too"
+        },
+        {
+          "line": 417,
+          "title": "leaves fields untouched when no matching env var is set"
+        },
+        {
+          "line": 426,
+          "title": "overrides SMTP credentials separately when an smtp config exists"
+        },
+        {
+          "line": 454,
+          "title": "ignores SMTP env vars when the account has no smtp config"
+        },
+        {
+          "line": 464,
+          "title": "captures and removes the env vars from process.env in the constructor"
+        },
+        {
+          "line": 475,
+          "title": "keeps applying the override after the env var is consumed"
+        },
+        {
+          "line": 487,
+          "title": "holds neither the cache key nor the value as plaintext"
+        },
+        {
+          "line": 504,
+          "title": "does not persist env overrides to disk"
+        },
+        {
+          "line": 519,
+          "title": "round-trips an empty password placeholder added via addAccount"
+        },
+        {
+          "line": 537,
+          "title": "lets env vars fill an empty placeholder stored for an account"
+        },
+        {
+          "line": 556,
+          "title": "round-trips an empty password placeholder set via updateAccount"
+        },
+        {
+          "line": 577,
+          "title": "malformed stored accounts"
+        },
+        {
+          "line": 587,
+          "title": "lists an account with a null password without throwing"
+        },
+        {
+          "line": 600,
+          "title": "returns an empty password for a null/blank stored value via getAccount / getAccountByName"
+        },
+        {
+          "line": 611,
+          "title": "returns an empty password for an empty-string stored value"
+        },
+        {
+          "line": 622,
+          "title": "throws on a non-empty but malformed (unencrypted) IMAP password"
+        },
+        {
+          "line": 634,
+          "title": "throws on a non-empty but malformed SMTP password"
+        },
+        {
+          "line": 648,
+          "title": "removeAccount"
+        },
+        {
+          "line": 649,
+          "title": "should remove existing account"
+        },
+        {
+          "line": 667,
+          "title": "should throw error for non-existent account"
+        },
+        {
+          "line": 676,
+          "title": "deletes both Gmail credentials when removing a provider account"
+        },
+        {
+          "line": 713,
+          "title": "restores the account and credential when persistence fails after cleanup"
+        },
+        {
+          "line": 746,
+          "title": "updateAccount"
+        },
+        {
+          "line": 747,
+          "title": "rejects renaming an account to an existing account name"
+        },
+        {
+          "line": 755,
+          "title": "rejects changing a generic password account to a provider-bound host"
+        },
+        {
+          "line": 769,
+          "title": "rejects mismatched credential targets before persistence"
+        },
+        {
+          "line": 789,
+          "title": "should update account fields"
+        },
+        {
+          "line": 810,
+          "title": "should encrypt new password on update"
+        },
+        {
+          "line": 829,
+          "title": "should throw error for non-existent account"
+        },
+        {
+          "line": 837,
+          "title": "should preserve id on update"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/account-runtime-removal.test.ts",
+      "internalImports": [
+        "src/services/account-manager.ts",
+        "src/services/imap-service.ts"
+      ],
+      "staticTitles": [
+        {
+          "line": 7,
+          "title": "browser account changes are visible to a running MCP process"
+        },
+        {
+          "line": 8,
+          "title": "refreshes account listings and name lookup after another manager adds or removes an account"
+        },
+        {
+          "line": 26,
+          "title": "rejects operations on an already cached live connection after account removal"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/account-store-concurrency.test.ts",
+      "internalImports": [
+        "src/services/account-manager.ts"
+      ],
+      "staticTitles": [
+        {
+          "line": 9,
+          "title": "atomic account-store mutations"
+        },
+        {
+          "line": 10,
+          "title": "serializes separate writer processes"
+        },
+        {
+          "line": 17,
+          "title": "preserves the committed file and memory when atomic replacement fails"
+        },
+        {
+          "line": 27,
+          "title": "preserves independent manager writes and refuses corrupt-store replacement"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/account-tools-readonly.test.ts",
+      "internalImports": [
+        "src/tools/account-tools.ts"
+      ],
+      "staticTitles": [
+        {
+          "line": 3,
+          "title": "account tools are read-only configuration access"
+        },
+        {
+          "line": 4,
+          "title": "has no credential input or account mutation handlers even when called without filtering"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/account-tools-sent-folder.test.ts",
+      "internalImports": [
+        "src/web/server.ts"
+      ],
+      "staticTitles": [
+        {
+          "line": 15,
+          "title": "browser account settings replace removed chat configuration tools"
+        },
+        {
+          "line": 16,
+          "title": "preserves Sent folder and default BCC settings through local account creation"
+        },
+        {
+          "line": 22,
+          "title": "updates and clears optional settings without a model-facing credential tool"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/attachment-root.test.ts",
+      "internalImports": [
+        "src/utils/attachment-root.ts"
+      ],
+      "staticTitles": [
+        {
+          "line": 12,
+          "title": "attachment root boundary"
+        },
+        {
+          "line": 24,
+          "title": "normalizes the configured root and creates nested output inside it"
+        },
+        {
+          "line": 36,
+          "title": "rejects an absolute path outside the root and sibling-prefix confusion"
+        },
+        {
+          "line": 41,
+          "title": "accepts an absolute path only when it is inside the root"
+        },
+        {
+          "line": 46,
+          "title": "uses only the basename of sender-controlled filenames for default output"
+        },
+        {
+          "line": 52,
+          "title": "rejects a junction or symlink in an output parent"
+        },
+        {
+          "line": 60,
+          "title": "rejects a junction or symlink at the output target"
+        },
+        {
+          "line": 68,
+          "title": "rejects an input file whose parent is a junction or symlink outside root"
+        },
+        {
+          "line": 78,
+          "title": "allows a regular input inside root and rejects input traversal"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/auth-builders.test.ts",
+      "internalImports": [
+        "src/credentials/account-auth.ts"
+      ],
+      "staticTitles": [
+        {
+          "line": 7,
+          "title": "shared protocol auth builders"
+        },
+        {
+          "line": 8,
+          "title": "builds QQ password auth for both protocols"
+        },
+        {
+          "line": 14,
+          "title": "builds Gmail OAuth using accessToken only and never pass"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/browser-account-removal.test.ts",
+      "internalImports": [
+        "src/credentials/account-enrollment.ts",
+        "src/services/account-manager.ts",
+        "src/web/server.ts"
+      ],
+      "staticTitles": [
+        {
+          "line": 45,
+          "title": "browser-only account removal"
+        },
+        {
+          "line": 46,
+          "title": "rejects missing or non-literal confirmation: %j"
+        },
+        {
+          "line": 53,
+          "title": "requires the private session and the exact account identity shown in the dialog"
+        },
+        {
+          "line": 61,
+          "title": "removes only the selected local account and its two OAuth vault entries without touching mail"
+        },
+        {
+          "line": 72,
+          "title": "preserves account and vault contents when credential cleanup fails"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/browser-enrollment.test.ts",
+      "internalImports": [
+        "src/credentials/account-enrollment.ts",
+        "src/credentials/credential-backend.ts",
+        "src/web/server.ts"
+      ],
+      "staticTitles": [
+        {
+          "line": 40,
+          "title": "browser provider enrollment"
+        },
+        {
+          "line": 41,
+          "title": "chooses a real loopback port and closes its private listener cleanly"
+        },
+        {
+          "line": 56,
+          "title": "verifies a provider account and saves vault references without echoing its secret"
+        },
+        {
+          "line": 67,
+          "title": "rejects duplicate identities, malformed fields, missing sessions and unsafe providers before writing"
+        },
+        {
+          "line": 78,
+          "title": "rolls back vault credentials when authentication fails, without exposing a provider error"
+        },
+        {
+          "line": 86,
+          "title": "keeps Gmail pending until OAuth and verification finish, and blocks parallel enrollments"
+        },
+        {
+          "line": 105,
+          "title": "restores a prior vault value on verification failure"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/check-release-secrets.test.ts",
+      "internalImports": [],
+      "staticTitles": [
+        {
+          "line": 25,
+          "title": "release secret scanner"
+        },
+        {
+          "line": 26,
+          "title": "detects adjacent SMTP user/password literals without printing their values"
+        },
+        {
+          "line": 52,
+          "title": "detects a static encryption-key fixture without printing its value"
+        },
+        {
+          "line": 61,
+          "title": "allows explicitly synthetic values assembled at runtime"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/credential-auth.test.ts",
+      "internalImports": [
+        "src/credentials/account-auth.ts",
+        "src/credentials/credential-backend.ts",
+        "src/types/index.ts"
+      ],
+      "staticTitles": [
+        {
+          "line": 59,
+          "title": "credential backend contract"
+        },
+        {
+          "line": 60,
+          "title": "uses exact validated QQ and Gmail target names"
+        },
+        {
+          "line": 71,
+          "title": "supports write/read/delete and always cleans a resolved secret handle"
+        },
+        {
+          "line": 83,
+          "title": "reads an exact legacy target without treating arbitrary targets as compatible"
+        },
+        {
+          "line": 98,
+          "title": "reports missing and malformed credentials and still cleans malformed handles"
+        },
+        {
+          "line": 109,
+          "title": "does not expose account addresses or credential targets in resolver errors"
+        },
+        {
+          "line": 139,
+          "title": "resolves Gmail through an injected refresh exchange with no password fallback"
+        },
+        {
+          "line": 157,
+          "title": "fails explicitly when credential metadata has no production backend"
+        },
+        {
+          "line": 194,
+          "title": "uses the SMTP-specific user with a credential-backed account"
+        },
+        {
+          "line": 208,
+          "title": "persists only non-secret account metadata for credential-backed accounts"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/credential-rotation.test.ts",
+      "internalImports": [
+        "src/credentials/credential-backend.ts",
+        "src/credentials/credential-rotation.ts"
+      ],
+      "staticTitles": [
+        {
+          "line": 50,
+          "title": "rotateCredential"
+        },
+        {
+          "line": 51,
+          "title": "keeps the replacement after successful verification"
+        },
+        {
+          "line": 61,
+          "title": "restores the exact old secret when verification fails"
+        },
+        {
+          "line": 71,
+          "title": "deletes a newly created credential when verification fails"
+        },
+        {
+          "line": 79,
+          "title": "rejects target mismatch before credential I/O"
+        },
+        {
+          "line": 88,
+          "title": "rejects an empty replacement before credential I/O"
+        },
+        {
+          "line": 97,
+          "title": "does not verify after a credential write failure"
+        },
+        {
+          "line": 106,
+          "title": "disposes the snapshot handle when its value is malformed"
+        },
+        {
+          "line": 115,
+          "title": "uses a fixed secret-free error when %s rollback fails"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/default-bcc.test.ts",
+      "internalImports": [
+        "src/tools/email-tools.ts",
+        "src/utils/default-bcc.ts"
+      ],
+      "staticTitles": [
+        {
+          "line": 9,
+          "title": "mergeBcc"
+        },
+        {
+          "line": 10,
+          "title": "returns undefined when neither side has addresses"
+        },
+        {
+          "line": 16,
+          "title": "returns the explicit bcc alone when no default is set"
+        },
+        {
+          "line": 21,
+          "title": "returns the default alone when no explicit bcc is set"
+        },
+        {
+          "line": 25,
+          "title": "merges explicit first, then defaults, and dedupes case-insensitively"
+        },
+        {
+          "line": 33,
+          "title": "dedupes display-name wrappers on the bare address"
+        },
+        {
+          "line": 38,
+          "title": "imap_send_email defaultBcc"
+        },
+        {
+          "line": 73,
+          "title": "injects defaultBcc when the call omits bcc"
+        },
+        {
+          "line": 88,
+          "title": "merges call-site bcc with the account default"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/dependencies.test.ts",
+      "internalImports": [],
+      "staticTitles": [
+        {
+          "line": 45,
+          "title": "dependency pin: string-width <8 (Node 18 compat, #108)"
+        },
+        {
+          "line": 46,
+          "title": "no transitive copy of string-width@8.x is installed"
+        },
+        {
+          "line": 58,
+          "title": "package.json declares the override so future installs stay on 7.x"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/email-tools-attachment-path-traversal.test.ts",
+      "internalImports": [],
+      "staticTitles": [
+        {
+          "line": 29,
+          "title": "imap_download_attachment — path traversal via sender-controlled filename"
+        },
+        {
+          "line": 44,
+          "title": "confines a \"../\" attachment filename to the download directory"
+        },
+        {
+          "line": 70,
+          "title": "rejects an explicit relative savePath that escapes the configured root"
+        },
+        {
+          "line": 82,
+          "title": "rejects explicit absolute savePaths outside or in a sibling-prefix directory"
+        },
+        {
+          "line": 99,
+          "title": "allows a nested savePath inside the configured root"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/email-tools-bulk-delete-guard.test.ts",
+      "internalImports": [
+        "src/tools/email-tools.ts"
+      ],
+      "staticTitles": [
+        {
+          "line": 23,
+          "title": "imap_bulk_delete_by_search — empty-criteria guard"
+        },
+        {
+          "line": 34,
+          "title": "refuses to run when no criteria are given, and never touches the mailbox"
+        },
+        {
+          "line": 50,
+          "title": "also refuses an empty-criteria dryRun (a preview must not imply a full wipe)"
+        },
+        {
+          "line": 63,
+          "title": "still runs when a concrete criterion is supplied"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/email-tools-include-body-and-batch.test.ts",
+      "internalImports": [
+        "src/tools/email-tools.ts"
+      ],
+      "staticTitles": [
+        {
+          "line": 48,
+          "title": "imap_search_emails — includeBody"
+        },
+        {
+          "line": 49,
+          "title": "defaults to lightweight headers when includeBody is not set (backwards compat)"
+        },
+        {
+          "line": 73,
+          "title": "passes includeBody=true through to the service"
+        },
+        {
+          "line": 93,
+          "title": "does not pass includeBody through to the cross-folder search (documented limitation)"
+        },
+        {
+          "line": 120,
+          "title": "imap_get_latest_emails — includeBody"
+        },
+        {
+          "line": 121,
+          "title": "defaults to lightweight headers when includeBody is not set (backwards compat)"
+        },
+        {
+          "line": 137,
+          "title": "forwards includeBody/bodyFormat/bodyMaxLength to the service"
+        },
+        {
+          "line": 158,
+          "title": "imap_find_thread_messages — includeBody"
+        },
+        {
+          "line": 159,
+          "title": "returns uids only when includeBody is omitted (backwards compat)"
+        },
+        {
+          "line": 182,
+          "title": "forwards includeBody and surfaces messages array when the service returns it"
+        },
+        {
+          "line": 215,
+          "title": "imap_mark_as_read / imap_mark_as_unread — batch UID"
+        },
+        {
+          "line": 216,
+          "title": "single uid keeps the legacy response shape (backwards compat)"
+        },
+        {
+          "line": 228,
+          "title": "array of 5 uids is passed through and reports per-uid counts"
+        },
+        {
+          "line": 249,
+          "title": "batch failure surfaces per-uid errors and flips success to false"
+        },
+        {
+          "line": 270,
+          "title": "imap_mark_as_unread handles the same batch shape"
+        },
+        {
+          "line": 290,
+          "title": "imap_move_email — batch UID"
+        },
+        {
+          "line": 291,
+          "title": "single uid keeps the legacy response shape (backwards compat)"
+        },
+        {
+          "line": 321,
+          "title": "array of 3 uids: all moved, per-uid results aggregated"
+        },
+        {
+          "line": 348,
+          "title": "batch with partial failure: success=false, per-uid errors surfaced"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/email-tools-move.test.ts",
+      "internalImports": [
+        "src/tools/email-tools.ts"
+      ],
+      "staticTitles": [
+        {
+          "line": 22,
+          "title": "imap_move_email Tool Handler"
+        },
+        {
+          "line": 33,
+          "title": "should be registered"
+        },
+        {
+          "line": 37,
+          "title": "should return success with destination and uidMap"
+        },
+        {
+          "line": 58,
+          "title": "should omit uidMap when not provided by server"
+        },
+        {
+          "line": 76,
+          "title": "should return success:false when moveEmail throws"
+        },
+        {
+          "line": 94,
+          "title": "should handle non-Error exceptions"
+        },
+        {
+          "line": 109,
+          "title": "should pass createDestinationIfMissing through to service and surface destinationCreated"
+        },
+        {
+          "line": 133,
+          "title": "should serialize multiple uidMap entries correctly"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/email-tools-pdf-extract.test.ts",
+      "internalImports": [],
+      "staticTitles": [
+        {
+          "line": 51,
+          "title": "imap_download_attachment PDF text extraction (pdf-parse v2)"
+        },
+        {
+          "line": 69,
+          "title": "should be registered"
+        },
+        {
+          "line": 73,
+          "title": "extracts text and page count from a PDF attachment, and saves the file"
+        },
+        {
+          "line": 102,
+          "title": "falls back to save-only when the PDF cannot be parsed"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/email-tools-search-all.test.ts",
+      "internalImports": [
+        "src/tools/email-tools.ts"
+      ],
+      "staticTitles": [
+        {
+          "line": 39,
+          "title": "imap_search_emails — searchAllFolders"
+        },
+        {
+          "line": 49,
+          "title": "registers the handler"
+        },
+        {
+          "line": 53,
+          "title": "searches every selectable folder, skips noisy ones, annotates folder, sorts newest-first"
+        },
+        {
+          "line": 80,
+          "title": "surfaces folders that fail to open in foldersErrored instead of swallowing them"
+        },
+        {
+          "line": 96,
+          "title": "respects limit across folders after sorting"
+        },
+        {
+          "line": 111,
+          "title": "opts Trash back in with includeTrash"
+        },
+        {
+          "line": 120,
+          "title": "default (single-folder) path is unchanged and never lists folders"
+        },
+        {
+          "line": 135,
+          "title": "single-folder search returns the newest matches when limit cuts the result (#107)"
+        },
+        {
+          "line": 153,
+          "title": "single-folder search stays sorted when limit exceeds result count (#107)"
+        },
+        {
+          "line": 166,
+          "title": "times out one folder, aborts the stale connection, and continues with partial results"
+        },
+        {
+          "line": 190,
+          "title": "uses connection-safe bounded concurrency instead of overlapping one IMAP session"
+        },
+        {
+          "line": 208,
+          "title": "applies the overall deadline to folder discovery"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/email-tools-sent-save.test.ts",
+      "internalImports": [
+        "src/tools/email-tools.ts"
+      ],
+      "staticTitles": [
+        {
+          "line": 42,
+          "title": "imap_send_email Sent-copy reporting"
+        },
+        {
+          "line": 55,
+          "title": "reports the folder the copy was saved to"
+        },
+        {
+          "line": 68,
+          "title": "passes the account sentFolder override to the service"
+        },
+        {
+          "line": 77,
+          "title": "surfaces the failure reason as sentSaveError instead of failing silently"
+        },
+        {
+          "line": 92,
+          "title": "reports an unexpected service exception as sentSaveError"
+        },
+        {
+          "line": 102,
+          "title": "skips the save (no error, no attempt) when saveToSent is disabled"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/email-tools-thread.test.ts",
+      "internalImports": [
+        "src/tools/email-tools.ts"
+      ],
+      "staticTitles": [
+        {
+          "line": 18,
+          "title": "imap_find_thread_messages Tool Handler"
+        },
+        {
+          "line": 24,
+          "title": "should be registered"
+        },
+        {
+          "line": 28,
+          "title": "should return thread UIDs and counts on success"
+        },
+        {
+          "line": 47,
+          "title": "should pass searchReferences flag through to service"
+        },
+        {
+          "line": 68,
+          "title": "should return success:false when service throws"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/enroll-cli.test.ts",
+      "internalImports": [
+        "src/credentials/credential-backend.ts",
+        "src/credentials/credential-rotation.ts",
+        "src/enroll.ts",
+        "src/types/index.ts"
+      ],
+      "staticTitles": [
+        {
+          "line": 33,
+          "title": "qq-repair enrollment CLI"
+        },
+        {
+          "line": 34,
+          "title": "prints usage for %s without platform or prompt requirements"
+        },
+        {
+          "line": 47,
+          "title": "rejects the default secret prompt on non-TTY stdin before rotation or authentication"
+        },
+        {
+          "line": 57,
+          "title": "allows an injected prompt when the process stdin is non-TTY"
+        },
+        {
+          "line": 64,
+          "title": "repairs exactly one eligible account without account mutation"
+        },
+        {
+          "line": 90,
+          "title": "rejects a non-canonical target before prompting or credential I/O"
+        },
+        {
+          "line": 99,
+          "title": "selects one QQ account by id without treating the selector as a secret"
+        },
+        {
+          "line": 109,
+          "title": "rejects extra argv without treating it as an authorization code"
+        },
+        {
+          "line": 119,
+          "title": "sanitizes verification errors and never exposes prompt or cause secrets"
+        },
+        {
+          "line": 130,
+          "title": "reports rollback failure as a fixed inconsistent-state error without leaking its cause"
+        },
+        {
+          "line": 145,
+          "title": "releases the repair lock after a failed attempt"
+        },
+        {
+          "line": 156,
+          "title": "rejects concurrent repair for the same target"
+        },
+        {
+          "line": 173,
+          "title": "gmail-repair enrollment CLI"
+        },
+        {
+          "line": 226,
+          "title": "reauthorizes Gmail with the bound client secret and verifies the replacement"
+        },
+        {
+          "line": 245,
+          "title": "selects one Gmail account from multiple eligible accounts"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/env-credentials.test.ts",
+      "internalImports": [
+        "src/types/index.ts",
+        "src/utils/env-credentials.ts"
+      ],
+      "staticTitles": [
+        {
+          "line": 18,
+          "title": "envAccountKey / envVarName"
+        },
+        {
+          "line": 19,
+          "title": "uppercases and replaces every non-alphanumeric character"
+        },
+        {
+          "line": 25,
+          "title": "builds the documented variable name"
+        },
+        {
+          "line": 31,
+          "title": "assertCredentialsResolved"
+        },
+        {
+          "line": 32,
+          "title": "passes through accounts whose credentials come from accounts.json"
+        },
+        {
+          "line": 39,
+          "title": "names the missing IMAP password variable"
+        },
+        {
+          "line": 44,
+          "title": "names the missing IMAP username variable"
+        },
+        {
+          "line": 49,
+          "title": "lists both variables when username and password are missing"
+        },
+        {
+          "line": 55,
+          "title": "never puts the credential value itself in the message"
+        },
+        {
+          "line": 64,
+          "title": "names the SMTP variable when the SMTP credential is the env-managed one"
+        },
+        {
+          "line": 73,
+          "title": "names the IMAP variable when SMTP inherits a blank IMAP credential"
+        },
+        {
+          "line": 79,
+          "title": "ignores an absent SMTP block entirely"
+        },
+        {
+          "line": 83,
+          "title": "does not fire on a checking-only IMAP field when validating SMTP"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/folder-tools-create.test.ts",
+      "internalImports": [
+        "src/tools/folder-tools.ts"
+      ],
+      "staticTitles": [
+        {
+          "line": 18,
+          "title": "imap_create_folder Tool Handler"
+        },
+        {
+          "line": 24,
+          "title": "should be registered"
+        },
+        {
+          "line": 28,
+          "title": "should report success when a new folder is created"
+        },
+        {
+          "line": 44,
+          "title": "should report success when the folder already existed"
+        },
+        {
+          "line": 59,
+          "title": "should report failure when service throws"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/folder-tools-list.test.ts",
+      "internalImports": [
+        "src/tools/folder-tools.ts"
+      ],
+      "staticTitles": [
+        {
+          "line": 23,
+          "title": "imap_list_folders Tool Handler"
+        },
+        {
+          "line": 29,
+          "title": "exposes attributes and the RFC 6154 specialUse role per folder"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/folder-tools-status.test.ts",
+      "internalImports": [
+        "src/tools/folder-tools.ts"
+      ],
+      "staticTitles": [
+        {
+          "line": 48,
+          "title": "imap_folder_status Tool Handler"
+        },
+        {
+          "line": 54,
+          "title": "derives customKeywords from mailbox flags, excluding system flags"
+        },
+        {
+          "line": 61,
+          "title": "returns an empty customKeywords array when the mailbox has no custom keywords"
+        },
+        {
+          "line": 74,
+          "title": "reports message counts from STATUS rather than the mailbox object"
+        },
+        {
+          "line": 81,
+          "title": "reports uidvalidity and uidnext instead of dropping them"
+        },
+        {
+          "line": 91,
+          "title": "serializes flag sets as arrays"
+        },
+        {
+          "line": 100,
+          "title": "tolerates a mailbox that omits permanentFlags"
+        },
+        {
+          "line": 109,
+          "title": "issues STATUS before SELECT"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/gmail-oauth-loopback.test.ts",
+      "internalImports": [
+        "src/credentials/gmail-oauth-loopback.ts"
+      ],
+      "staticTitles": [
+        {
+          "line": 10,
+          "title": "runGmailOAuthLoopback"
+        },
+        {
+          "line": 11,
+          "title": "uses 127.0.0.1, PKCE, state and the same redirect URI for exchange"
+        },
+        {
+          "line": 64,
+          "title": "rejects a mismatched state without exchanging a token"
+        },
+        {
+          "line": 83,
+          "title": "rejects an OAuth error callback without exposing its value"
+        },
+        {
+          "line": 98,
+          "title": "requires a refresh token from a successful exchange"
+        },
+        {
+          "line": 116,
+          "title": "reports only status for token endpoint errors"
+        },
+        {
+          "line": 131,
+          "title": "reports an allowlisted OAuth error code without exposing its description"
+        },
+        {
+          "line": 164,
+          "title": "maps a known invalid_request description to a fixed safe category"
+        },
+        {
+          "line": 196,
+          "title": "does not expose unknown or malformed provider error values"
+        },
+        {
+          "line": 216,
+          "title": "closes the listener when the browser cannot open"
+        },
+        {
+          "line": 225,
+          "title": "fails closed before opening the browser when loopback binding fails"
+        },
+        {
+          "line": 248,
+          "title": "does not expose authorization or token secrets from a rejected exchange"
+        },
+        {
+          "line": 275,
+          "title": "times out while waiting for authorization"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/gmail-oauth-wire.test.ts",
+      "internalImports": [
+        "src/credentials/gmail-oauth-loopback.ts"
+      ],
+      "staticTitles": [
+        {
+          "line": 17,
+          "title": "Gmail OAuth token request wire format"
+        },
+        {
+          "line": 18,
+          "title": "sends the exact form fields and preserves redirect URI and PKCE verifier"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/gmail-token-exchange.test.ts",
+      "internalImports": [
+        "src/credentials/credential-backend.ts",
+        "src/credentials/gmail-token-exchange.ts",
+        "src/types/index.ts"
+      ],
+      "staticTitles": [
+        {
+          "line": 36,
+          "title": "createGmailAccessTokenExchange"
+        },
+        {
+          "line": 37,
+          "title": "posts the refresh-token grant and returns the access token"
+        },
+        {
+          "line": 51,
+          "title": "does not probe a stale client-secret target for a legacy public-client account"
+        },
+        {
+          "line": 64,
+          "title": "adds the bound client secret to the refresh grant"
+        },
+        {
+          "line": 78,
+          "title": "fails before fetch when a configured client secret is missing"
+        },
+        {
+          "line": 89,
+          "title": "reports only the HTTP status for provider errors"
+        },
+        {
+          "line": 97,
+          "title": "uses a generic message when fetch rejects"
+        },
+        {
+          "line": 111,
+          "title": "rejects malformed JSON"
+        },
+        {
+          "line": 134,
+          "title": "rejects missing clientId without making a request"
+        },
+        {
+          "line": 143,
+          "title": "aborts a token request after the configured timeout"
+        },
+        {
+          "line": 176,
+          "title": "reports an allowlisted OAuth error code with HTTP status but not the response description"
+        },
+        {
+          "line": 192,
+          "title": "routes the refresh-token exchange through the configured proxy transport"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/guarded-delete.test.ts",
+      "internalImports": [
+        "src/services/imap-service.ts",
+        "src/tools/email-tools.ts",
+        "src/tools/guarded-delete-tools.ts",
+        "src/tools/spam-tools.ts"
+      ],
+      "staticTitles": [
+        {
+          "line": 6,
+          "title": "frozen deletion and batch validation"
+        },
+        {
+          "line": 17,
+          "title": "%s never deletes without a frozen confirmation"
+        },
+        {
+          "line": 25,
+          "title": "freezes matching UIDs and reports permanent Trash deletion"
+        },
+        {
+          "line": 32,
+          "title": "rejects UIDVALIDITY changes before deletion"
+        },
+        {
+          "line": 38,
+          "title": "rejects expired or unconfirmed previews"
+        },
+        {
+          "line": 45,
+          "title": "rejects UID reuse during selection and a stale known-UID preview"
+        },
+        {
+          "line": 51,
+          "title": "rejects chunkSize=%s before connecting"
+        },
+        {
+          "line": 56,
+          "title": "stops remaining batches if validity changes after reconnection"
+        },
+        {
+          "line": 62,
+          "title": "does not turn a previewed Trash move into permanent deletion"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/html-to-markdown.test.ts",
+      "internalImports": [
+        "src/services/html-to-markdown.ts"
+      ],
+      "staticTitles": [
+        {
+          "line": 4,
+          "title": "htmlToMarkdown"
+        },
+        {
+          "line": 5,
+          "title": "returns empty string for empty/whitespace input"
+        },
+        {
+          "line": 12,
+          "title": "flattens layout/data tables to readable cell text without leaking raw HTML"
+        },
+        {
+          "line": 29,
+          "title": "strips hidden / preheader nodes (display:none, max-height:0, font-size:0, opacity:0)"
+        },
+        {
+          "line": 44,
+          "title": "keeps img alt text (where product names live) and drops the image itself"
+        },
+        {
+          "line": 51,
+          "title": "drops images with no alt (tracking pixels)"
+        },
+        {
+          "line": 56,
+          "title": "shortens long tracking URLs to the path before the query"
+        },
+        {
+          "line": 63,
+          "title": "keeps short links inline and renders mailto as plain text"
+        },
+        {
+          "line": 69,
+          "title": "removes <style>/<script> content entirely and emits no raw HTML tags"
+        },
+        {
+          "line": 79,
+          "title": "collapses invisible spacer chars and excess blank lines"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/imap-service-latest-no-search.test.ts",
+      "internalImports": [
+        "src/services/imap-service.ts"
+      ],
+      "staticTitles": [
+        {
+          "line": 30,
+          "title": "getLatestEmails without SEARCH (#138)"
+        },
+        {
+          "line": 36,
+          "title": "returns messages when SEARCH answers empty but EXISTS is non-zero"
+        },
+        {
+          "line": 44,
+          "title": "addresses the newest messages by sequence range, not by UID"
+        },
+        {
+          "line": 53,
+          "title": "clamps the range to 1 when the mailbox holds fewer messages than requested"
+        },
+        {
+          "line": 60,
+          "title": "returns an empty list for an empty mailbox without fetching"
+        },
+        {
+          "line": 69,
+          "title": "falls back to SEARCH when the mailbox reports no EXISTS"
+        },
+        {
+          "line": 83,
+          "title": "returns empty when the mailbox metadata is missing and SEARCH is also empty"
+        },
+        {
+          "line": 89,
+          "title": "still sorts the result newest first"
+        },
+        {
+          "line": 96,
+          "title": "releases the mailbox lock"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/imap-service-reconnect.test.ts",
+      "internalImports": [
+        "src/services/imap-service.ts",
+        "src/types/index.ts"
+      ],
+      "staticTitles": [
+        {
+          "line": 40,
+          "title": "ImapService reconnect (ImapFlow instances are single-use)"
+        },
+        {
+          "line": 58,
+          "title": "rebuilds a fresh ImapFlow when the live connection went stale"
+        },
+        {
+          "line": 78,
+          "title": "does not throw the \"Can not re-use ImapFlow instance\" error on reconnect"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/imap-service-sent-save.test.ts",
+      "internalImports": [
+        "src/services/imap-service.ts"
+      ],
+      "staticTitles": [
+        {
+          "line": 9,
+          "title": "ImapService.appendToSentFolder"
+        },
+        {
+          "line": 22,
+          "title": "saves to the auto-detected Sent folder and reports which one"
+        },
+        {
+          "line": 31,
+          "title": "uses the sentFolder override and skips auto-detection"
+        },
+        {
+          "line": 41,
+          "title": "returns an actionable error when no Sent folder can be found"
+        },
+        {
+          "line": 53,
+          "title": "returns the append failure reason instead of a silent false"
+        },
+        {
+          "line": 65,
+          "title": "hints at a bad override when appending to the configured sentFolder fails"
+        },
+        {
+          "line": 75,
+          "title": "times out independently, classifies the failure, and aborts the stale connection"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/imap-service-special-use.test.ts",
+      "internalImports": [
+        "src/services/imap-service.ts",
+        "src/types/index.ts"
+      ],
+      "staticTitles": [
+        {
+          "line": 11,
+          "title": "ImapService.findSpecialUseFolder"
+        },
+        {
+          "line": 26,
+          "title": "resolves a localized folder via imapflow specialUse (Priority 1)"
+        },
+        {
+          "line": 38,
+          "title": "matches the special-use flag case-insensitively"
+        },
+        {
+          "line": 47,
+          "title": "falls back to a raw SPECIAL-USE flag in attributes (Priority 2)"
+        },
+        {
+          "line": 57,
+          "title": "falls back to the localized name list when nothing is advertised (Priority 3)"
+        },
+        {
+          "line": 67,
+          "title": "prefers the special-use flag over a coincidental name match"
+        },
+        {
+          "line": 78,
+          "title": "returns undefined when neither flag nor name matches"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/imap-service-tls-host.test.ts",
+      "internalImports": [
+        "src/services/imap-service.ts",
+        "src/types/index.ts"
+      ],
+      "staticTitles": [
+        {
+          "line": 24,
+          "title": "ImapService TLS host for local bridges"
+        },
+        {
+          "line": 46,
+          "title": "passes the account host to the TLS layer so cert validation targets 127.0.0.1"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/imap-service.test.ts",
+      "internalImports": [
+        "src/services/imap-service.ts",
+        "src/types/index.ts"
+      ],
+      "staticTitles": [
+        {
+          "line": 94,
+          "title": "ImapService"
+        },
+        {
+          "line": 114,
+          "title": "connect"
+        },
+        {
+          "line": 115,
+          "title": "should connect to IMAP server"
+        },
+        {
+          "line": 120,
+          "title": "should set up event handlers"
+        },
+        {
+          "line": 126,
+          "title": "should not append IMAP enable hint for unrelated Gmail auth failures"
+        },
+        {
+          "line": 138,
+          "title": "disconnect"
+        },
+        {
+          "line": 139,
+          "title": "should disconnect from IMAP server"
+        },
+        {
+          "line": 145,
+          "title": "should handle disconnect when not connected"
+        },
+        {
+          "line": 150,
+          "title": "listFolders"
+        },
+        {
+          "line": 151,
+          "title": "should list folders"
+        },
+        {
+          "line": 166,
+          "title": "testConnection"
+        },
+        {
+          "line": 167,
+          "title": "should test connection successfully"
+        },
+        {
+          "line": 181,
+          "title": "should return error on connection failure"
+        },
+        {
+          "line": 190,
+          "title": "should append provider-specific hint for explicit IMAP-disabled errors"
+        },
+        {
+          "line": 203,
+          "title": "authenticateOnly"
+        },
+        {
+          "line": 204,
+          "title": "connects and logs out without accessing mailbox data"
+        },
+        {
+          "line": 215,
+          "title": "attempts logout when authentication fails"
+        },
+        {
+          "line": 225,
+          "title": "bulkDelete"
+        },
+        {
+          "line": 226,
+          "title": "should move emails to Trash in chunks"
+        },
+        {
+          "line": 238,
+          "title": "should permanently delete when already in Trash"
+        },
+        {
+          "line": 248,
+          "title": "should handle errors during bulk delete"
+        },
+        {
+          "line": 263,
+          "title": "should call progress callback"
+        },
+        {
+          "line": 276,
+          "title": "search criteria building"
+        },
+        {
+          "line": 277,
+          "title": "should search with from criteria"
+        },
+        {
+          "line": 293,
+          "title": "should search all when no criteria"
+        },
+        {
+          "line": 309,
+          "title": "should fetch search results using UIDs"
+        },
+        {
+          "line": 327,
+          "title": "should build a full bracketed HEADER message-id search clause (Apple needs brackets)"
+        },
+        {
+          "line": 339,
+          "title": "should search with a single custom keyword"
+        },
+        {
+          "line": 349,
+          "title": "should OR multiple custom keywords"
+        },
+        {
+          "line": 361,
+          "title": "should exclude a single custom keyword via unKeyword"
+        },
+        {
+          "line": 371,
+          "title": "should AND-exclude multiple custom keywords via NOT(OR(...))"
+        },
+        {
+          "line": 383,
+          "title": "should combine keywords with an existing criterion"
+        },
+        {
+          "line": 393,
+          "title": "should reject a system flag passed as a custom keyword"
+        },
+        {
+          "line": 401,
+          "title": "findEmailByMessageId"
+        },
+        {
+          "line": 402,
+          "title": "finds a message in Archive and early-exits before later folders"
+        },
+        {
+          "line": 452,
+          "title": "rejects a substring false-positive Message-ID (exact verify)"
+        },
+        {
+          "line": 489,
+          "title": "uses the Gmail \\\\All mailbox as the sole primary search target"
+        },
+        {
+          "line": 508,
+          "title": "getLatestEmails"
+        },
+        {
+          "line": 509,
+          "title": "should fetch only the latest UIDs and sort by date"
+        },
+        {
+          "line": 556,
+          "title": "derives customKeywords from flags, excluding system flags"
+        },
+        {
+          "line": 592,
+          "title": "error handling"
+        },
+        {
+          "line": 593,
+          "title": "should throw error when no connection exists"
+        },
+        {
+          "line": 600,
+          "title": "markAsRead"
+        },
+        {
+          "line": 601,
+          "title": "should add Seen flag"
+        },
+        {
+          "line": 613,
+          "title": "markAsUnread"
+        },
+        {
+          "line": 614,
+          "title": "should remove Seen flag"
+        },
+        {
+          "line": 626,
+          "title": "flagEmail"
+        },
+        {
+          "line": 627,
+          "title": "should add Flagged flag"
+        },
+        {
+          "line": 639,
+          "title": "unflagEmail"
+        },
+        {
+          "line": 640,
+          "title": "should remove Flagged flag"
+        },
+        {
+          "line": 652,
+          "title": "addKeyword"
+        },
+        {
+          "line": 653,
+          "title": "should add the given keyword verbatim"
+        },
+        {
+          "line": 664,
+          "title": "should throw when the server rejects or ignores the keyword change"
+        },
+        {
+          "line": 673,
+          "title": "should reject a system flag instead of applying it"
+        },
+        {
+          "line": 683,
+          "title": "removeKeyword"
+        },
+        {
+          "line": 684,
+          "title": "should remove the given keyword verbatim"
+        },
+        {
+          "line": 695,
+          "title": "should throw when the server rejects or ignores the keyword change"
+        },
+        {
+          "line": 704,
+          "title": "should reject a system flag instead of removing it"
+        },
+        {
+          "line": 714,
+          "title": "deleteEmail"
+        },
+        {
+          "line": 715,
+          "title": "should move email to Trash when not in Trash"
+        },
+        {
+          "line": 726,
+          "title": "should permanently delete when already in Trash"
+        },
+        {
+          "line": 737,
+          "title": "moveEmail"
+        },
+        {
+          "line": 738,
+          "title": "should move email to target folder and return result"
+        },
+        {
+          "line": 754,
+          "title": "should throw when messageMove returns false"
+        },
+        {
+          "line": 763,
+          "title": "should throw when messageMove returns undefined"
+        },
+        {
+          "line": 772,
+          "title": "should release lock even when messageMove fails"
+        },
+        {
+          "line": 785,
+          "title": "should release lock when messageMove throws an exception"
+        },
+        {
+          "line": 798,
+          "title": "should handle success without uidMap"
+        },
+        {
+          "line": 811,
+          "title": "should auto-create destination when missing if requested"
+        },
+        {
+          "line": 826,
+          "title": "should not create destination when it already exists"
+        },
+        {
+          "line": 843,
+          "title": "createFolder"
+        },
+        {
+          "line": 844,
+          "title": "should create a new folder and return success"
+        },
+        {
+          "line": 854,
+          "title": "should mark already-existing folders as alreadyExisted"
+        },
+        {
+          "line": 863,
+          "title": "should treat \"already exists\" errors as alreadyExisted, not failures"
+        },
+        {
+          "line": 872,
+          "title": "should rethrow with context on real failures"
+        },
+        {
+          "line": 882,
+          "title": "findThreadMessages"
+        },
+        {
+          "line": 883,
+          "title": "should collect Message-IDs from source and search for replies in target"
+        },
+        {
+          "line": 905,
+          "title": "should skip References search when disabled"
+        },
+        {
+          "line": 923,
+          "title": "should return empty result when source folder is empty"
+        },
+        {
+          "line": 935,
+          "title": "should tolerate per-message search errors"
+        },
+        {
+          "line": 957,
+          "title": "getEmailContent"
+        },
+        {
+          "line": 960,
+          "title": "should return headers from parsed email"
+        },
+        {
+          "line": 993,
+          "title": "should handle structured header values with text property"
+        },
+        {
+          "line": 1021,
+          "title": "should return empty headers when parsed headers are absent"
+        },
+        {
+          "line": 1044,
+          "title": "preserves envelope fields and returns Markdown by default (raw HTML omitted)"
+        },
+        {
+          "line": 1076,
+          "title": "returns raw htmlContent only when bodyFormat is \"html\""
+        },
+        {
+          "line": 1104,
+          "title": "getAttachmentContent"
+        },
+        {
+          "line": 1122,
+          "title": "should download attachment by filename"
+        },
+        {
+          "line": 1154,
+          "title": "should download attachment by contentId"
+        },
+        {
+          "line": 1185,
+          "title": "should throw error when email not found"
+        },
+        {
+          "line": 1195,
+          "title": "should throw error when source is empty"
+        },
+        {
+          "line": 1205,
+          "title": "should throw error when attachment not found in email"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/mail-resource-limits.test.ts",
+      "internalImports": [
+        "src/services/imap-service.ts",
+        "src/utils/mail-resource-limits.ts",
+        "src/utils/pdf-preview.ts"
+      ],
+      "staticTitles": [
+        {
+          "line": 5,
+          "title": "bounded message processing"
+        },
+        {
+          "line": 6,
+          "title": "rejects server-reported oversize before parsing and requests partial source"
+        },
+        {
+          "line": 12,
+          "title": "rejects actual oversize even if a server omits or lies about size"
+        },
+        {
+          "line": 15,
+          "title": "bounds aggregate attachment count and bytes before decoding"
+        },
+        {
+          "line": 20,
+          "title": "rejects large PDFs before starting a parser worker"
+        },
+        {
+          "line": 23,
+          "title": "extracts small PDFs in an isolated bounded worker"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/mail-transport-proxy.test.ts",
+      "internalImports": [
+        "src/services/imap-service.ts",
+        "src/services/smtp-service.ts",
+        "src/utils/mail-proxy.ts"
+      ],
+      "staticTitles": [
+        {
+          "line": 55,
+          "title": "resolveMailProxy"
+        },
+        {
+          "line": 56,
+          "title": "returns undefined when the setting is absent or blank"
+        },
+        {
+          "line": 61,
+          "title": "uses standard HTTPS_PROXY and honors NO_PROXY for direct launches"
+        },
+        {
+          "line": 80,
+          "title": "rejects invalid settings without reflecting them"
+        },
+        {
+          "line": 93,
+          "title": "mail transport proxy wiring"
+        },
+        {
+          "line": 105,
+          "title": "passes the proxy to connect, authenticateOnly, and testConnection"
+        },
+        {
+          "line": 115,
+          "title": "passes the same proxy to Nodemailer SMTP transport"
+        },
+        {
+          "line": 120,
+          "title": "omits proxy options in every connection path for %s"
+        },
+        {
+          "line": 130,
+          "title": "keeps both Gmail mail transports proxied when NO_PROXY requests bypass"
+        },
+        {
+          "line": 145,
+          "title": "omits proxy options when the setting is absent"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/netease-cli.test.ts",
+      "internalImports": [
+        "src/enroll.ts"
+      ],
+      "staticTitles": [
+        {
+          "line": 8,
+          "title": "NetEase local registration CLI"
+        },
+        {
+          "line": 9,
+          "title": "uses a hidden prompt and the correct enrollment for %s"
+        },
+        {
+          "line": 20,
+          "title": "refuses non-interactive secret entry"
+        },
+        {
+          "line": 23,
+          "title": "rejects authorization codes passed as command arguments"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/netease-enrollment.test.ts",
+      "internalImports": [
+        "src/credentials/account-auth.ts",
+        "src/credentials/account-enrollment.ts"
+      ],
+      "staticTitles": [
+        {
+          "line": 5,
+          "title": "secure NetEase enrollment"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/node-engines.test.ts",
+      "internalImports": [],
+      "staticTitles": [
+        {
+          "line": 53,
+          "title": "advertised Node floor matches the runtime dependency tree"
+        },
+        {
+          "line": 54,
+          "title": "package.json declares engines.node"
+        },
+        {
+          "line": 58,
+          "title": "sanity: the lockfile yields runtime packages that declare engines"
+        },
+        {
+          "line": 62,
+          "title": "no runtime dependency requires a newer Node than we advertise"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/oauth-transport-lifecycle.test.ts",
+      "internalImports": [
+        "src/credentials/gmail-oauth-loopback.ts",
+        "src/credentials/gmail-token-exchange.ts",
+        "src/types/index.ts"
+      ],
+      "staticTitles": [
+        {
+          "line": 51,
+          "title": "OAuth proxy transport lifecycle"
+        },
+        {
+          "line": 63,
+          "title": "closes the Gmail refresh transport exactly once after timeout"
+        },
+        {
+          "line": 86,
+          "title": "closes the Gmail enrollment transport exactly once after token timeout"
+        },
+        {
+          "line": 96,
+          "title": "closes the Gmail enrollment transport exactly once after authorization timeout"
+        },
+        {
+          "line": 104,
+          "title": "closes the Gmail enrollment transport exactly once after browser failure"
+        },
+        {
+          "line": 113,
+          "title": "closes the Gmail enrollment transport exactly once after bind failure"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/parse-raw-headers.test.ts",
+      "internalImports": [
+        "src/services/imap-service.ts"
+      ],
+      "staticTitles": [
+        {
+          "line": 4,
+          "title": "parseRawHeaders"
+        },
+        {
+          "line": 5,
+          "title": "parses simple headers with lowercased keys"
+        },
+        {
+          "line": 11,
+          "title": "accepts a Buffer as input"
+        },
+        {
+          "line": 16,
+          "title": "unfolds continuation lines"
+        },
+        {
+          "line": 23,
+          "title": "joins repeated headers with newlines"
+        },
+        {
+          "line": 28,
+          "title": "handles LF-only line endings and ignores malformed lines"
+        },
+        {
+          "line": 35,
+          "title": "returns an empty object for empty input"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/phase1-contract-hardening.test.ts",
+      "internalImports": [
+        "src/services/account-manager.ts",
+        "src/services/safe-send-service.ts",
+        "src/types/index.ts"
+      ],
+      "staticTitles": [
+        {
+          "line": 44,
+          "title": "provider-bound generic account boundary"
+        },
+        {
+          "line": 52,
+          "title": "preserves generic IMAP password compatibility"
+        },
+        {
+          "line": 57,
+          "title": "safe-send terminal privacy"
+        },
+        {
+          "line": 58,
+          "title": "replaces sent, ambiguous, and expired payloads with minimal tombstones"
+        },
+        {
+          "line": 89,
+          "title": "public MCP contract"
+        },
+        {
+          "line": 90,
+          "title": "points attachment upload to preview-confirm sending, not hidden direct send"
+        },
+        {
+          "line": 101,
+          "title": "defines read-only mode as mailbox-read-only and discloses attachment file writes"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/provider-endpoint-binding.test.ts",
+      "internalImports": [
+        "src/credentials/account-auth.ts",
+        "src/credentials/credential-backend.ts",
+        "src/types/index.ts"
+      ],
+      "staticTitles": [
+        {
+          "line": 6,
+          "title": "credential-bound provider endpoints"
+        },
+        {
+          "line": 8,
+          "title": "rejects endpoint changes for %s before reading credentials"
+        },
+        {
+          "line": 18,
+          "title": "retains valid TLS endpoints and SMTP STARTTLS compatibility"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/provider-proxy-routing.test.ts",
+      "internalImports": [
+        "src/credentials/proxy-fetch.ts",
+        "src/utils/gmail-proxy.ts",
+        "src/utils/mail-proxy.ts"
+      ],
+      "staticTitles": [
+        {
+          "line": 7,
+          "title": "provider-specific routing independent of local machine settings"
+        },
+        {
+          "line": 9,
+          "title": "connects domestic host %s directly despite global proxies"
+        },
+        {
+          "line": 12,
+          "title": "connects a NetEase enterprise account with a custom host directly"
+        },
+        {
+          "line": 15,
+          "title": "forces Gmail host %s through a proxy despite NO_PROXY=*"
+        },
+        {
+          "line": 18,
+          "title": "does not mistake lookalike domains for domestic servers"
+        },
+        {
+          "line": 21,
+          "title": "rejects missing Gmail proxies without making a direct network request"
+        },
+        {
+          "line": 25,
+          "title": "uses the dedicated Gmail setting before other settings"
+        },
+        {
+          "line": 28,
+          "title": "accepts a dynamically detected system proxy on another port"
+        },
+        {
+          "line": 31,
+          "title": "accepts lowercase settings and rejects unsupported OAuth proxy protocols"
+        },
+        {
+          "line": 35,
+          "title": "prevents a configured NO_PROXY rule from bypassing OAuth and closes its dispatcher"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/proxy-fetch.test.ts",
+      "internalImports": [
+        "src/credentials/proxy-fetch.ts"
+      ],
+      "staticTitles": [
+        {
+          "line": 5,
+          "title": "createProxyAwareFetch"
+        },
+        {
+          "line": 6,
+          "title": "passes standard proxy environment values to a request dispatcher and closes it"
+        },
+        {
+          "line": 32,
+          "title": "uses global fetch and creates no dispatcher when no proxy is configured"
+        },
+        {
+          "line": 49,
+          "title": "inherits uppercase process proxy variables for direct CLI and MCP entrypoints"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/public-release-surface.test.ts",
+      "internalImports": [],
+      "staticTitles": [
+        {
+          "line": 8,
+          "title": "public release surface"
+        },
+        {
+          "line": 9,
+          "title": "documents the supported providers, safe-send boundary, and clone-first setup"
+        },
+        {
+          "line": 38,
+          "title": "publishes machine-readable mail-agent metadata without claiming an unpublished package"
+        },
+        {
+          "line": 59,
+          "title": "keeps install helpers local, non-destructive, and aligned with the Node floor"
+        },
+        {
+          "line": 69,
+          "title": "ships an agent-readable contract and current security model"
+        },
+        {
+          "line": 82,
+          "title": "uses the approved independent GitHub identity and keeps publishing disabled"
+        },
+        {
+          "line": 104,
+          "title": "keeps public CI read-only, credential-free, and reproducible"
+        },
+        {
+          "line": 131,
+          "title": "has no active publisher, auto-merge, or private-author automation"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/safe-send-memory.test.ts",
+      "internalImports": [
+        "src/services/safe-send-service.ts"
+      ],
+      "staticTitles": [
+        {
+          "line": 5,
+          "title": "send preview resource lifecycle"
+        },
+        {
+          "line": 6,
+          "title": "automatically zeroes expired attachment copies without confirmation"
+        },
+        {
+          "line": 15,
+          "title": "rejects aggregate attachment and pending-count excess without evicting valid drafts"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/safe-send-service.test.ts",
+      "internalImports": [
+        "src/services/safe-send-service.ts"
+      ],
+      "staticTitles": [
+        {
+          "line": 43,
+          "title": "SafeSendService"
+        },
+        {
+          "line": 44,
+          "title": "previews a copied immutable composer snapshot without exposing either body"
+        },
+        {
+          "line": 117,
+          "title": "requires explicit true confirmation and rejects unknown/tampered ids"
+        },
+        {
+          "line": 128,
+          "title": "rejects path-backed attachments before creating a preview"
+        },
+        {
+          "line": 138,
+          "title": "sends exactly once under concurrent confirmation and makes retries idempotent"
+        },
+        {
+          "line": 164,
+          "title": "marks executor failures ambiguous, zeroizes buffers, and blocks retries"
+        },
+        {
+          "line": 176,
+          "title": "expires pending drafts, zeroizes buffers, and never invokes the executor"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/safe-send-tools.test.ts",
+      "internalImports": [
+        "src/tools/safe-send-tools.ts"
+      ],
+      "staticTitles": [
+        {
+          "line": 55,
+          "title": "safe-send MCP tools"
+        },
+        {
+          "line": 56,
+          "title": "registers exactly four safe-send names and no legacy direct-send name"
+        },
+        {
+          "line": 66,
+          "title": "awaits account lookup, freezes the final new-message composer, and sends exactly once"
+        },
+        {
+          "line": 81,
+          "title": "previews a reply-all with self exclusion, thread headers, default BCC, and materialized new attachments"
+        },
+        {
+          "line": 107,
+          "title": "previews a forward verbatim and freezes downloaded original attachments before confirmation"
+        },
+        {
+          "line": 131,
+          "title": "does not fetch or attach originals when includeAttachments is false"
+        },
+        {
+          "line": 139,
+          "title": "rejects false confirmation and unknown draft ids before SMTP"
+        },
+        {
+          "line": 146,
+          "title": "returns sent with a warning when the Sent copy times out and never resends"
+        },
+        {
+          "line": 168,
+          "title": "keeps SMTP success final when the Sent copy reports failure"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/search-folders.test.ts",
+      "internalImports": [
+        "src/types/index.ts",
+        "src/utils/search-folders.ts"
+      ],
+      "staticTitles": [
+        {
+          "line": 16,
+          "title": "selectSearchFolders"
+        },
+        {
+          "line": 17,
+          "title": "keeps normal folders and skips Trash/Spam/Drafts by default (name-based)"
+        },
+        {
+          "line": 31,
+          "title": "detects noisy folders via RFC 6154 SPECIAL-USE flags regardless of name"
+        },
+        {
+          "line": 41,
+          "title": "opts noisy categories back in individually"
+        },
+        {
+          "line": 51,
+          "title": "is leaf-aware for hierarchical names ([Gmail]/Trash, INBOX.Drafts)"
+        },
+        {
+          "line": 62,
+          "title": "skips non-selectable container folders"
+        },
+        {
+          "line": 67,
+          "title": "always skips Blocked folders even with all include-flags"
+        },
+        {
+          "line": 73,
+          "title": "matches folder names case-insensitively"
+        },
+        {
+          "line": 79,
+          "title": "isNonSelectable"
+        },
+        {
+          "line": 80,
+          "title": "is true for \\\\Noselect folders (case-insensitive)"
+        },
+        {
+          "line": 84,
+          "title": "is false for ordinary folders"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/serialized-array-input.test.ts",
+      "internalImports": [
+        "src/services/smtp-service.ts",
+        "src/tools/email-tools.ts",
+        "src/utils/array-input.ts"
+      ],
+      "staticTitles": [
+        {
+          "line": 13,
+          "title": "parseSerializedArray"
+        },
+        {
+          "line": 21,
+          "title": "recovers a JSON-stringified array of addresses"
+        },
+        {
+          "line": 26,
+          "title": "recovers a JSON-stringified array that keeps display names intact"
+        },
+        {
+          "line": 31,
+          "title": "recovers a bracketed list of bare addresses"
+        },
+        {
+          "line": 36,
+          "title": "recovers a bracketed list with single quotes"
+        },
+        {
+          "line": 41,
+          "title": "recovers a stringified array of UIDs"
+        },
+        {
+          "line": 45,
+          "title": "warns on stderr without logging the addresses"
+        },
+        {
+          "line": 54,
+          "title": "leaves a real array untouched"
+        },
+        {
+          "line": 59,
+          "title": "leaves a single address untouched"
+        },
+        {
+          "line": 63,
+          "title": "leaves a comma-separated string untouched"
+        },
+        {
+          "line": 68,
+          "title": "leaves an address with a domain literal untouched"
+        },
+        {
+          "line": 72,
+          "title": "leaves a display name that merely starts with a bracket untouched"
+        },
+        {
+          "line": 77,
+          "title": "leaves an empty or malformed bracket string untouched"
+        },
+        {
+          "line": 82,
+          "title": "leaves non-string input untouched"
+        },
+        {
+          "line": 88,
+          "title": "tool schemas recover stringified arrays"
+        },
+        {
+          "line": 108,
+          "title": "imap_send_email recovers to/cc/bcc"
+        },
+        {
+          "line": 120,
+          "title": "imap_send_email still accepts the documented shapes"
+        },
+        {
+          "line": 127,
+          "title": "imap_forward_email and imap_save_draft recover to"
+        },
+        {
+          "line": 140,
+          "title": "imap_mark_as_read and imap_move_email recover uid batches"
+        },
+        {
+          "line": 150,
+          "title": "keeps rejecting input that is not a list at all"
+        },
+        {
+          "line": 154,
+          "title": "keeps required fields required"
+        },
+        {
+          "line": 162,
+          "title": "publishes the same JSON Schema as a plain union"
+        },
+        {
+          "line": 190,
+          "title": "SmtpService composes a well-formed address header"
+        },
+        {
+          "line": 215,
+          "title": "recovers a stringified array that reached the service directly"
+        },
+        {
+          "line": 232,
+          "title": "composes real arrays and plain strings unchanged"
+        },
+        {
+          "line": 251,
+          "title": "joins recovered References into a single header value"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/setup-session.test.ts",
+      "internalImports": [
+        "src/web/server.ts"
+      ],
+      "staticTitles": [
+        {
+          "line": 108,
+          "title": "setup session boundary"
+        },
+        {
+          "line": 147,
+          "title": "allows the valid session through account routes and the enrollment sub-router"
+        },
+        {
+          "line": 165,
+          "title": "protects read and write routes inside the provider enrollment sub-router"
+        },
+        {
+          "line": 186,
+          "title": "keeps exact-origin, loopback Host, and Sec-Fetch-Site checks with no-store errors"
+        },
+        {
+          "line": 201,
+          "title": "keeps the setup page reachable without an API session"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/setup-ui-xss.test.ts",
+      "internalImports": [],
+      "staticTitles": [
+        {
+          "line": 13,
+          "title": "browser setup rendering and OAuth import"
+        },
+        {
+          "line": 14,
+          "title": "opens a text-only removal confirmation without sending a delete request until confirmed"
+        },
+        {
+          "line": 25,
+          "title": "renders untrusted account data as DOM text without HTML or event handlers"
+        },
+        {
+          "line": 33,
+          "title": "imports only installed-app OAuth fields and rejects web or malformed configurations safely"
+        },
+        {
+          "line": 42,
+          "title": "switches Gmail and enterprise inputs and clears credentials on provider changes"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/spam-service.test.ts",
+      "internalImports": [
+        "src/services/spam-service.ts"
+      ],
+      "staticTitles": [
+        {
+          "line": 4,
+          "title": "SpamService"
+        },
+        {
+          "line": 11,
+          "title": "extractDomain"
+        },
+        {
+          "line": 12,
+          "title": "should extract domain from simple email"
+        },
+        {
+          "line": 16,
+          "title": "should extract domain from email with name"
+        },
+        {
+          "line": 20,
+          "title": "should extract domain from email with angle brackets only"
+        },
+        {
+          "line": 24,
+          "title": "should return null for invalid email"
+        },
+        {
+          "line": 28,
+          "title": "should handle email with multiple @ symbols in name"
+        },
+        {
+          "line": 32,
+          "title": "should lowercase the domain"
+        },
+        {
+          "line": 37,
+          "title": "checkEmail"
+        },
+        {
+          "line": 38,
+          "title": "should detect known spam domain"
+        },
+        {
+          "line": 45,
+          "title": "should detect guerrillamail as spam"
+        },
+        {
+          "line": 51,
+          "title": "should detect mailinator as spam"
+        },
+        {
+          "line": 56,
+          "title": "should detect 10minutemail as spam"
+        },
+        {
+          "line": 61,
+          "title": "should not flag legitimate domain as spam"
+        },
+        {
+          "line": 66,
+          "title": "should not flag corporate domain as spam"
+        },
+        {
+          "line": 71,
+          "title": "should handle unknown domain extraction"
+        },
+        {
+          "line": 78,
+          "title": "custom spam domains"
+        },
+        {
+          "line": 79,
+          "title": "should add custom spam domain"
+        },
+        {
+          "line": 86,
+          "title": "should remove custom spam domain"
+        },
+        {
+          "line": 93,
+          "title": "should handle case-insensitive domain matching"
+        },
+        {
+          "line": 100,
+          "title": "whitelist domains"
+        },
+        {
+          "line": 101,
+          "title": "should whitelist domain"
+        },
+        {
+          "line": 111,
+          "title": "should return whitelisted domains"
+        },
+        {
+          "line": 119,
+          "title": "should remove whitelist domain"
+        },
+        {
+          "line": 127,
+          "title": "checkEmails (batch)"
+        },
+        {
+          "line": 128,
+          "title": "should check multiple emails and categorize them"
+        },
+        {
+          "line": 142,
+          "title": "should calculate domain statistics"
+        },
+        {
+          "line": 157,
+          "title": "should sort domain stats by count descending"
+        },
+        {
+          "line": 176,
+          "title": "checkHeaders"
+        },
+        {
+          "line": 179,
+          "title": "returns no flags for clean, authenticated headers"
+        },
+        {
+          "line": 190,
+          "title": "flags a known bulk mailer in X-Mailer"
+        },
+        {
+          "line": 197,
+          "title": "flags PHPMailer in X-Mailer (case-insensitive)"
+        },
+        {
+          "line": 202,
+          "title": "does not flag a legitimate mail client User-Agent"
+        },
+        {
+          "line": 207,
+          "title": "flags Precedence: bulk"
+        },
+        {
+          "line": 213,
+          "title": "flags Precedence: list only when mailing-list headers are absent"
+        },
+        {
+          "line": 223,
+          "title": "flags DMARC none as medium and DMARC fail as high"
+        },
+        {
+          "line": 231,
+          "title": "flags SPF fail (high) and softfail (medium)"
+        },
+        {
+          "line": 239,
+          "title": "flags a List-Unsubscribe host unrelated to the sender domain"
+        },
+        {
+          "line": 247,
+          "title": "does not flag a List-Unsubscribe host on a sender subdomain"
+        },
+        {
+          "line": 255,
+          "title": "flags a Reply-To domain that differs from the From domain"
+        },
+        {
+          "line": 261,
+          "title": "does not flag a Reply-To on the same or a subdomain of the sender"
+        },
+        {
+          "line": 266,
+          "title": "surfaces multiple red flags for a scam mail that passes the domain check (issue #115)"
+        },
+        {
+          "line": 288,
+          "title": "ignores mismatch checks when the From address has no extractable domain"
+        },
+        {
+          "line": 294,
+          "title": "getKnownSpamDomains"
+        },
+        {
+          "line": 295,
+          "title": "should return known spam domains"
+        },
+        {
+          "line": 303,
+          "title": "should include custom domains in list"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/tool-access.test.ts",
+      "internalImports": [
+        "src/tools/index.ts"
+      ],
+      "staticTitles": [
+        {
+          "line": 56,
+          "title": "resolveEnabledTools"
+        },
+        {
+          "line": 57,
+          "title": "returns null (all tools) when nothing is configured"
+        },
+        {
+          "line": 61,
+          "title": "returns the read-only subset when IMAP_MCP_READ_ONLY is truthy"
+        },
+        {
+          "line": 80,
+          "title": "returns the explicit allowlist from IMAP_MCP_ENABLED_TOOLS"
+        },
+        {
+          "line": 87,
+          "title": "normalizes names without the imap_ prefix and mixed casing"
+        },
+        {
+          "line": 94,
+          "title": "ignores empty entries and surrounding whitespace"
+        },
+        {
+          "line": 101,
+          "title": "gives IMAP_MCP_ENABLED_TOOLS precedence over IMAP_MCP_READ_ONLY"
+        },
+        {
+          "line": 109,
+          "title": "falls back to read-only when the explicit list is blank"
+        },
+        {
+          "line": 118,
+          "title": "READ_ONLY_TOOLS subset"
+        },
+        {
+          "line": 119,
+          "title": "includes core read tools"
+        },
+        {
+          "line": 126,
+          "title": "excludes every destructive / mutating tool"
+        },
+        {
+          "line": 133,
+          "title": "registerTools gating"
+        },
+        {
+          "line": 145,
+          "title": "keeps legacy direct-send tools hidden while exposing safe-send and save-draft when unrestricted"
+        },
+        {
+          "line": 160,
+          "title": "cannot restore legacy direct-send tools through an explicit allowlist"
+        },
+        {
+          "line": 167,
+          "title": "applies the explicit allowlist to safe-send tools and does not add save-draft implicitly"
+        },
+        {
+          "line": 177,
+          "title": "registers only the read-only subset in read-only mode"
+        },
+        {
+          "line": 185,
+          "title": "registers only the explicit allowlist"
+        },
+        {
+          "line": 194,
+          "title": "silently ignores unknown tool names in the allowlist"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/tools.test.ts",
+      "internalImports": [],
+      "staticTitles": [
+        {
+          "line": 4,
+          "title": "Tools Module"
+        },
+        {
+          "line": 5,
+          "title": "Tool Registration"
+        },
+        {
+          "line": 6,
+          "title": "should export registerTools function"
+        },
+        {
+          "line": 12,
+          "title": "should export accountTools function"
+        },
+        {
+          "line": 18,
+          "title": "should export emailTools function"
+        },
+        {
+          "line": 24,
+          "title": "should export folderTools function"
+        },
+        {
+          "line": 30,
+          "title": "should export spamTools function"
+        },
+        {
+          "line": 38,
+          "title": "Email Providers"
+        },
+        {
+          "line": 39,
+          "title": "should export email providers list"
+        },
+        {
+          "line": 45,
+          "title": "should have provider detection function"
+        },
+        {
+          "line": 51,
+          "title": "should detect gmail provider"
+        },
+        {
+          "line": 58,
+          "title": "should detect outlook provider"
+        },
+        {
+          "line": 65,
+          "title": "should return undefined for unknown domain"
+        },
+        {
+          "line": 72,
+          "title": "Types"
+        },
+        {
+          "line": 73,
+          "title": "should export all required types"
+        },
+        {
+          "line": 82,
+          "title": "Services Export"
+        },
+        {
+          "line": 83,
+          "title": "should export ImapService"
+        },
+        {
+          "line": 88,
+          "title": "should export AccountManager"
+        },
+        {
+          "line": 93,
+          "title": "should export SmtpService"
+        },
+        {
+          "line": 98,
+          "title": "should export SpamService"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/unified-search-pagination.test.ts",
+      "internalImports": [
+        "src/services/imap-service.ts",
+        "src/tools/unified-search-tools.ts"
+      ],
+      "staticTitles": [
+        {
+          "line": 4,
+          "title": "bounded resumable unified search"
+        },
+        {
+          "line": 5,
+          "title": "fetches at most 200 matching UID records and rejects changed validity"
+        },
+        {
+          "line": 15,
+          "title": "does not scan empty gaps between sparse high UID values"
+        },
+        {
+          "line": 20,
+          "title": "retains top results within a bound and resumes partial folders without changing filters"
+        },
+        {
+          "line": 56,
+          "title": "pagination when SELECT and STATUS omit UIDNEXT (SA-08)"
+        },
+        {
+          "line": 57,
+          "title": "pages through actual matching UIDs while preserving filters and the 200-record fetch cap"
+        },
+        {
+          "line": 79,
+          "title": "handles an empty mailbox without inventing UIDNEXT or fetching bodies"
+        },
+        {
+          "line": 86,
+          "title": "handles sparse high UIDs in one search rather than traversing empty UID gaps"
+        },
+        {
+          "line": 94,
+          "title": "keeps valid SELECT UIDVALIDITY when STATUS does not repeat it"
+        },
+        {
+          "line": 100,
+          "title": "uses STATUS validity when SELECT does not provide it"
+        },
+        {
+          "line": 105,
+          "title": "rejects conflicting SELECT/STATUS validity instead of assigning UIDs to the wrong mailbox incarnation"
+        },
+        {
+          "line": 113,
+          "title": "can use STATUS UIDNEXT when SELECT omits it"
+        },
+        {
+          "line": 120,
+          "title": "still rejects missing UIDVALIDITY and releases the lock before issuing a search"
+        },
+        {
+          "line": 128,
+          "title": "rejects stale continuation validity even without UIDNEXT"
+        },
+        {
+          "line": 135,
+          "title": "rejects an invalid returned UID: %s"
+        },
+        {
+          "line": 143,
+          "title": "retains the candidate processing cap and does not fetch oversized search results"
+        },
+        {
+          "line": 151,
+          "title": "does not accept a server UID outside the continuation upper bound"
+        },
+        {
+          "line": 159,
+          "title": "releases the mailbox lock when SEARCH fails"
+        },
+        {
+          "line": 166,
+          "title": "recovers NetEase-like accounts through the actual global-search pagination and cursor chain"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/unified-search.test.ts",
+      "internalImports": [
+        "src/tools/unified-search-tools.ts"
+      ],
+      "staticTitles": [
+        {
+          "line": 21,
+          "title": "unified mailbox search"
+        },
+        {
+          "line": 22,
+          "title": "merges all accounts newest first and keeps account/folder/uid provenance"
+        },
+        {
+          "line": 31,
+          "title": "returns healthy accounts when one account fails, without exposing provider errors"
+        },
+        {
+          "line": 39,
+          "title": "bounds stuck accounts and aborts their connection"
+        },
+        {
+          "line": 44,
+          "title": "supports a named subset and refuses unknown names before connecting"
+        },
+        {
+          "line": 48,
+          "title": "reports all-account failure rather than an apparently empty successful search"
+        },
+        {
+          "line": 52,
+          "title": "keeps partial folder results and does not deduplicate equal IDs across mailboxes"
+        },
+        {
+          "line": 58,
+          "title": "supports more than three mailboxes and includes Gmail without special-casing providers"
+        },
+        {
+          "line": 64,
+          "title": "rejects invalid dates before network access"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/web-server-accounts.test.ts",
+      "internalImports": [
+        "src/web/server.ts"
+      ],
+      "staticTitles": [
+        {
+          "line": 62,
+          "title": "Web wizard credential exposure"
+        },
+        {
+          "line": 63,
+          "title": "GET /api/accounts never returns passwords"
+        },
+        {
+          "line": 81,
+          "title": "GET /api/accounts/:id also stays password-free"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/web-server-hardening.test.ts",
+      "internalImports": [
+        "src/web/server.ts"
+      ],
+      "staticTitles": [
+        {
+          "line": 76,
+          "title": "Web wizard — credential exposure on POST/PUT (Bjoern follow-up)"
+        },
+        {
+          "line": 77,
+          "title": "PUT /api/accounts/:id no-op rename does not leak stored passwords"
+        },
+        {
+          "line": 89,
+          "title": "POST /api/accounts does not echo the plaintext password back"
+        },
+        {
+          "line": 102,
+          "title": "Web wizard — loopback / cross-origin guard"
+        },
+        {
+          "line": 103,
+          "title": "binds the setup listener explicitly to IPv4 loopback"
+        },
+        {
+          "line": 126,
+          "title": "rejects a cross-origin request (non-loopback Origin)"
+        },
+        {
+          "line": 132,
+          "title": "rejects a non-loopback Host header (DNS rebinding)"
+        },
+        {
+          "line": 138,
+          "title": "allows a same-origin loopback request"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/windows-credential-backend.test.ts",
+      "internalImports": [
+        "src/credentials/windows-credential-backend.ts"
+      ],
+      "staticTitles": [
+        {
+          "line": 25,
+          "title": "WindowsCredentialBackend"
+        },
+        {
+          "line": 26,
+          "title": "reads UTF-16LE, CredFrees once, and zeroizes on idempotent dispose"
+        },
+        {
+          "line": 49,
+          "title": "returns undefined only for not found and surfaces other read errors"
+        },
+        {
+          "line": 56,
+          "title": "writes generic local-machine UTF-16LE and zeroizes the transient buffer"
+        },
+        {
+          "line": 66,
+          "title": "rejects values over 2560 bytes before native write"
+        },
+        {
+          "line": 72,
+          "title": "distinguishes a missing delete and fails explicitly off Windows"
+        },
+        {
+          "line": 79,
+          "title": "uses facade-captured error codes for write and delete"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    },
+    {
+      "file": "tests/windows-system-proxy.test.ts",
+      "internalImports": [
+        "src/utils/windows-system-proxy.ts"
+      ],
+      "staticTitles": [
+        {
+          "line": 6,
+          "title": "portable Windows local proxy discovery"
+        },
+        {
+          "line": 7,
+          "title": "detects changing ports from %s"
+        },
+        {
+          "line": 13,
+          "title": "does not auto-import unsafe or disabled setting %s"
+        },
+        {
+          "line": 18,
+          "title": "does not invoke Windows commands on Linux or macOS"
+        }
+      ],
+      "limitation": "String/title index only; may omit dynamic each titles. Not an executed test count.",
+      "execution": "not-run-this-turn"
+    }
+  ]
+}
