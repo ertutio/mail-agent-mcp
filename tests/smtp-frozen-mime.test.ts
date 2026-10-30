@@ -88,4 +88,49 @@ describe('T22: single frozen MIME for submission and Sent copy', () => {
       .rejects.toThrow(/Failed to send email/i);
     expect(sendMail).not.toHaveBeenCalled();
   });
+  // T22 review: prove the frozen-raw path against a REAL nodemailer
+  // streamTransport (no network). The submitted bytes, the returned
+  // Message-ID and the envelope must all agree with the compiled MIME.
+  it('T22R-REAL-STREAM: real streamTransport submits the frozen raw and honors the envelope', async () => {
+    const nodemailer = await import('nodemailer');
+    const captured: Array<{ raw: string; envelope: any }> = [];
+    // streamTransport with buffer:true resolves {message, originalMessage};
+    // intercept the stream target to capture the exact bytes sent.
+    const transport = nodemailer.createTransport({
+      streamTransport: true,
+      buffer: true,
+      newline: 'crlf',
+    } as any);
+    const realSendMail = transport.sendMail.bind(transport);
+    vi.spyOn(service as any, 'createTransporter').mockResolvedValue({
+      sendMail: async (opts: any) => {
+        const info = await realSendMail(opts);
+        captured.push({ raw: String(info.message), envelope: opts.envelope });
+        // Mirror the SMTP acceptance contract: nodemailer derives the
+        // Message-ID from the submitted raw.
+        return { messageId: messageIdOf(String(info.message)) };
+      },
+    });
+
+    const result = await service.sendEmail(account.id, account, composer as any);
+
+    expect(captured).toHaveLength(1);
+    const { raw, envelope } = captured[0]!;
+    // The frozen raw went out verbatim modulo line endings: streamTransport
+    // rewrites newlines to LF (its default), while the compiled MIME uses
+    // RFC 5322 CRLF — headers and body content are identical.
+    const normalizeEol = (value: string): string =>
+      value.split(String.fromCharCode(13) + String.fromCharCode(10)).join('\n');
+    expect(normalizeEol(raw)).toBe(normalizeEol(result.rawMessage!.toString()));
+    expect(messageIdOf(raw)).toBe(result.messageId);
+    expect(raw).toMatch(/^Message-ID:/mi);
+    expect(raw).toMatch(/^Date:/mi);
+    // Envelope covers all recipients; raw stays Bcc-free.
+    expect(envelope.from).toBe('sender@synth.test');
+    for (const recipient of ['visible@synth.test', 'cc@synth.test', 'hidden1@synth.test', 'hidden2@synth.test']) {
+      expect(envelope.to).toContain(recipient);
+    }
+    expect(raw).not.toMatch(/^Bcc:/mi);
+    expect(raw).not.toContain('hidden1@synth.test');
+  });
 });
