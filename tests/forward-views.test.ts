@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { emailTools } from '../src/tools/email-tools.js';
+import { htmlToMarkdown, normalizeWhitespace } from '../src/services/html-to-markdown.js';
 
 // T24 / MAIL-05: the forward's HTML view must carry the same user note and
 // forwarded-message header as the text view (safely escaped), keep cid:
@@ -101,5 +102,69 @@ describe('T24: forward HTML/text views stay consistent', () => {
     expect(composer.html).toBeUndefined();
     expect(composer.text).toContain('note');
     expect(composer.text).toContain('original plain body');
+  });
+
+  // T24 review: an HTML-only original must produce BOTH views with the
+  // original body, the note and the header — driven by a real mailparser
+  // parse of a synthetic HTML-only MIME.
+  it('T24R-REAL-HTML-ONLY: both views carry the body for an HTML-only original', async () => {
+    const { simpleParser } = await import('mailparser');
+    const mime = [
+      'From: Origin <origin@synth.test>',
+      'To: first@synth.test',
+      'Subject: HTML-only subject',
+      'Message-ID: <htmlonly@synth.test>',
+      'Date: Thu, 15 Jan 2026 10:00:00 +0000',
+      'MIME-Version: 1.0',
+      'Content-Type: text/html; charset=utf-8',
+      '',
+      '<html><body><p>HTML-only body 中文</p><img src="cid:img1"></body></html>',
+      '',
+    ].join('\r\n');
+    const parsed = await simpleParser(mime);
+    expect(parsed.html).toBeDefined();
+    // mailparser synthesizes a text fallback for HTML-only mail; the point is
+    // that no text PART exists in the source MIME.
+    expect(parsed.textHtml).toBeUndefined();
+    expect(parsed.textAsHtml).toBeDefined();
+
+    const mockImapService = {
+      getEmailContent: vi.fn(async () => ({
+        uid: 7,
+        from: parsed.from?.text ?? '',
+        date: parsed.date ?? new Date(),
+        subject: parsed.subject ?? '',
+        to: (parsed.to?.value ?? []).map((v: any) => v.address),
+        messageId: parsed.messageId ?? '',
+        // The real service (bodyFormat 'html') derives textContent from the
+        // HTML via its own html-to-markdown path — model that.
+        textContent: parsed.text ?? normalizeWhitespace(htmlToMarkdown(parsed.html ?? '')),
+        htmlContent: parsed.html ?? undefined,
+        headers: { 'message-id': parsed.messageId ?? '' },
+      })),
+      appendToSentFolder: vi.fn(async () => ({ saved: false, errorCategory: 'folder_not_found', error: 'unused' })),
+    };
+    const mockSmtpService = { sendEmail: vi.fn(async () => ({ messageId: '<sent@synth.test>', rawMessage: Buffer.from('raw') })) };
+    emailTools(
+      mockServer as any,
+      mockImapService as any,
+      { resolveAccountId: (id: string) => id, getAccount: async () => ACCOUNT } as any,
+      mockSmtpService as any,
+    );
+
+    await toolHandlers.imap_forward_email({
+      accountId: 'acc1', folder: 'INBOX', uid: 7, to: 'dest@synth.test', text: '请查收',
+    });
+    expect(mockSmtpService.sendEmail).toHaveBeenCalledOnce();
+    const composer = mockSmtpService.sendEmail.mock.calls[0]![2] as any;
+
+    // Both views carry the note, the header and the original body.
+    expect(composer.text).toContain('请查收');
+    expect(composer.text).toContain('HTML-only subject');
+    expect(composer.text).toContain('HTML-only body 中文');
+    expect(composer.html).toContain('请查收');
+    expect(composer.html).toContain('HTML-only subject');
+    expect(composer.html).toContain('HTML-only body 中文');
+    expect(composer.html).toContain('src="cid:img1"');
   });
 });
