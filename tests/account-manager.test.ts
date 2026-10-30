@@ -985,4 +985,99 @@ describe('T07: account candidate schema', () => {
     });
   });
 });
+  // T07 night-review remediation: the SMTP sub-candidate follows the same
+  // missing/null/default contract as the top level, the NORMALIZED candidate
+  // is what gets persisted AND returned (disk and return agree), and illegal
+  // add/update stays zero-write.
+  describe('T07R: review remediation', () => {
+    it('T07R-SMTP-DEFAULTS: missing smtp port/secure derive from secure', async () => {
+      const manager = new AccountManager();
+      const account = await manager.addAccount({
+        name: 'T07R A', host: 'imap.synth.test', port: 993,
+        user: 'a@synth.test', password: ['t07r-', 'pw'].join(''), tls: true,
+        smtp: { host: 'smtp.synth.test' },
+      } as any);
+      expect(account.smtp!.port).toBe(465);
+      expect(account.smtp!.secure).toBe(true);
+
+      const noTls = await manager.addAccount({
+        name: 'T07R B', host: 'imap.synth.test', port: 143, user: 'b@synth.test',
+        password: ['t07r-', 'pw2'].join(''), tls: false,
+        smtp: { host: 'smtp.synth.test', secure: false },
+      } as any);
+      expect(noTls.smtp!.port).toBe(587);
+    });
+
+    it('T07R-SMTP-NULL-CONSISTENT: null smtp and null smtp fields are rejected', () => {
+      expect(() => validateAccountCandidate({
+        name: 'T07R C', host: 'imap.synth.test', port: 993, user: 'c@synth.test',
+        password: ['t07r-', 'pw3'].join(''), tls: true, smtp: null,
+      })).toThrow(/smtp/);
+      expect(() => validateAccountCandidate({
+        name: 'T07R D', host: 'imap.synth.test', port: 993, user: 'd@synth.test',
+        password: ['t07r-', 'pw4'].join(''), tls: true,
+        smtp: { host: 'smtp.synth.test', port: 465, secure: true, user: null },
+      })).toThrow(/smtp.user/);
+    });
+
+    it('T07R-TRIM-NORMALIZATION: name/host/user are trimmed before persistence', () => {
+      const normalized = validateAccountCandidate({
+        name: '  T07R E  ', host: '  imap.synth.test  ', port: 993,
+        user: '  e@synth.test  ', password: ['t07r-', 'pw5'].join(''), tls: true,
+      });
+      expect(normalized.name).toBe('T07R E');
+      expect(normalized.host).toBe('imap.synth.test');
+      expect(normalized.user).toBe('e@synth.test');
+    });
+
+    it('T07R-RETURN-MATCHES-DISK: the returned account equals the persisted one', async () => {
+      const manager = new AccountManager();
+      const inputPassword = ['t07r-', 'disk'].join('');
+      const account = await manager.addAccount({
+        name: '  T07R F  ', host: '  imap.synth.test  ', port: 993,
+        user: '  f@synth.test  ', password: inputPassword, tls: true,
+        smtp: { host: 'smtp.synth.test' },
+      } as any);
+
+      // The stored record (what saveAccounts wrote) must match the return.
+      const stored = JSON.parse(String(vi.mocked(fs.writeFile).mock.calls.at(-1)![1]));
+      expect(stored).toHaveLength(1);
+      expect(stored[0].name).toBe(account.name);
+      expect(stored[0].host).toBe(account.host);
+      expect(stored[0].user).toBe(account.user);
+      expect(stored[0].smtp.port).toBe(account.smtp!.port);
+      expect(stored[0].password).not.toBe(inputPassword); // encrypted at rest
+      // The manager decrypts back to the same plaintext it validated.
+      const reread = manager.getAccount(account.id)!;
+      expect(reread.name).toBe(account.name);
+      expect(reread.password).toBe(account.password);
+      expect(account.password).toBe(inputPassword);
+    });
+
+
+    it('T07R-MERGE-CIPHERTEXT: stored ciphertext is not re-validated as plaintext', async () => {
+      const manager = new AccountManager();
+      const longPassword = ['long-', 'password'].join('').repeat(250); // 3000 chars
+      const account = await manager.addAccount({
+        name: 'T07R I', host: 'imap.synth.test', port: 993,
+        user: 'i@synth.test', password: longPassword, tls: true,
+      });
+      const updated = await manager.updateAccount(account.id, { name: 'T07R I renamed' });
+      expect(updated.name).toBe('T07R I renamed');
+      const reread = manager.getAccount(account.id)!;
+      expect(reread.password).toBe(longPassword);
+    });
+
+    it('T07R-UPDATE-NORMALIZED: updateAccount persists and returns trimmed values', async () => {
+      const manager = new AccountManager();
+      const account = await manager.addAccount({
+        name: 'T07R G', host: 'imap.synth.test', port: 993,
+        user: 'g@synth.test', password: ['t07r-', 'pw6'].join(''), tls: true,
+      });
+      const updated = await manager.updateAccount(account.id, { name: '  T07R H  ' });
+      expect(updated.name).toBe('T07R H');
+      const stored = JSON.parse(String(vi.mocked(fs.writeFile).mock.calls.at(-1)![1]));
+      expect(stored[0].name).toBe('T07R H');
+    });
+  });
 });

@@ -49,17 +49,20 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function stringField(container: Record<string, unknown>, key: string, options: { optional?: boolean; allowEmpty?: boolean; max?: number } = {}): string | undefined {
+function stringField(container: Record<string, unknown>, key: string, options: { optional?: boolean; allowEmpty?: boolean; max?: number; trim?: boolean; prefix?: string } = {}): string | undefined {
   const value = container[key];
+  const label = options.prefix ? `${options.prefix}${key}` : key;
   if (value === undefined) {
     if (options.optional) return undefined;
-    fail(`${key} is required`);
+    fail(`${label} is required`);
   }
-  if (typeof value !== 'string') fail(`${key} must be a string`);
+  if (typeof value !== 'string') fail(`${label} must be a string`);
   const trimmed = value.trim();
-  if (!options.allowEmpty && trimmed.length === 0) fail(`${key} must not be empty`);
-  if (options.max !== undefined && value.length > options.max) fail(`${key} exceeds ${options.max} characters`);
-  return value;
+  if (!options.allowEmpty && trimmed.length === 0) fail(`${label} must not be empty`);
+  if (options.max !== undefined && value.length > options.max) fail(`${label} exceeds ${options.max} characters`);
+  // Normalized fields return the trimmed value so the persisted record, the
+  // returned account and the validated candidate are one and the same.
+  return options.trim ? trimmed : value;
 }
 
 function booleanField(container: Record<string, unknown>, key: string, fallback?: boolean): boolean | undefined {
@@ -128,13 +131,17 @@ function validateSmtp(value: unknown): SmtpConfig {
   for (const key of Object.keys(value)) {
     if (!SMTP_FIELDS.has(key)) fail(`smtp.${key} is not a known field`);
   }
+  // Same missing/null/default contract as the top level: null is rejected,
+  // secure defaults to true, and the port derives from it (465/587) when the
+  // caller omits it.
+  const secure = booleanField(value, 'secure', true)!;
   const smtp: SmtpConfig = {
-    host: stringField(value, 'host', { max: 253 })!,
-    port: portField(value, 'port')!,
-    secure: booleanField(value, 'secure')!,
+    host: stringField(value, 'host', { max: 253, trim: true, prefix: 'smtp.' })!,
+    port: portField(value, 'port', secure ? 465 : 587)!,
+    secure,
   };
-  const user = stringField(value, 'user', { optional: true, allowEmpty: true, max: 320 });
-  const password = stringField(value, 'password', { optional: true, allowEmpty: true, max: 4096 });
+  const user = stringField(value, 'user', { optional: true, allowEmpty: true, max: 320, trim: true, prefix: 'smtp.' });
+  const password = stringField(value, 'password', { optional: true, allowEmpty: true, max: 4096, prefix: 'smtp.' });
   if (user !== undefined) smtp.user = user;
   if (password !== undefined) smtp.password = password;
   const authMethod = value.authMethod;
@@ -190,10 +197,10 @@ export function validateAccountCandidate(input: unknown): AccountCandidate {
   const port = portField(input, 'port', tls ? 993 : 143)!;
 
   const candidate: AccountCandidate = {
-    name: stringField(input, 'name', { max: 200 })!,
-    host: stringField(input, 'host', { max: 253 })!,
+    name: stringField(input, 'name', { max: 200, trim: true })!,
+    host: stringField(input, 'host', { max: 253, trim: true })!,
     port,
-    user: stringField(input, 'user', { allowEmpty: true, max: 320 })!,
+    user: stringField(input, 'user', { allowEmpty: true, max: 320, trim: true })!,
     password: stringField(input, 'password', { optional: true, allowEmpty: true, max: 4096 }) ?? '',
     tls,
   };
@@ -202,9 +209,9 @@ export function validateAccountCandidate(input: unknown): AccountCandidate {
     if (typeof input.id !== 'string' || input.id.length === 0) fail('id must be a non-empty string');
     candidate.id = input.id;
   }
-  const email = stringField(input, 'email', { optional: true, max: 320 });
+  const email = stringField(input, 'email', { optional: true, max: 320, trim: true });
   if (email !== undefined) candidate.email = email;
-  const loginMethod = stringField(input, 'loginMethod', { optional: true, max: 32 });
+  const loginMethod = stringField(input, 'loginMethod', { optional: true, max: 32, trim: true });
   if (loginMethod !== undefined) candidate.loginMethod = loginMethod;
   const authTimeout = optionalPositiveInteger(input, 'authTimeout');
   if (authTimeout !== undefined) candidate.authTimeout = authTimeout;
@@ -215,7 +222,7 @@ export function validateAccountCandidate(input: unknown): AccountCandidate {
   if (input.smtp !== undefined) candidate.smtp = validateSmtp(input.smtp);
   const saveToSent = booleanField(input, 'saveToSent');
   if (saveToSent !== undefined) candidate.saveToSent = saveToSent;
-  const sentFolder = stringField(input, 'sentFolder', { optional: true, max: 1024 });
+  const sentFolder = stringField(input, 'sentFolder', { optional: true, max: 1024, trim: true });
   if (sentFolder !== undefined) candidate.sentFolder = sentFolder;
   if (input.defaultBcc !== undefined) candidate.defaultBcc = validateDefaultBcc(input.defaultBcc);
   if (input.auth !== undefined) candidate.auth = validateAuth(input.auth);

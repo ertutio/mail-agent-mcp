@@ -111,8 +111,15 @@ export class AccountManager {
 
     this.accounts.set(id, newAccount);
     await this.saveAccounts();
-    
-    return { ...newAccount, password: account.password, smtp: account.smtp };
+
+    // T07 review: the caller gets the persisted record with secrets decrypted
+    // back — the same normalized values that just hit the disk, never the raw
+    // un-normalized input.
+    const returned: ImapAccount = { ...newAccount, password: this.decrypt(newAccount.password) };
+    if (newAccount.smtp?.password !== undefined) {
+      returned.smtp = { ...newAccount.smtp, password: this.decrypt(newAccount.smtp.password) };
+    }
+    return returned;
   }
 
 
@@ -199,13 +206,24 @@ export class AccountManager {
     }
 
     // The merged result is a candidate too: schema and unknown-field rules
-    // apply before anything is written (T07). The stored (encrypted) password
-    // flows through as a string, so the merge stays compatible.
-    const candidate = validateAccountCandidate({
+    // apply before anything is written (T07). Stored ciphertext is NOT
+    // re-validated as plaintext (a long stored password would exceed the
+    // plaintext budget in encrypted form) — it is restored after validation
+    // and flows through unchanged unless an update provides a new value.
+    const mergedInput: Record<string, unknown> = {
       ...existingAccount,
       ...updates,
       smtp: updates.smtp ?? existingAccount.smtp,
-    });
+      password: updates.password !== undefined ? updates.password : '',
+    };
+    if (mergedInput.smtp !== undefined && updates.smtp?.password === undefined) {
+      mergedInput.smtp = { ...(mergedInput.smtp as Record<string, unknown>), password: '' };
+    }
+    const candidate = validateAccountCandidate(mergedInput);
+    if (updates.password === undefined) candidate.password = existingAccount.password;
+    if (candidate.smtp && updates.smtp?.password === undefined && existingAccount.smtp?.password !== undefined) {
+      candidate.smtp.password = existingAccount.smtp.password;
+    }
     for (const [otherId, other] of this.accounts) {
       if (otherId !== id && other.name === candidate.name) {
         throw new Error('Account name already exists; choose a unique name');
@@ -218,12 +236,14 @@ export class AccountManager {
 
     // Encrypt password if it's being updated. Use an explicit undefined check so
     // an empty placeholder ("" — used for env-managed credentials) is encrypted
-    // to a decryptable value rather than stored raw.
-    const processedUpdates = accountForPersistence({ ...existingAccount, ...updates, id });
+    // to a decryptable value rather than stored raw. Built from the VALIDATED
+    // candidate (T07 review) so normalization reaches the disk, not just the
+    // validation pass.
+    const processedUpdates = accountForPersistence({ ...candidate, id });
     if (existingAccount.auth || updates.password !== undefined) {
       processedUpdates.password = this.encrypt(processedUpdates.password);
     }
-    
+
     // Encrypt SMTP password if it's being updated
     if (updates.smtp?.password && processedUpdates.smtp?.password) {
       processedUpdates.smtp = {
