@@ -343,7 +343,9 @@ export async function runEnrollmentCli(
       secret: true,
     });
     writeOutput('Opening Gmail authorization in your browser...\n');
-    const { refreshToken } = await runGmailOAuthLoopback({
+    // Honor the same injection seam as the repair path (T16 review).
+    const oauth = dependencies.runGmailOAuth ?? runGmailOAuthLoopback;
+    const { refreshToken } = await oauth({
       clientId,
       clientSecret,
       loginHint: email,

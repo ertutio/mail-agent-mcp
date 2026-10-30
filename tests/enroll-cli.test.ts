@@ -321,3 +321,59 @@ describe('T16: CLI enrollment requires login verification', () => {
     expect(stored[0].host).toBe('imap.qq.com');
   });
 });
+  // T16 review: NetEase and Gmail enrollment failures must also roll the
+  // vault back and never report the account as enrolled.
+  it('T16R-NETEASE-FAIL-ROLLBACK: a failed NetEase verification rolls back and never reports enrolled', async () => {
+    const configDir = join(tmpdir(), 'imap-mcp-t16r-n-' + Math.random().toString(36).slice(2));
+    process.env.IMAP_MCP_CONFIG_DIR = configDir;
+    const output: string[] = [];
+    const credentials = {
+      read: vi.fn(() => null),
+      write: vi.fn(() => true),
+      delete: vi.fn(() => true),
+    } as unknown as CredentialBackend;
+    const prompt = vi.fn(async (label: string) =>
+      label === 'Email address' ? 'owner@163.synth.test' : label === 'Account name' ? 'T16R NetEase' : 'synthetic-auth-code');
+    const authenticateOnly = vi.fn(async () => { throw new Error('IMAP login failed'); });
+    try {
+      await expect(runEnrollmentCli(['163'], {
+        platform: 'win32', credentials, prompt, authenticateOnly,
+        writeOutput: (text) => { output.push(text); },
+      })).rejects.toThrow(/IMAP login failed/);
+      expect(authenticateOnly).toHaveBeenCalledTimes(1);
+      expect(output.join('')).not.toContain('enrolled');
+      expect(credentials.delete).toHaveBeenCalled();
+      expect(existsSync(join(configDir, 'accounts.json'))).toBe(false);
+    } finally {
+      delete process.env.IMAP_MCP_CONFIG_DIR;
+      rmSync(configDir, { recursive: true, force: true });
+    }
+  });
+
+  it('T16R-GMAIL-FAIL-ROLLBACK: a failed Gmail verification rolls back and never reports enrolled', async () => {
+    const configDir = join(tmpdir(), 'imap-mcp-t16r-g-' + Math.random().toString(36).slice(2));
+    process.env.IMAP_MCP_CONFIG_DIR = configDir;
+    const output: string[] = [];
+    const credentials = {
+      read: vi.fn(() => null),
+      write: vi.fn(() => true),
+      delete: vi.fn(() => true),
+    } as unknown as CredentialBackend;
+    const prompt = vi.fn(async (label: string) => label === 'Gmail OAuth desktop client ID' ? 'client-id' : 'owner@gmail.synth.test');
+    const authenticateOnly = vi.fn(async () => { throw new Error('IMAP login failed'); });
+    try {
+      await expect(runEnrollmentCli(['gmail'], {
+        platform: 'win32', credentials, prompt, authenticateOnly,
+        runGmailOAuth: vi.fn(async () => ({ refreshToken: ['synthetic', '-refresh'].join('') })),
+        openBrowser: vi.fn(async () => undefined),
+        writeOutput: (text) => { output.push(text); },
+      })).rejects.toThrow(/IMAP login failed/);
+      expect(authenticateOnly).toHaveBeenCalledTimes(1);
+      expect(output.join('')).not.toContain('enrolled');
+      expect(credentials.delete).toHaveBeenCalled();
+      expect(existsSync(join(configDir, 'accounts.json'))).toBe(false);
+    } finally {
+      delete process.env.IMAP_MCP_CONFIG_DIR;
+      rmSync(configDir, { recursive: true, force: true });
+    }
+  });
