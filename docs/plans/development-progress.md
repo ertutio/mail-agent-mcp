@@ -9,8 +9,8 @@
 | 总任务状态 | `in_progress`：PR #26 已合并；14 项待修，夜间续接入口见下文，历史 review_pending 回执保留为当时记录 |
 | 代码基线 | 已合并远端 `main@0560ade2202f6fb49f23ee20b149d4b16ef075a7`；[PR #26](https://github.com/ertutio/mail-agent-mcp/pull/26) MERGED，9 项通过范围已集成 |
 | 原计划来源 | [PR #3](https://github.com/ertutio/mail-agent-mcp/pull/3)，head `eee1daf88b52d4969f96c117dc93219b6dd5c7f3`，2026-10-17；计划未合并不等于其中修复已实现 |
-| 当前检查点 / 子项 | `2026-10-31 补修轮完成 + T21 新增`：14 个暂缓 PR 全部 rebase 至 main@0e3c47b 并按夜间续接表补修（force-with-lease 推回原分支），另交付 T21 逐收件人回执（[PR #29](https://github.com/ertutio/mail-agent-mcp/pull/29)，独立基线 main@0e3c47b）。等待重验合并。不代表完整 T01–T37 完成。 |
-| next_action | 按夜间续接表原顺序重验合并 14 项（第一批 #12→#13→#24，第二批 #5→#9→#10，独立 #17/#16/#21，邮件 #22/#25/#23，补证 #14/#15）及新增 #29/T21；合并后跑 T35 稳定集成。继续就绪项：T10 可堆叠 #24 链后，T11 依赖 #12 合并——两者均为下一批首选项。 |
+| 当前检查点 / 子项 | `2026-10-31 补修轮完成 + T21/T10 新增`：14 个暂缓 PR 全部 rebase 至 main@0e3c47b 并按夜间续接表补修（force-with-lease 推回原分支），另交付 T21 逐收件人回执（[PR #29](https://github.com/ertutio/mail-agent-mcp/pull/29)）与 T10 更新原子性（[PR #30](https://github.com/ertutio/mail-agent-mcp/pull/30)，堆叠 #24 链后）。等待重验合并。不代表完整 T01–T37 完成。 |
+| next_action | 按夜间续接表原顺序重验合并 14 项及新增 #29/T21、#30/T10；合并后跑 T35 稳定集成。继续就绪项：T11（revision 契约，依赖 #12 合并后实施）为下一批首选——T12/T13/T25/T26/T27/T17/T20 均依赖或部分依赖它；T14/T15 依赖 T12。 |
 | 本子项通过条件 | 各 PR 补修后全量本地门禁通过（本轮记录：每分支 697–720 passed/1 skipped）；合并顺序遵守父链；CI Node22/24 全门禁以合并时准确 head 为准。 |
 | 全局阻塞 | 剩余 prod 5 / full 8 moderate 依赖公告未扩修；T33 扩展维护、T34/T36 门控保留；真实服务商、WinCred、部署和发布不由本轮代码验收替代。 |
 
