@@ -122,6 +122,21 @@ describe('T08: setup API rejects illegal candidates before any store write', () 
     expect(names).toContain('T08 Valid 2');
   });
 
+
+  it('T08R-LEGAL-NORMALIZED: a legal untrimmed candidate persists normalized', async () => {
+    const { status, body } = await post('/api/accounts', {
+      ...validCandidate,
+      name: '  T08 R  ',
+      imapUsername: '  user@synth.test  ',
+    });
+    expect(status).toBe(200);
+    expect(body.account.name).toBe('T08 R');
+    expect(body.account.user).toBe('user@synth.test');
+    const stored = JSON.parse(readFileSync(storePath, 'utf8'));
+    const created = stored.find((a: any) => a.name === 'T08 R');
+    expect(created.user).toBe('user@synth.test');
+  });
+
   it('T08-SESSION-GATE: unauthenticated account writes stay refused (SEC-01 regression)', async () => {
     const { status } = await post('/api/accounts', validCandidate, false);
     expect(status).toBe(403);
