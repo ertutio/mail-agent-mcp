@@ -426,6 +426,53 @@ export class ImapService {
     }
   }
 
+  /**
+   * STATUS counts and the flag snapshot captured under ONE mailbox lock
+   * (T01 review): folder_status must never mix metadata from two moments —
+   * counts and flags are taken in the same locked region, after any
+   * interleaved operation on the folder has released it.
+   */
+  async getFolderStatusSnapshot(accountId: string, folderName: string): Promise<{
+    status: { messages: number; recent: number; unseen: number; uidValidity: number; uidNext: number };
+    snapshot: FolderSnapshot;
+  }> {
+    const client = await this.ensureConnected(accountId);
+    const lock = await client.getMailboxLock(folderName);
+    try {
+      const status = await client.status(folderName, {
+        messages: true,
+        recent: true,
+        unseen: true,
+        uidNext: true,
+        uidValidity: true,
+      });
+      const box = client.mailbox;
+      if (!box || box.path !== folderName) {
+        throw new Error(`Mailbox "${folderName}" is not selected after acquiring its lock`);
+      }
+      return {
+        status: {
+          messages: Number(status.messages ?? 0),
+          recent: Number(status.recent ?? 0),
+          unseen: Number(status.unseen ?? 0),
+          uidValidity: Number(status.uidValidity ?? 0),
+          uidNext: Number(status.uidNext ?? 0),
+        },
+        snapshot: {
+          path: box.path,
+          ...(box.exists !== undefined ? { exists: Number(box.exists) } : {}),
+          ...(box.uidValidity !== undefined ? { uidValidity: box.uidValidity } : {}),
+          ...(box.uidNext !== undefined ? { uidNext: Number(box.uidNext) } : {}),
+          ...(box.readOnly !== undefined ? { readOnly: Boolean(box.readOnly) } : {}),
+          flags: Array.from(box.flags ?? []),
+          ...(box.permanentFlags ? { permanentFlags: Array.from(box.permanentFlags) } : {}),
+        },
+      };
+    } finally {
+      lock.release();
+    }
+  }
+
   async getFolderStatus(accountId: string, folderName: string): Promise<{
     messages: number;
     recent: number;

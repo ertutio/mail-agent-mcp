@@ -49,6 +49,13 @@ interface CommandRecord {
 class LockModelingImapFlow {
   usable = true;
   mailbox: any = null;
+  // The MOVE/UIDPLUS gates (T03/T04) read the server's advertised capability
+  // map; a realistic default keeps the lock-model tests focused on locking.
+  capabilities = new Map<string, boolean>([
+    ['IMAP4rev1', true],
+    ['MOVE', true],
+    ['UIDPLUS', true],
+  ]);
   folders = new Map<string, MockFolderSpec>();
   events: string[] = [];
   commands: CommandRecord[] = [];
@@ -417,3 +424,63 @@ describe('T01: imap_folder_status shares the per-folder mailbox lock (MAIL-01)',
     expect(mockClient.events.filter(e => e === 'select:Archive')).toHaveLength(1);
   });
 });
+
+  // T01 review: the folder_status snapshot must reflect ONE consistent moment
+  // — a mailbox that mutates while folder_status waits on the lock yields the
+  // post-mutation state across ALL fields, never a mix — and an operation
+  // that fails inside its locked section must release the lock for the queue.
+  describe('T01R: snapshot consistency and failure release', () => {
+    it('T01R-CONSISTENT-SNAPSHOT: a mid-wait mutation yields one consistent post-mutation snapshot', async () => {
+      mockClient.lockGate = { path: 'INBOX', deferred: makeDeferred() };
+
+      // A locks INBOX and pauses at the gate; B asks folder_status for the
+      // SAME folder and queues behind it.
+      const aPromise = imapService.getEmailContent(account.id, 'INBOX', 7);
+      await flush();
+      const bPromise = folderStatusHandler({ accountId: account.id, folder: 'INBOX' })
+        .then((r: any) => JSON.parse(r.content[0].text));
+      await flush();
+
+      // While both wait, the mailbox mutates: new UIDVALIDITY, one more
+      // message, and a changed flag set.
+      mockClient.folders.set('INBOX', {
+        uidValidity: 333n,
+        uidNext: 9,
+        flags: ['\\Seen', '\\Flagged', '$mutated_keyword'],
+        permanentFlags: ['\\Seen', '\\Flagged', '\\*'],
+        messages: new Map([[7, 'inbox-msg-7'], [8, 'inbox-msg-8']]),
+      });
+      // A real server pushes mailbox updates into the SELECTED mailbox object;
+      // model that so the live object and the spec stay in sync.
+      if (mockClient.mailbox && mockClient.mailbox.path === 'INBOX') {
+        mockClient.mailbox.uidValidity = 333n;
+        mockClient.mailbox.uidNext = 9;
+        mockClient.mailbox.exists = 2;
+        mockClient.mailbox.flags = new Set(['\\Seen', '\\Flagged', '$mutated_keyword']);
+      }
+
+      mockClient.lockGate.deferred.release();
+      await Promise.all([aPromise, bPromise]);
+
+      // The queued folder_status was granted AFTER the mutation: every field
+      // comes from that same post-mutation moment — no old uidvalidity mixed
+      // with new counts, no pre-mutation flags.
+      const b = await (async () => bPromise)();
+      expect(b.uidvalidity).toBe(333);
+      expect(b.messages.total).toBe(2);
+      expect(b.flags).toContain('$mutated_keyword');
+      expect(b.flags).not.toContain('$cl_3');
+    });
+
+    it('T01R-READ-FAIL-RELEASES-LOCK: a failing read releases the lock for the queue', async () => {
+      await expect(
+        imapService.getEmailContent(account.id, 'INBOX', 99), // uid 99 does not exist
+      ).rejects.toThrow(/not found/i);
+
+      // The lock was released despite the failure: the next folder_status
+      // acquires the lock and completes.
+      const ok = await folderStatusHandler({ accountId: account.id, folder: 'INBOX' });
+      const parsed = JSON.parse(ok.content[0].text);
+      expect(parsed.uidvalidity).toBe(111);
+    });
+  });
