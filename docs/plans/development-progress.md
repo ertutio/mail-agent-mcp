@@ -26,7 +26,8 @@
 | T32 安装路径补证 | `PASS（隔离握手）`：真实构建 dist/index.js 从临时任意 cwd、新建 IMAP_MCP_CONFIG_DIR 成功 initialize，protocol 2024-11-05、serverInfo mail-agent-mcp 0.1.1；仅生成测试 .key，无账户。结束时未收到 shutdown 响应；探针已终止子进程，此项只验证 initialize。 |
 | 依赖审计 | `FAIL`：生产 8 个受影响包节点（5 moderate / 3 high），undici 7.30.0、zod 4.4.3 含高危（公告范围分别 7.0.0–7.30.0、<4.6.6）；全量 12 个（8 moderate / 4 high），另含 Vite 8.1.4 开发链高危（范围 8.0.0–8.1.5）。普通 fixAvailable 不能充当修复后证据；Nodemailer 的 moderate 建议 force 到 10.3.1，超出当前声明范围，未执行。两个 package 文件相对 main 未变，但既有缺陷仍是门禁失败。 |
 | 公告定位 | [undici GHSA-4qv8-2p9j-2685](https://github.com/advisories/GHSA-4qv8-2p9j-2685)、[zod GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5)、[Vite GHSA-698v-4r3x-3vcv](https://github.com/advisories/GHSA-698v-4r3x-3vcv) 为当前 audit 中的代表定位，非完整公告数；完整输出和可达性须随依赖修复复核，不能把受影响包节点数当作独立漏洞数。 |
-| CI | `PENDING`：将对可审查候选触发 Ubuntu Node22/24，实际 run/结果附候选 PR；无 run 不能视作 PASS。 |
+| CI | `FAIL（首轮）`：[run 41007167287](https://github.com/ertutio/mail-agent-mcp/actions/runs/41007167287)，精确 SHA e84d085307e105a100bd95f2d7fe6d89ed9fb4ae；Ubuntu Node22/24 均在 install-path-resolution.test.ts 的固定 Windows 路径断言失败，后续 build/lint/audit/pack 被跳过，不能拿本地成功代替。 |
+| CI 夹具补正 | 只将 tests/install-path-resolution.test.ts 的 C:/synth 固定路径改为当前平台的绝对 distDir，经 pathToFileURL 生成模块 URL，并完整断言同目录 index.js；不跳过 Linux、不改业务源码或依赖。本地定点及补正后准确 SHA 的 Node22/24 CI 结果附[候选 PR #26](https://github.com/ertutio/mail-agent-mcp/pull/26)，旧失败保留。生产代码仍为上述 0ba339e，其他有效证据复用。 |
 | 独立审计 | `PASS（读取覆盖）`：未参与实现的 DeepSeek 只读审计 review/read、仅 Read、空写入清单；21 个 PR 差异的 35 块均实际读取且无失败，审计 session `1824a5e0-4e3a-4bac-ae48-606576364c09`。报告不是产品测试，所提问题逐项核源码；rev2 capability 大小写疑虑被当前 imapflow/lib/tools.js 的特殊归一化规则推翻，未采纳。 |
 | 成本边界 | 外部审计耗时 144.125 秒；CLI 报告 USD 1.63894（costBasis=unknown，未核对实际账单），input 129076 / output 23320 / cache-read 821120 tokens。Codex 开发协作费用未知；产品运行时未新增模型请求。 |
 | 安全删除集成 | `PARTIAL`：T03/T04 能力门禁可独立审查；T01/T05 未完整通过，不能宣称 C0 联合安全删除验收关闭。 |

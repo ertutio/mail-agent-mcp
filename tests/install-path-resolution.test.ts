@@ -15,9 +15,10 @@ import { resolveBundledServerPath } from '../src/utils/install-paths.js';
 
 describe('T32: installation path resolution and stdio init (ENG-03)', () => {
   it('T32-MODULE-PATH: resolves index.js beside the given module URL', () => {
-    const setupUrl = pathToFileURL(path.join('C:', 'synth', 'mail-agent-mcp', 'dist', 'setup.js')).href;
+    const distDir = path.resolve(tmpdir(), 'synth', 'mail-agent-mcp', 'dist');
+    const setupUrl = pathToFileURL(path.join(distDir, 'setup.js')).href;
     expect(resolveBundledServerPath(setupUrl)).toBe(
-      path.join('C:', 'synth', 'mail-agent-mcp', 'dist', 'index.js')
+      path.join(distDir, 'index.js')
     );
   });
 
