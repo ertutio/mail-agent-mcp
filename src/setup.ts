@@ -2,10 +2,10 @@ import { WebUIServer } from './web/server.js';
 import chalk from 'chalk';
 import ora from 'ora';
 import { program } from 'commander';
-import { promises as fs } from 'fs';
 import path from 'path';
 import os from 'os';
 import { applyClaudeConfigUpdate } from './utils/claude-config.js';
+import { resolveBundledServerPath } from './utils/install-paths.js';
 
 program
   .name('mail-agent-setup')
@@ -38,8 +38,10 @@ async function setupClaudeIntegration(): Promise<void> {
   try {
     const configPath = await getClaudeConfigPath();
 
-    // Get current working directory (where the built files are)
-    const serverPath = path.join(process.cwd(), 'dist', 'index.js');
+    // T32 / ENG-03: locate the bundled server next to THIS module — never via
+    // process.cwd(), or an installer started from another directory registers
+    // a command pointing at the wrong installation.
+    const serverPath = resolveBundledServerPath(import.meta.url);
 
     // T31 / ENG-02: the update is validated and atomic, and it never replaces
     // a corrupt or unreadable config with an empty object — only a missing
@@ -82,7 +84,7 @@ async function setupClaudeIntegration(): Promise<void> {
     console.log(chalk.gray('    "mcpServers": {'));
     console.log(chalk.gray('      "imap": {'));
     console.log(chalk.gray('        "command": "node",'));
-    console.log(chalk.gray(`        "args": ["${path.join(process.cwd(), 'dist', 'index.js')}"]`));
+    console.log(chalk.gray(`        "args": ["${resolveBundledServerPath(import.meta.url)}"]`));
     console.log(chalk.gray('      }'));
     console.log(chalk.gray('    }'));
     console.log(chalk.gray('  }'));
