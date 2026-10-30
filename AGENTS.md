@@ -34,7 +34,7 @@ When implementing or resuming the remediation plan, read [the continuous roadmap
 
 ## Development roadmap
 
-For roadmap selection or audit remediation, start with [the current roadmap](docs/plans/development-roadmap.md), then use [the agent reading entry](docs/analysis/mail-mcp-20261017/START-HERE.md) to load only the selected task's context. Complete one maintainer-selected task and its acceptance checks per turn, report the result and suggested next task, then stop for the maintainer to choose. The earlier audit-remediation plan is historical.
+For roadmap selection or audit remediation, start with [the current roadmap](docs/plans/development-roadmap.md) and [progress and next_action](docs/plans/development-progress.md). For the 2026-10-30 night continuation, follow the ordered remaining-PR queue in the progress document. Use [the agent reading entry](docs/analysis/mail-mcp-20261017/START-HERE.md) only for the current task's historical context. Complete each behavior unit and its applicable acceptance checks, save the exact result and next_action within the authorized change-control scope, then continue the next ready unit. Stop according to the roadmap's completion and external-blocker criteria; a completed unit or pending PR review is a checkpoint. The earlier single-task stop rule is superseded by this continuous plan.
 
 ## Architecture
 

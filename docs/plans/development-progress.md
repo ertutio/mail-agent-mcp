@@ -6,17 +6,44 @@
 
 | 字段 | 当前记录 |
 | --- | --- |
-| 总任务状态 | `in_progress`：2026-10-30 集中验收 PR #3–25；确定缺口的 PR 暂缓，合格范围集中集成；下表本轮记录优先于历史 review_pending 回执 |
-| 代码基线 | 验收起点 `main@96f8864fa5fb88d0d28e921ced7b8e8ad644d7ca`；本轮候选 `codex/accepted-integration-20261030`，已验收依赖源码 `3ea1a9b466d5ce6bbcc996c5f855bb297288f34e`；最终文档 head 与 merge SHA 见 [PR #26](https://github.com/ertutio/mail-agent-mcp/pull/26) |
+| 总任务状态 | `in_progress`：PR #26 已合并；14 项待修，夜间续接入口见下文，历史 review_pending 回执保留为当时记录 |
+| 代码基线 | 已合并远端 `main@0560ade2202f6fb49f23ee20b149d4b16ef075a7`；[PR #26](https://github.com/ertutio/mail-agent-mcp/pull/26) MERGED，9 项通过范围已集成 |
 | 原计划来源 | [PR #3](https://github.com/ertutio/mail-agent-mcp/pull/3)，head `eee1daf88b52d4969f96c117dc93219b6dd5c7f3`，2026-10-17；计划未合并不等于其中修复已实现 |
-| 当前检查点 / 子项 | `T35 PASS（本轮选定候选）`：高危依赖修复、本地门禁及准确源码 SHA 的 Node22/24 CI 全部通过；最终文档 head 的 CI/合并状态见 PR #26。9 项候选通过；14 项暂缓，不代表完整 T01–T37 完成。 |
-| next_action | PR #26 合并后，从 main 开后续修复；优先修正 T07 候选契约并验证域伪装/返回一致性，解除 T08/T09 堆叠依赖；其余 14 个暂缓 PR 按下文逐项解除条件推进，不自动合入。下一轮开发依当次授权，不顺带部署或发布。 |
-| 本子项通过条件 | 本轮选定候选 build、coverage、lint、diff、secrets、生产/全量 high audit、pack 及准确 head 的 Node22/24 CI 全过；14 个暂缓 PR 不扩入。后续 T07 需验证写前校验、域名真实性与归一化持久结果，T08/T09 按其原解除条件。 |
+| 当前检查点 / 子项 | `T35 PASS（已合并选定范围）`：高危依赖、本地门禁及 Node22/24 CI 通过；14 项待修，不代表完整 T01–T37 完成。 |
+| next_action | 核实远端 main 和工作区后，从 T07（#12）实际修复候选 schema 与规范化持久化；按夜间续接表继续 T08→T09 和其他 ready 项，不因 PR 等待停止。 |
+| 本子项通过条件 | 本轮选定候选 build、coverage、lint、diff、secrets、生产/全量 high audit、pack 及准确 head 的 Node22/24 CI 全过；14 个暂缓 PR 不扩入。后续 T07 需验证写前校验与归一化持久结果，T08/T09 按其原解除条件。 |
 | 全局阻塞 | 本轮高危 audit 已解除，剩余 prod 5 / full 8 moderate；14 个功能 PR 暂缓及其重验条件保留。T33 本次所需范围外维护、T34/T36 门控保留；真实服务商、WinCred、部署和发布不由本轮代码验收替代。 |
+
+## 2026-10-30 夜间续接
+
+[PR #26](https://github.com/ertutio/mail-agent-mcp/pull/26) 已合并至远端 main `0560ade2202f6fb49f23ee20b149d4b16ef075a7`，9 项通过范围已交付；高危 audit 已清，仍有生产 5 / 全量 8 moderate。源码 CI [41012567518](https://github.com/ertutio/mail-agent-mcp/actions/runs/41012567518) 和最终 CI [41013455268](https://github.com/ertutio/mail-agent-mcp/actions/runs/41013455268) 的 Node22/24 全门禁均 PASS。以下分类是本次审查快照，不是后续修复已执行：8 FAIL、4 PARTIAL、2 BLOCKED。历史证据、失败修正计数与下方逐项证据继续保留。
+
+开始前核对远端 main 实际 SHA、工作区 dirty 状态、现有分支与代理/文件所有权。记录时本地 main/tracking 仍为 `96f8864fa5fb88d0d28e921ced7b8e8ad644d7ca`，Git 443 不可达；候选 `e14f8c0` 的 tree 与合并后 main 一致，但 commit 不等同。优先正常 fetch；不可达时用 GitHub API 严格核对 main commit、tree 与 parent，并确保工作基线真实对应远端；不可从旧 main 开工，也不可强制 reset 或覆盖他人改动。若无法建立可靠基线，保留现场并报告。
+
+| 顺序 / PR / T / 当前分类 | 通过条件（先以当前源码和历史记录定位入口及测试） |
+| --- | --- |
+| 第一批 #12 / T07 / FAIL | SMTP 缺字段/null/default 合同一致，验证后的规范化候选实际持久化且返回与磁盘一致；非法 add/update 零写。 |
+| 第一批 #13 / T08 / BLOCKED | 接通已修 T07，真实 manager + 临时配置的 HTTP POST/PUT 非法候选 400 且存储字节不变，合法路径与 SEC-01 会话门回归。 |
+| 第一批 #24 / T09 / BLOCKED | 接通已修父链；ENOENT 清空且不复活，损坏/拒读明确失败并保持原字节，恢复后可读。 |
+| 第二批 #5 / T01 / PARTIAL | 受控交错改变 UIDVALIDITY、计数和 flags，folder_status 返回同一稳定快照；read/flags/move/delete 锁及失败释放回归。 |
+| 第二批 #9 / T05 / FAIL | 非 Trash 单条 MOVE false/undefined 和分块部分 uidMap 不虚报完成；确认、未知、异常及进度计数对应实际副作用。 |
+| 第二批 #10 / T37 / FAIL | 显示名 `<decoy@example.test>` 与真实异域地址不可误选；结构化地址的精确域/相似域/子域反例，预览和冻结集合一致且确认不重搜。 |
+| 独立 #17 / T28 / FAIL | 空串作为已提供日期被三入口在网络前拒绝；合法日期、范围、limit 与搜索/删除回归。 |
+| 独立 #16 / T18 / FAIL | LIST 与 logout 双失败时真实 close 被调用、首错保留；stop 与其他拥有者清理回归。 |
+| 独立 #21 / T29 / FAIL | 一夹成功后连接/认证失败时保留已取得计数并标 unknown、complete:false；大邮箱与缺失 STATUS 回归。 |
+| 邮件 #22 / T22 / FAIL | 真实 Nodemailer streamTransport、无网络：返回 ID、冻结 raw 头与 Sent 副本一致，To/Cc/Bcc envelope 正确且 raw 无 Bcc；compose 失败零发送。 |
+| 邮件 #25 / T23 / FAIL | 真实 mailparser MIME 的结构化 Reply-To/To/Cc 展开；reply-all 不漏人、排自身、去重，线程头及回退保持。 |
+| 邮件 #23 / T24 / PARTIAL | 真实 HTML-only MIME 转发的 text/HTML 两视图均含原正文、附言和头；转义、中文及 CID 回归。 |
+| 补证 #14 / T16 / PARTIAL | 网易和 Gmail 新注册认证失败分别用合成数据验证 vault 回滚及账户零写；QQ 和成功路径回归。 |
+| 补证 #15 / T19 / PARTIAL | refresh headers 到达后成功/错误 body 的 AbortSignal 滴流受同一总 deadline 约束；字节预算、loopback 与 refresh 既有回归。 |
+
+第一批按 #12→#13→#24 的父链推进；可显式记录堆叠并继续开发，不因等待父 PR 合并停工，但未通过的祖先不得随子项进入 main。第二批按 T01→T05→T37 推进；独立 ready 项可并行或在依赖等待时推进，邮件与补证各按实际依赖和文件所有权安排。定位入口与既有测试先查下方历史条目、`docs/acceptance.md` 和当前源码；历史测试通过不代表以上新增断言已运行。
+
+执行每项：受控反例 FAIL → 最小修复 → 定点 PASS 与相邻回归 → 记录确切 SHA、用例、结果和未测项并保存/开 PR → 继续下一 ready 项。复用仍适用的成功证据，仅相关源码、依赖、配置、环境或输入变化时重跑受影响检查；稳定集成按验收约定执行。只用 mock、localhost、隔离临时配置和合成数据。14 项解除后继续原 T01–T37 队列中的 ready 工作；T33 扩展维护、T34 身份及 T36 部署保留原门控。提交/推送/开 PR 以用户给执行者的启动指令及已有授权为准；本文不新增合并、部署、npm 发布或真实邮箱授权。
 
 ## 2026-10-30 依赖修复与合并续接
 
-维护者本轮明确授权使用 Terra 修复上一轮依赖阻断并在验收通过后合并候选 PR #26；T33 开发依赖排除仅在本次高危修复所需范围解除。不扩大到暂缓的 14 个功能 PR，T34/T36 和真实邮箱、部署、发布边界保留。以下记录本轮实际验收证据；最终文档提交只补记录，合并须继续核对该 head 的 CI，结果统一链接 PR #26。
+维护者本轮明确授权使用 Terra 修复上一轮依赖阻断并在验收通过后合并候选 PR #26；T33 开发依赖排除仅在本次高危修复所需范围解除。不扩大到暂缓的 14 个功能 PR，T34/T36 和真实邮箱、部署、发布边界保留。以下记录本轮实际验收证据；最终 CI 与合并结果见上方夜间续接，历史记录保留。
 
 | 项目 | 当前结果 |
 | --- | --- |
@@ -25,7 +52,7 @@
 | 兼容性与复用 | 官方 npm 包元数据与锁文件：body-parser 要求 Node>=18，undici>=20.18.1，Vite/rolldown 要求 ^20.19.0 或 >=22.12.0；Zod 未声明 Node 引擎。所选版本声明兼容项目最低 Node22.12；主要包 MIT，开发间接 Lightning CSS MPL-2.0。升级沿用既有依赖和接口，未新增运行时模型请求。schema、web JSON、代理 OAuth fetch 与测试工具链由完整回归验证，声明兼容不代替最低版本实测。 |
 | 本地验证 | 从 lock 执行 npm ci 成功且安装前后 lock SHA256 相同；build、完整 coverage、lint、secrets（192 files）、pack dry-run 通过。693 passed / 1 skipped tests；Lines 82.24%、Branches 70.56%。普通沙箱因 node_modules mkdir、junction/symlink 的 EPERM 未完成检查，使用工作区 TEMP/TMP 及必要权限后完整通过；未跳过目标断言。两项 high audit 的同版本成功证据复用。 |
 | 格式检查 | 原索引的两个 package 文件均为全 CRLF，新行被普通 git diff --check 报 trailing whitespace；仅统一为 LF 保持 JSON 解析值不变，普通 git diff --check 已补查通过。该规范化会增加文本差异行数，依赖实际变化以上表为准。 |
-| 新 CI / 合并 | `PASS（源码门禁）`：[run 41012567518](https://github.com/ertutio/mail-agent-mcp/actions/runs/41012567518)，head `3ea1a9b466d5ce6bbcc996c5f855bb297288f34e`，Node22/24 的安装、测试、构建、产物、lint、diff、secrets、生产 audit、全量 audit、pack 全部 success，无所需步骤跳过。此后仅补本文与路线图；最终文档 head 的强制 CI 和 merge 结果见 [PR #26](https://github.com/ertutio/mail-agent-mcp/pull/26)。最低 Node22.12、WinCred 和真实服务商未在本轮验证，T36 保持独立。 |
+| 新 CI / 合并 | `PASS（源码门禁）`：[run 41012567518](https://github.com/ertutio/mail-agent-mcp/actions/runs/41012567518)，head `3ea1a9b466d5ce6bbcc996c5f855bb297288f34e`，Node22/24 的安装、测试、构建、产物、lint、diff、secrets、生产 audit、全量 audit、pack 全部 success，无所需步骤跳过。此后仅补本文与路线图；最终文档 head 的 Node22/24 全门禁 [run 41013455268](https://github.com/ertutio/mail-agent-mcp/actions/runs/41013455268) PASS，PR #26 已合并。最低 Node22.12、WinCred 和真实服务商未在本轮验证，T36 保持独立。 |
 
 ## 2026-10-30 集中验收
 
