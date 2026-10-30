@@ -171,6 +171,8 @@ export class ImapService {
   private reconnectAttempts: Map<string, number> = new Map();
   // T12: the account revision each live connection was built with.
   private connectionRevisions: Map<string, string> = new Map();
+  // T14: in-flight connect promises — concurrent callers share the same dial.
+  private connectPromises: Map<string, Promise<void>> = new Map();
   private maxReconnectAttempts = 3;
   private accountManager?: AccountManager;
 
@@ -199,6 +201,22 @@ export class ImapService {
       return;
     }
 
+    // T14 / SA-02: concurrent callers share the same in-flight dial instead
+    // of each creating a competing ImapFlow instance (which would fight over
+    // the pendingConnections slot and abort each other).
+    const inFlight = this.connectPromises.get(account.id);
+    if (inFlight) return inFlight;
+
+    const promise = this.connectInner(account);
+    this.connectPromises.set(account.id, promise);
+    try {
+      await promise;
+    } finally {
+      this.connectPromises.delete(account.id);
+    }
+  }
+
+  private async connectInner(account: ImapAccount): Promise<void> {
     // Fail with the missing variable name rather than dialing out with a blank
     // credential and getting back an indistinguishable "AUTHENTICATE failed".
     if (!account.auth) assertCredentialsResolved(account, 'imap');

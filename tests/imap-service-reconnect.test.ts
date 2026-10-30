@@ -144,3 +144,42 @@ describe('T12R: revision-based connection invalidation', () => {
     expect(instances).toHaveLength(2);
   });
 });
+
+// T14 / SA-02: concurrent connects for the same account share a single
+// dial (single-flight). Ten simultaneous first-access calls result in ONE
+// ImapFlow instance — not ten.
+describe('T14R: concurrent connect single-flight', () => {
+  let imapService: ImapService;
+  let account: ImapAccount;
+
+  beforeEach(() => {
+    instances.length = 0;
+    imapService = new ImapService();
+    account = {
+      id: 'acc',
+      name: 'Test',
+      host: 'imap.test.com',
+      port: 993,
+      user: 'user@test.com',
+      password: 'pw',
+      tls: true,
+    };
+    imapService.setAccountManager({
+      getAccount: (id: string) => (id === account.id ? { ...account } : undefined),
+    } as any);
+  });
+
+  it('T14R-CONCURRENT-CONNECT: ten simultaneous first-access calls dial once', async () => {
+    const results = await Promise.all(
+      Array.from({ length: 10 }, () => imapService.listFolders(account.id)),
+    );
+    for (const folders of results) expect(folders).toHaveLength(1);
+    expect(instances).toHaveLength(1);
+  });
+
+  it('T14R-SINGLE-ACCESS: a single access still connects normally', async () => {
+    const folders = await imapService.listFolders(account.id);
+    expect(folders).toHaveLength(1);
+    expect(instances).toHaveLength(1);
+  });
+});
