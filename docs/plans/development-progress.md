@@ -9,12 +9,27 @@
 | 总任务状态 | `in_progress`：2026-10-30 集中验收 PR #3–25；确定缺口的 PR 暂缓，合格范围集中集成；下表本轮记录优先于历史 review_pending 回执 |
 | 代码基线 | 验收起点 `main@96f8864fa5fb88d0d28e921ced7b8e8ad644d7ca`；本轮候选 `codex/accepted-integration-20261030`，最终身份和质量检查见本轮记录 |
 | 原计划来源 | [PR #3](https://github.com/ertutio/mail-agent-mcp/pull/3)，head `eee1daf88b52d4969f96c117dc93219b6dd5c7f3`，2026-10-17；计划未合并不等于其中修复已实现 |
-| 当前检查点 / 子项 | `T35 BLOCKED`：生产/全量依赖审计失败；现有 PR 已分类验收，未满足全部门禁，尚未合并 main。 |
-| next_action | 先由维护者决定依赖修复范围：生产高危必须处理，开发链 T33 仍需解除排除；不自动 audit fix、不降低阈值。获授权后最小修复并重验受影响范围及 Node22/24 CI，再合并候选。功能队列优先修正 T07：SMTP 缺 port/secure 必须拒绝或按明确契约归一化；updateAccount 持久化经过校验的候选。补真实 HTTP/账户写前零副作用断言，再重验 #12→#13→#24。并行就绪项按下方暂缓表领取，不能把本地候选集成视为全部完成。 |
+| 当前检查点 / 子项 | `T35 PARTIAL`：本轮高危依赖修复及本地门禁已通过，Node22/24 新 SHA CI 与合并待完成；9 项候选/14 项暂缓。 |
+| next_action | 2026-10-30 维护者已授权 Terra 最小修复生产及开发高危依赖，并解除本次所需 T33 排除；保持审计阈值，修复后重验受影响范围及 Node22/24 CI，再合并候选。功能队列优先修正 T07：SMTP 缺 port/secure 必须拒绝或按明确契约归一化；updateAccount 持久化经过校验的候选。补真实 HTTP/账户写前零副作用断言，再重验 #12→#13→#24。并行就绪项按下方暂缓表领取，不能把本地候选集成视为全部完成。 |
 | 本子项通过条件 | 缺失/空值/错误类型和未知字段在写前被拒；归一化结果实际持久；失败账户文件及 vault 不变；T09 ENOENT/坏JSON/拒读语义及相关回归通过。 |
-| 全局阻塞 | 当前 prod audit（3 high）/full audit（4 high）失败；原 T33/T34/T36 门控保留；真实服务商、WinCred、部署和发布不由本轮代码验收替代。 |
+| 全局阻塞 | 本轮高危 audit 已解除，剩余 prod 5 / full 8 moderate；14 个功能 PR 暂缓及其重验条件保留。T33 本次所需范围外维护、T34/T36 门控保留；真实服务商、WinCred、部署和发布不由本轮代码验收替代。 |
+
+## 2026-10-30 依赖修复与合并续接
+
+维护者本轮明确授权使用 Terra 修复上一轮依赖阻断并在验收通过后合并候选 PR #26；T33 开发依赖排除仅在本次高危修复所需范围解除。不扩大到暂缓的 14 个功能 PR，T34/T36 和真实邮箱、部署、发布边界保留。下列结果完成后更新，不以授权或安装成功代替 PASS。
+
+| 项目 | 当前结果 |
+| --- | --- |
+| 修复基线 | PR #26 / `a5653ca4b3e8623be4c03c4961e919a58eefb091`；上一轮 Node22/24 CI [41008759422](https://github.com/ertutio/mail-agent-mcp/actions/runs/41008759422) 测试、构建等通过，生产 audit 失败，全量 audit/pack 跳过。 |
+| 依赖修复 | `PASS（高危审计）`：Terra 更新 body-parser 2.3.0→2.4.0、undici 7.30.0→7.30.1、zod 4.4.3→4.6.7；间接 Vite 8.1.4→8.3.5，连同其 rolldown/lightningcss 开发链更新。生产与全量 audit 均 exit 0、0 high / 0 critical，分别保留 5 / 8 moderate；不降低 high 门禁，也不将中危记为已修。 |
+| 兼容性与复用 | 官方 npm 包元数据与锁文件：body-parser 要求 Node>=18，undici>=20.18.1，Vite/rolldown 要求 ^20.19.0 或 >=22.12.0；Zod 未声明 Node 引擎。所选版本声明兼容项目最低 Node22.12；主要包 MIT，开发间接 Lightning CSS MPL-2.0。升级沿用既有依赖和接口，未新增运行时模型请求。schema、web JSON、代理 OAuth fetch 与测试工具链由完整回归验证，声明兼容不代替最低版本实测。 |
+| 本地验证 | 从 lock 执行 npm ci 成功且安装前后 lock SHA256 相同；build、完整 coverage、lint、secrets（192 files）、pack dry-run 通过。693 passed / 1 skipped tests；Lines 82.24%、Branches 70.56%。普通沙箱因 node_modules mkdir、junction/symlink 的 EPERM 未完成检查，使用工作区 TEMP/TMP 及必要权限后完整通过；未跳过目标断言。两项 high audit 的同版本成功证据复用。 |
+| 格式检查 | 原索引的两个 package 文件均为全 CRLF，新行被普通 git diff --check 报 trailing whitespace；仅统一为 LF 保持 JSON 解析值不变，普通 git diff --check 已补查通过。该规范化会增加文本差异行数，依赖实际变化以上表为准。 |
+| 新 CI / 合并 | `NOT_RUN`：待提交后运行准确 SHA 的 Node22/24 CI，全部门禁通过后合并。最低 Node22.12、WinCred 和真实服务商未在本轮验证，T36 保持独立。 |
 
 ## 2026-10-30 集中验收
+
+以下保留上一轮依赖修复前的验收快照；当前依赖与合并状态以上方续接记录为准。
 
 本轮审查每个 PR 相对其真实 base 的差异。#3 的历史分析保留，#4 的持续计划为当前入口；#18/#19 的 setup 冲突同时保留安全原子更新和模块相对路径。合并范围与尚未通过的 T 编号分开记录，不因 PR 已提交而改写为完成。
 
