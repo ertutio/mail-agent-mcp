@@ -17,12 +17,19 @@ process.stdin.on('end', async () => {
     try { result = await parser.getText({ first: 20, pageJoiner: '' }); }
     finally { await parser.destroy(); }
     const maxChars = Number(process.argv[2]);
-    process.stdout.write(JSON.stringify({ text: result.text.slice(0, maxChars), truncated: result.text.length > maxChars || result.total > 20 }));
+    process.stdout.write(JSON.stringify({ text: result.text.slice(0, maxChars), truncated: result.text.length > maxChars || result.total > 20, pages: result.total }));
   } catch { process.exitCode = 1; }
 });
 `;
 
-export async function extractPdfPreview(bytes: Buffer, maxChars: number): Promise<{text:string;truncated:boolean}> {
+export interface PdfPreviewResult {
+  text: string;
+  truncated: boolean;
+  /** Total page count reported by the parser (worker caps extraction at 20). */
+  pages?: number;
+}
+
+export async function extractPdfPreview(bytes: Buffer, maxChars: number): Promise<PdfPreviewResult> {
   if (bytes.length > 256*1024 || active >= 2 || !Number.isInteger(maxChars) || maxChars < 1 || maxChars > 100000) {
     throw new Error('PDF preview resource limit');
   }
@@ -47,7 +54,8 @@ export async function extractPdfPreview(bytes: Buffer, maxChars: number): Promis
         try {
           const value = JSON.parse(Buffer.concat(output).toString('utf8'));
           if (typeof value.text !== 'string' || value.text.length > maxChars || typeof value.truncated !== 'boolean') throw new Error('invalid');
-          resolve(value);
+          const pages = Number.isInteger(value.pages) && value.pages >= 0 ? value.pages : undefined;
+          resolve({ text: value.text, truncated: value.truncated, ...(pages !== undefined ? { pages } : {}) });
         } catch { reject(new Error('PDF preview failed')); }
       });
       child.stdin.end(bytes);
