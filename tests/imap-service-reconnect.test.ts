@@ -82,3 +82,65 @@ describe('ImapService reconnect (ImapFlow instances are single-use)', () => {
     await expect(imapService.listFolders(account.id)).resolves.toBeDefined();
   });
 });
+
+// T12 / SA-01: a live connection built with one identity must be replaced
+// when the account's revision changes — connection config, send policy or
+// credential reference — and must NOT be replaced for display-name-only
+// changes (the revision contract excludes them).
+describe('T12R: revision-based connection invalidation', () => {
+  let imapService: ImapService;
+  let account: ImapAccount;
+  let servedAccount: ImapAccount;
+
+  beforeEach(() => {
+    instances.length = 0;
+    imapService = new ImapService();
+    account = {
+      id: 'acc',
+      name: 'Test',
+      host: 'imap.test.com',
+      port: 993,
+      user: 'user@test.com',
+      password: 'pw',
+      tls: true,
+    };
+    servedAccount = { ...account };
+    imapService.setAccountManager({
+      getAccount: (id: string) => (id === account.id ? servedAccount : undefined),
+    } as any);
+  });
+
+  it('T12R-HOST-CHANGE: a host change forces a fresh connection', async () => {
+    await imapService.connect(account);
+    expect(instances).toHaveLength(1);
+
+    // The manager now serves a changed identity (host moved).
+    servedAccount = { ...account, host: 'other.imap.test.com' };
+
+    await imapService.listFolders(account.id);
+    // The old connection was replaced with a brand-new client.
+    expect(instances).toHaveLength(2);
+    expect(instances[1]).not.toBe(instances[0]);
+  });
+
+  it('T12R-NAME-CHANGE-KEEPS: a display-name-only change keeps the live connection', async () => {
+    await imapService.connect(account);
+    expect(instances).toHaveLength(1);
+
+    // Display name is excluded from the revision contract.
+    servedAccount = { ...account, name: 'Renamed Account' };
+
+    await imapService.listFolders(account.id);
+    expect(instances).toHaveLength(1);
+  });
+
+  it('T12R-SAVE-TO-SENT-CHANGE: a send-policy change forces a fresh connection', async () => {
+    await imapService.connect(account);
+    expect(instances).toHaveLength(1);
+
+    servedAccount = { ...account, saveToSent: false };
+
+    await imapService.listFolders(account.id);
+    expect(instances).toHaveLength(2);
+  });
+});
