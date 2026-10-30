@@ -182,4 +182,43 @@ describe('T14R: concurrent connect single-flight', () => {
     expect(folders).toHaveLength(1);
     expect(instances).toHaveLength(1);
   });
+
+  // T15 / SA-03: abortConnection during an in-flight connect stops the
+  // attempt (no leaked client), and aborting one account does not interfere
+  // with another's connection.
+  describe('T15R: auth cancellation and shared non-interference', () => {
+    it('T15R-AUTH-CANCEL: abortConnection before connect causes it to abort', async () => {
+      // Abort first: the abortedConnects set is populated.
+      imapService.abortConnection(account.id);
+      // Debug: confirm the abort flag is set
+      expect((imapService as any).abortedConnects.has(account.id)).toBe(true);
+      // The connect checks the flag after the auth await and throws.
+      await expect(imapService.connect(account)).rejects.toThrow(/aborted/i);
+      // No ImapFlow was constructed.
+      expect(instances).toHaveLength(0);
+    });
+
+    it('T15R-SHARED-NON-INTERFERE: aborting account A does not abort account B', async () => {
+      const accountB = { ...account, id: 'acc-B', name: 'B' };
+      imapService.setAccountManager({
+        getAccount: (id: string) => {
+          if (id === account.id) return { ...account };
+          if (id === accountB.id) return { ...accountB };
+          return undefined;
+        },
+      } as any);
+      await Promise.all([
+        imapService.connect(account),
+        imapService.connect(accountB),
+      ]);
+      expect(instances).toHaveLength(2);
+
+      imapService.abortConnection(account.id);
+      expect(instances).toHaveLength(2);
+
+      // B is still usable.
+      const folders = await imapService.listFolders(accountB.id);
+      expect(folders).toHaveLength(1);
+    });
+  });
 });
