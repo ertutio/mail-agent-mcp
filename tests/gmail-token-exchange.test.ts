@@ -241,4 +241,32 @@ describe('createGmailAccessTokenExchange', () => {
     const exchange = createGmailAccessTokenExchange({ fetch: tokenFetch });
     await expect(exchange('refresh-token', gmailAccount())).rejects.toThrow(/status 400/);
   });
+
+  // T19 review: a drip-fed body on the REFRESH path must also hit the same
+  // total deadline — the token timer already spans the body read; this pins
+  // it against a signal-honoring drip (headers arrive, body never ends).
+  it('T19R-REFRESH-BODY-DEADLINE: a drip-fed refresh body hits the token deadline', async () => {
+    const encoder = new TextEncoder();
+    const tokenFetch = vi.fn<TokenFetch>(async (_input, init) => {
+      const signal = init.signal;
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(encoder.encode('{"access_tok'));
+          const interval = setInterval(() => {
+            try { controller.enqueue(encoder.encode('e')); } catch { /* closed */ }
+          }, 25);
+          signal?.addEventListener('abort', () => {
+            clearInterval(interval);
+            const abortError = new Error('This operation was aborted');
+            abortError.name = 'AbortError';
+            try { controller.error(abortError); } catch { /* already closed */ }
+          }, { once: true });
+        },
+      });
+      return new Response(stream, { status: 200, headers: { 'content-type': 'application/json' } }) as unknown as TokenResponse;
+    });
+
+    const exchange = createGmailAccessTokenExchange({ fetch: tokenFetch, timeoutMs: 300 });
+    await expect(exchange('refresh-token', gmailAccount())).rejects.toThrow(/timed out/i);
+  });
 });

@@ -161,6 +161,11 @@ export function createGmailAccessTokenExchange(
         payload = await readBoundedJson(response);
       } catch (error) {
         if (error instanceof OAuthBodyBudgetError) throw error;
+        // T19 review: a body read aborted by the token deadline is a timeout,
+        // not a parse failure — the deadline covers the whole body.
+        if (error instanceof Error && error.name === 'AbortError') {
+          throw new Error('Gmail token exchange timed out');
+        }
         throw new Error('Gmail token exchange returned invalid JSON');
       }
 
