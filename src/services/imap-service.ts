@@ -1797,8 +1797,10 @@ export class ImapService {
    * missing or failed answer is an explicit unknown instead of a silent zero.
    */
   async getFolderUnseenStatus(accountId: string, folderName: string): Promise<{ unseen?: number; unknownReason?: string }> {
-    const client = await this.ensureConnected(accountId);
     try {
+      // A connection/authentication failure is a per-folder unknown too —
+      // the unread overview must survive to report the folders it COULD read.
+      const client = await this.ensureConnected(accountId);
       const status = await client.status(folderName, { unseen: true });
       if (status?.unseen === undefined || status.unseen === null) {
         return { unknownReason: 'status_unseen_missing' };

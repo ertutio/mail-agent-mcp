@@ -188,4 +188,19 @@ describe('T29: imap_get_unread_count semantics', () => {
     expect(parsed.unknownFolders).toEqual(['Broken']);
     expect(parsed.complete).toBe(false);
   });
+  it('T29R-CONNECTION-FAIL-KEEPS-COUNTS: an auth failure after one folder keeps counts and marks the rest unknown', async () => {
+    mockImapService.listFolders.mockResolvedValue([{ name: 'INBOX' }, { name: 'Locked' }, { name: 'Locked2' }]);
+    mockImapService.getFolderUnseenStatus
+      .mockResolvedValueOnce({ unseen: 5 })
+      .mockRejectedValueOnce(new Error('AUTHENTICATION failed'))
+      .mockRejectedValueOnce(new Error('AUTHENTICATION failed'));
+
+    const parsed = await run({});
+
+    expect(parsed.byFolder).toEqual({ INBOX: 5 });
+    expect(parsed.totalUnread).toBe(5);
+    expect(parsed.unknownFolders).toEqual(['Locked', 'Locked2']);
+    expect(parsed.complete).toBe(false);
+  });
+
 });

@@ -147,13 +147,19 @@ export function folderTools(
     // no search cap). A folder that cannot be queried is reported as unknown
     // rather than silently counted as zero.
     for (const folderName of foldersToCheck) {
-      const outcome = await imapService.getFolderUnseenStatus(accountId, folderName);
-      if (outcome.unknownReason !== undefined || outcome.unseen === undefined) {
+      try {
+        const outcome = await imapService.getFolderUnseenStatus(accountId, folderName);
+        if (outcome.unknownReason !== undefined || outcome.unseen === undefined) {
+          unknownFolders.push(folderName);
+          continue;
+        }
+        byFolder[folderName] = outcome.unseen;
+        totalUnread += outcome.unseen;
+      } catch (err) {
+        // T29 review: a connection/auth failure mid-sweep must not lose the
+        // counts already acquired — the folder is unknown, the rest continue.
         unknownFolders.push(folderName);
-        continue;
       }
-      byFolder[folderName] = outcome.unseen;
-      totalUnread += outcome.unseen;
     }
 
     return {
