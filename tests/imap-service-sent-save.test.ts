@@ -15,7 +15,7 @@ describe('ImapService.appendToSentFolder', () => {
     vi.restoreAllMocks();
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     vi.spyOn(console, 'error').mockImplementation(() => {});
-    append = vi.fn().mockResolvedValue(undefined);
+    append = vi.fn().mockResolvedValue({ uid: 12, uidValidity: 1n });
     vi.spyOn(service as any, 'ensureConnected').mockResolvedValue({ append });
   });
 
@@ -92,3 +92,62 @@ describe('ImapService.appendToSentFolder', () => {
       vi.useRealTimers();
     }
   });});
+
+// T30 / N-03: imapflow resolves client.append with false (server NO) or
+// undefined (preconditions unmet) instead of throwing — neither may be
+// reported as a successful save, on the draft path or the Sent path.
+describe('T30: APPEND result contract', () => {
+  let service: ImapService;
+  let append: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    service = new ImapService();
+    append = vi.fn().mockResolvedValue({ uid: 12, uidValidity: 1n });
+    vi.spyOn(service as any, 'ensureConnected').mockResolvedValue({ append });
+  });
+
+  it('T30-SENT-FALSE: a false append result is not reported as saved', async () => {
+    vi.spyOn(service, 'findSpecialUseFolder').mockResolvedValue('Sent');
+    append.mockResolvedValueOnce(false);
+
+    const result = await service.appendToSentFolder('acc1', 'raw message');
+
+    expect(result.saved).toBe(false);
+    expect(result.folder).toBe('Sent');
+    expect(result.error).toMatch(/not confirmed/i);
+  });
+
+  it('T30-SENT-UNDEFINED: an undefined append result is not reported as saved', async () => {
+    vi.spyOn(service, 'findSpecialUseFolder').mockResolvedValue('Sent');
+    append.mockResolvedValueOnce(undefined);
+
+    const result = await service.appendToSentFolder('acc1', 'raw message');
+
+    expect(result.saved).toBe(false);
+    expect(result.error).toMatch(/not confirmed/i);
+  });
+
+  it('T30-SENT-CONFIRMED: a real append result still reports saved', async () => {
+    vi.spyOn(service, 'findSpecialUseFolder').mockResolvedValue('Sent');
+    append.mockResolvedValueOnce({ uid: 12, uidValidity: 1n });
+
+    const result = await service.appendToSentFolder('acc1', 'raw message');
+
+    expect(result.saved).toBe(true);
+  });
+
+  it('T30-DRAFT-FALSE: appendMessage returns false when the server says no', async () => {
+    append.mockResolvedValueOnce(false);
+    await expect(service.appendMessage('acc1', 'Drafts', 'raw', ['\Draft'])).resolves.toBe(false);
+  });
+
+  it('T30-DRAFT-UNDEFINED: appendMessage returns false when the outcome is unconfirmed', async () => {
+    append.mockResolvedValueOnce(undefined);
+    await expect(service.appendMessage('acc1', 'Drafts', 'raw', ['\Draft'])).resolves.toBe(false);
+  });
+
+  it('T30-DRAFT-CONFIRMED: a real append result still returns true', async () => {
+    append.mockResolvedValueOnce({ uid: 12, uidValidity: 1n });
+    await expect(service.appendMessage('acc1', 'Drafts', 'raw', ['\Draft'])).resolves.toBe(true);
+  });
+});

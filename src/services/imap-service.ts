@@ -1691,7 +1691,15 @@ export class ImapService {
 
     try {
       const client = await this.ensureConnected(accountId);
-      await client.append(folder, rawMessage, ['\\Seen']);
+      // T30 / N-03: imapflow resolves append with false (server NO) or
+      // undefined (preconditions unmet) instead of throwing — an unconfirmed
+      // result must never be reported as a saved copy.
+      const outcome = await client.append(folder, rawMessage, ['\\Seen']);
+      if (!outcome) {
+        const error = `Sent-folder APPEND to "${folder}" was not confirmed by the server (no result); treating the copy as not saved`;
+        console.error(`[IMAP] ${error}`);
+        return { saved: false, folder, errorCategory: 'append_failed', error };
+      }
       return { saved: true, folder };
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
@@ -1773,8 +1781,10 @@ export class ImapService {
   async appendMessage(accountId: string, folder: string, rawMessage: Buffer | string, flags?: string[]): Promise<boolean> {
     const client = await this.ensureConnected(accountId);
     try {
-      await client.append(folder, rawMessage, flags ?? []);
-      return true;
+      // T30 / N-03: false (server NO) or undefined (preconditions unconfirmed)
+      // resolves instead of throwing — only a confirmed append is success.
+      const outcome = await client.append(folder, rawMessage, flags ?? []);
+      return Boolean(outcome);
     } catch (err) {
       console.error(`[IMAP] Failed to append to ${folder}:`, err instanceof Error ? err.message : err);
       return false;
