@@ -1179,16 +1179,42 @@ export class ImapService {
    * Mirrors imapflow's own hasCapability(): MOVE is folded into the IMAP4rev2
    * base spec, so a rev2 session has MOVE without advertising it separately.
    */
-  private assertNativeMoveCapability(client: ImapFlow): void {
+  /**
+   * Mirrors imapflow's tools.hasCapability(): extensions RFC 9051 folds into
+   * the IMAP4rev2 base spec count as available on rev2 sessions even when the
+   * server does not advertise them separately.
+   */
+  private hasCapabilityCompat(client: ImapFlow, capability: string): boolean {
     const caps = client.capabilities;
-    // Mirrors imapflow tools.isRev2Active().
+    if (!caps) return false;
+    if (caps.has(capability)) return true;
     const rev2Active = client.enabled?.has('IMAP4REV2') === true ||
-      (!!caps && caps.has('IMAP4rev2') && !caps.has('IMAP4rev1'));
-    const hasNativeMove = !!caps && (caps.has('MOVE') || rev2Active);
-    if (!hasNativeMove) {
+      (caps.has('IMAP4rev2') && !caps.has('IMAP4rev1'));
+    return rev2Active;
+  }
+
+  private assertNativeMoveCapability(client: ImapFlow): void {
+    if (!this.hasCapabilityCompat(client, 'MOVE')) {
       throw new Error(
         'Server does not advertise the IMAP MOVE extension (RFC 6851); ' +
         'refusing to emulate a move with COPY+EXPUNGE. No messages were changed.'
+      );
+    }
+  }
+
+  /**
+   * Gate for every permanent-delete path (T04 / MAIL-09b). Without UIDPLUS
+   * imapflow's messageDelete falls back to a plain EXPUNGE, which clears
+   * EVERY \Deleted message in the mailbox — including UIDs deleted outside
+   * the current confirmation set. Verify the capability (or the IMAP4rev2
+   * fold) before any \Deleted flag is set.
+   */
+  private assertPermanentDeleteCapability(client: ImapFlow): void {
+    if (!this.hasCapabilityCompat(client, 'UIDPLUS')) {
+      throw new Error(
+        'Server does not advertise UIDPLUS (RFC 4315); refusing a permanent ' +
+        'delete whose plain EXPUNGE would also clear \\Deleted messages outside ' +
+        'this confirmation set. No messages were changed.'
       );
     }
   }
@@ -1205,6 +1231,7 @@ export class ImapService {
       lock = await client.getMailboxLock(folderName);
       if (folderName === trashFolder) {
         // Already in Trash, permanently delete
+        this.assertPermanentDeleteCapability(client);
         await client.messageDelete(uid, { uid: true });
       } else {
         // Move to Trash instead of permanent expunge
@@ -1241,8 +1268,10 @@ export class ImapService {
     const isAlreadyInTrash = folderName === trashFolder;
     if(expectedPermanent!==undefined&&isAlreadyInTrash!==expectedPermanent)throw new Error('Trash mapping changed during deletion; create a new preview');
     // Fail before the first chunk, then re-check after any mid-loop reconnect
-    // so a swapped-in client can never silently fall back to COPY+EXPUNGE.
-    if (!isAlreadyInTrash) {
+    // so a swapped-in client can never silently fall back.
+    if (isAlreadyInTrash) {
+      this.assertPermanentDeleteCapability(client);
+    } else {
       this.assertNativeMoveCapability(client);
     }
 
@@ -1268,6 +1297,7 @@ export class ImapService {
         // Use sequence set for bulk operations
         const uidSet = chunk.join(',');
         if (isAlreadyInTrash) {
+          this.assertPermanentDeleteCapability(client);
           await client.messageDelete(uidSet, { uid: true });
         } else {
           this.assertNativeMoveCapability(client);
