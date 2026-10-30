@@ -107,4 +107,15 @@ describe('T37: delete-by-domain freezes an exact-domain candidate set',()=>{
     expect(imap.bulkDelete).toHaveBeenCalledExactlyOnceWith('synthetic','INBOX',[1,4],50,undefined,123,false);
     expect(imap.searchEmails).toHaveBeenCalledOnce();
   });
+
+  it('T37R-DECOY-DISPLAY-NAME: a decoy inside the display name never wins', async () => {
+    imap.searchEmails.mockResolvedValue([
+      {uid:1,from:'"Bob <decoy@example.test>" <real@other.test>'},
+      {uid:2,from:'Plain <plain@sub.example.test>'},
+      {uid:3,from:'Exact <exact@example.test>'},
+    ]);
+    const r=parse(await handlers.get('imap_delete_by_domain')({accountId:'synthetic',folder:'INBOX',domain:'example.test',dryRun:false}));
+    expect(r.operations[0].uids).toEqual([3]);
+    expect(r.total).toBe(1);
+  });
 });

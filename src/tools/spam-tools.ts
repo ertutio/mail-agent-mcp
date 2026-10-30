@@ -10,8 +10,11 @@ import { z } from 'zod';
  */
 function addressDomain(from: string): string | null {
   if (!from) return null;
-  const angle = from.match(/<([^<>]*)>/);
-  const address = (angle ? angle[1] : from).trim();
+  // The address is the LAST angle-bracketed token: formatAddress appends
+  // " <addr>" after the display name, so a decoy inside the display name
+  // ('"Bob <decoy@x>" <real@y>') must never win (T37 review).
+  const matches = [...from.matchAll(/<([^<>]*)>/g)];
+  const address = (matches.length > 0 ? matches[matches.length - 1][1] : from).trim();
   const at = address.lastIndexOf('@');
   if (at === -1) return null;
   return address.slice(at + 1).toLowerCase();
