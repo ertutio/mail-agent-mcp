@@ -74,7 +74,14 @@ export class AccountManager {
     this.configPath = path.join(this.configDir, 'accounts.json');
     this.encryptionKey = this.getOrCreateEncryptionKey();
     this.captureEnvOverrides();
-    this.loadAccountsSync();
+    try {
+      this.loadAccountsSync();
+    } catch (error) {
+      // T09 / SA-07: startup stays usable — the browser setup is the recovery
+      // path — but every account read re-raises the failure until the store
+      // is fixed, and no stale accounts leak into memory.
+      console.error('Account store could not be loaded:', error instanceof Error ? error.message : error);
+    }
   }
 
   async addAccount(account: Omit<ImapAccount, 'id'>): Promise<ImapAccount> {
@@ -470,17 +477,29 @@ export class AccountManager {
     if(this.writeInProgress&&!strict) return;
     try {
       const data = readFileSync(this.configPath, 'utf-8');
-      const accounts = JSON.parse(data) as ImapAccount[];
-
-      this.accounts.clear();
-      for (const account of accounts) {
-        this.accounts.set(account.id, account);
+      const accounts = JSON.parse(data);
+      if (!Array.isArray(accounts)) {
+        throw new Error('Account store is not a JSON array');
       }
+      const loaded = new Map<string, ImapAccount>();
+      for (const account of accounts) {
+        if (typeof account !== 'object' || account === null || typeof (account as ImapAccount).id !== 'string') {
+          throw new Error('Account store contains a malformed entry');
+        }
+        loaded.set((account as ImapAccount).id, account as ImapAccount);
+      }
+      this.accounts = loaded;
     } catch (error) {
+      // T09 / SA-07: a failed load must not leave stale in-memory accounts.
+      // ENOENT means an empty store; anything else (corrupt JSON, non-array,
+      // malformed entries, refused reads) clears the visible accounts — and a
+      // strict load (taken before any write) still refuses to overwrite the
+      // broken file, so the original bytes survive until the user fixes them.
+      this.accounts = new Map();
       if(strict&&(error as NodeJS.ErrnoException).code!=='ENOENT') throw new Error('Account store is unreadable or invalid; refusing to overwrite it');
-      // File doesn't exist yet, that's okay
+      if (strict) return;
       if ((error as any).code !== 'ENOENT') {
-        console.error('Error loading accounts:', error);
+        throw new Error('Account store is unreadable or invalid; fix or remove it before using accounts', { cause: error });
       }
     }
   }
