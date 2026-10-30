@@ -60,8 +60,8 @@ export function unifiedSearchTools(server: McpServer, imap: ImapService, manager
     if (args.from) criteria.from = args.from;
     if (args.to) criteria.to = args.to;
     if (args.subject) criteria.subject = args.subject;
-    if (args.since) criteria.since = parseSearchDateBound(args.since);
-    if (args.before) criteria.before = parseSearchDateBound(args.before);
+    if (args.since !== undefined) criteria.since = parseSearchDateBound(args.since);
+    if (args.before !== undefined) criteria.before = parseSearchDateBound(args.before);
     if (criteria.since && criteria.before && criteria.since >= criteria.before) throw new Error('since must precede before');
     if (args.seen !== undefined) criteria.seen = args.seen;
     if (args.flagged !== undefined) criteria.flagged = args.flagged;

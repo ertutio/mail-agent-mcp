@@ -414,3 +414,17 @@ describe('T28: search input validation before the network', () => {
     expect(mockImapService.searchEmails).not.toHaveBeenCalled();
   });
 });
+  it('T28R-EMPTY-STRING-DATES: an empty string provided as a date is rejected', async () => {
+    await expect(toolHandlers.imap_search_emails({ accountId: 'acc1', folder: 'INBOX', since: '' }))
+      .rejects.toThrow(/YYYY-MM-DD/);
+    expect(mockImapService.searchEmails).not.toHaveBeenCalled();
+    await expect(toolHandlers.imap_search_emails({ accountId: 'acc1', folder: 'INBOX', before: '' }))
+      .rejects.toThrow(/YYYY-MM-DD/);
+    expect(mockImapService.searchEmails).not.toHaveBeenCalled();
+  });
+
+  it('T28R-DELETE-EMPTY-DATE: bulk delete by search rejects an empty provided date', async () => {
+    await expect(toolHandlers.imap_bulk_delete_by_search({ accountId: 'acc1', folder: 'INBOX', from: 'a@b.com', since: '' }))
+      .rejects.toThrow(/YYYY-MM-DD/);
+    expect(mockImapService.searchEmails).not.toHaveBeenCalled();
+  });

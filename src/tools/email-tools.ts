@@ -214,8 +214,10 @@ export function emailTools(
     if (searchCriteria.to) criteria.to = searchCriteria.to;
     if (searchCriteria.subject) criteria.subject = searchCriteria.subject;
     if (searchCriteria.body) criteria.body = searchCriteria.body;
-    if (searchCriteria.since) criteria.since = parseDateOnly(searchCriteria.since);
-    if (searchCriteria.before) criteria.before = parseDateOnly(searchCriteria.before);
+    // T28 review: an EMPTY string is a provided date too — reject it, don't
+    // silently treat it as absent.
+    if (searchCriteria.since !== undefined) criteria.since = parseDateOnly(searchCriteria.since);
+    if (searchCriteria.before !== undefined) criteria.before = parseDateOnly(searchCriteria.before);
     validateSearchRange(criteria.since, criteria.before);
     if (searchCriteria.seen !== undefined) criteria.seen = searchCriteria.seen;
     if (searchCriteria.flagged !== undefined) criteria.flagged = searchCriteria.flagged;
@@ -908,8 +910,8 @@ export function emailTools(
     if (from) criteria.from = from;
     if (to) criteria.to = to;
     if (subject) criteria.subject = subject;
-    if (before) criteria.before = parseDateOnly(before);
-    if (since) criteria.since = parseDateOnly(since);
+    if (before !== undefined) criteria.before = parseDateOnly(before);
+    if (since !== undefined) criteria.since = parseDateOnly(since);
     validateSearchRange(criteria.since, criteria.before);
 
     // Guard: never run with an empty criteria set. imapflow compiles an empty
