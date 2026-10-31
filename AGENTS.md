@@ -4,7 +4,7 @@ Repository instructions for human and AI contributors.
 
 ## Project
 
-Mail Agent MCP is a local-first TypeScript stdio MCP server for Gmail and QQ Mail. It provides IMAP search/read/organization, controlled attachments, and preview-confirmed SMTP sending. The independent project identity is SinoEdwards/mail-agent-mcp at version 0.1.1; npm and MCP Registry publication remain separately controlled.
+Mail Agent MCP is a local-first TypeScript stdio MCP server for Gmail and QQ Mail. It provides IMAP search/read/organization, controlled attachments, and preview-confirmed SMTP sending. Current package/server metadata declares SinoEdwards/mail-agent-mcp at version 0.1.1; the fork namespace and identity remain subject to the maintainer decision tracked as T34. npm and MCP Registry publication remain separately controlled.
 
 ## Continuous development entry
 
@@ -34,7 +34,7 @@ When implementing or resuming the remediation plan, read [the continuous roadmap
 
 ## Development roadmap
 
-For roadmap selection or audit remediation, start with [the current roadmap](docs/plans/development-roadmap.md) and [progress and next_action](docs/plans/development-progress.md). For the 2026-10-30 night continuation, follow the ordered remaining-PR queue in the progress document. Use [the agent reading entry](docs/analysis/mail-mcp-20261017/START-HERE.md) only for the current task's historical context. Complete each behavior unit and its applicable acceptance checks, save the exact result and next_action within the authorized change-control scope, then continue the next ready unit. Stop according to the roadmap's completion and external-blocker criteria; a completed unit or pending PR review is a checkpoint. The earlier single-task stop rule is superseded by this continuous plan.
+For roadmap selection or audit remediation, start with [the current roadmap](docs/plans/development-roadmap.md) and [progress and next_action](docs/plans/development-progress.md). Use the progress document’s current cursor and dated night queue; older PR queues and findings are historical references. Use [the agent reading entry](docs/analysis/mail-mcp-20261017/START-HERE.md) only for the current task's historical context. Complete each behavior unit and its applicable acceptance checks, save the exact result and next_action within the authorized change-control scope, then continue the next ready unit. Stop according to the roadmap's completion and external-blocker criteria; a completed unit or pending PR review is a checkpoint. The earlier single-task stop rule is superseded by this continuous plan.
 
 ## Architecture
 
