@@ -1516,6 +1516,7 @@ describe('ImapService', () => {
       expect(mockInstance.statusMock).not.toHaveBeenCalledWith('INBOX', { uidValidity: true });
     });
   });
+
   describe('T05R: move completion honesty', () => {
     it('T05R-MOVE-SINGLE-FALSE: a false single-uid move result is refused', async () => {
       await imapService.connect(mockAccount);

@@ -1134,7 +1134,8 @@ export class ImapService {
     folderName: string,
     uid: number,
     filename: string,
-    expectedUidValidity?: number
+    expectedUidValidity?: number,
+    partIndex?: number
   ): Promise<{ content: Buffer; contentType: string; filename: string; partIndex?: number; totalMatches?: number }> {
     const client = await this.ensureConnected(accountId);
 
@@ -1163,20 +1164,29 @@ export class ImapService {
       // T25 / MAIL-11: multiple attachments may share a filename. Collect all
       // matches and disambiguate by part index when provided; otherwise
       // report the ambiguity instead of silently returning the first.
+      // CID matching normalizes angle brackets (mailparser keeps <cid>).
+      const normalizeCid = (v: string) => v.replace(/^<|>$/g, '');
       const matches = (parsed.attachments ?? []).filter(
-        (att: any) => att.filename === filename || att.contentId === filename
+        (att: any) => att.filename === filename || normalizeCid(att.contentId ?? '') === normalizeCid(filename)
       );
 
       if (matches.length === 0) {
         throw new Error(`Attachment "${filename}" not found in email UID ${uid}`);
       }
 
-      const attachment = matches[0];
+      // T25 review: partIndex selects a specific same-name attachment.
+      // Without it, a single match is returned; multiple matches without a
+      // partIndex are an ambiguity (the caller must re-request with an index).
+      const selected = partIndex !== undefined ? matches[partIndex] : matches[0];
+      if (!selected) {
+        throw new Error(`Attachment part index ${partIndex} out of range (${matches.length} matches for "${filename}")`);
+      }
+
       return {
-        content: attachment.content,
-        contentType: attachment.contentType || 'application/octet-stream',
-        filename: attachment.filename || 'unknown',
-        ...(matches.length > 1 ? { partIndex: 0, totalMatches: matches.length } : {}),
+        content: selected.content,
+        contentType: selected.contentType || 'application/octet-stream',
+        filename: selected.filename || 'unknown',
+        ...(matches.length > 1 ? { partIndex: partIndex ?? 0, totalMatches: matches.length } : {}),
       };
     } finally {
       if (lock) {
