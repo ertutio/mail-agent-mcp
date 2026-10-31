@@ -6,6 +6,8 @@ export interface CredentialRotationOptions {
   expectedTarget: string;
   replacement: string;
   verify: () => Promise<void>;
+  /** T17: called between the write and the verify — the write boundary. */
+  reverify?: () => Promise<void>;
 }
 
 export class CredentialRollbackError extends Error {
@@ -32,6 +34,26 @@ export async function rotateCredential(options: CredentialRotationOptions): Prom
 
   const previous = snapshot(options.credentials, options.target);
   options.credentials.write(options.target, replacement);
+
+  // T17: re-verify at the write boundary — the account may have been
+  // removed or its identity changed between the outer recheck and the
+  // actual vault write. A failure here rolls back (nothing to preserve).
+  if (options.reverify) {
+    try {
+      await options.reverify();
+    } catch (cause) {
+      try {
+        if (previous.exists) {
+          options.credentials.write(options.target, previous.value!);
+        } else if (!options.credentials.delete(options.target)) {
+          throw new Error('Credential deletion failed');
+        }
+      } catch {
+        throw new CredentialRollbackError(cause);
+      }
+      throw cause;
+    }
+  }
 
   try {
     await options.verify();

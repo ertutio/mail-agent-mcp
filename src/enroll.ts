@@ -201,6 +201,18 @@ export async function runEnrollmentCli(
           expectedTarget: selectedTarget,
           replacement,
           verify,
+          // T17: re-verify at the write boundary — the account may have been
+          // removed or its target changed between the outer recheck and the
+          // actual vault write.
+          reverify: async () => {
+            const stillThere = (dependencies.getAccounts ? dependencies.getAccounts() : new AccountManager().getAllAccounts()).find(
+              (a: { id: string; auth?: { credentialTarget?: string } }) =>
+                a.id === account.id && a.auth?.credentialTarget === selectedTarget,
+            );
+            if (!stillThere) {
+              throw new Error('QQ account was removed during repair; rolling back');
+            }
+          },
         });
         writeOutput('QQ Mail credential repaired successfully.\n');
       } catch (error) {
@@ -296,6 +308,15 @@ export async function runEnrollmentCli(
           expectedTarget: selectedTarget,
           replacement: refreshToken,
           verify,
+          reverify: async () => {
+            const stillThere = (dependencies.getAccounts ? dependencies.getAccounts() : new AccountManager().getAllAccounts()).find(
+              (a: { id: string; auth?: { credentialTarget?: string } }) =>
+                a.id === account.id && a.auth?.credentialTarget === selectedTarget,
+            );
+            if (!stillThere) {
+              throw new Error('Gmail account was removed during repair; rolling back');
+            }
+          },
         });
         writeOutput('Gmail account reauthorized successfully.\n');
       } catch (error) {
