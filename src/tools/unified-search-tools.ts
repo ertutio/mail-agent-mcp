@@ -137,7 +137,10 @@ export function unifiedSearchTools(server: McpServer, imap: ImapService, manager
         })]);
         if (outcome.foldersPending.length) outcome.status='partial';
         if (outcome.foldersErrored.length) outcome.status = outcome.foldersSearched.length||outcome.matched ? 'partial' : 'failed';
-      } catch { outcome.status = cancelled ? 'timeout' : 'failed';if(cancelled)outcome.foldersPending.push(...(queue.length?queue.slice(Math.max(0,current)):[{accountName:account.name,accountId:account.id,accountRevision:accountRevision(account)}])); }
+      } catch { outcome.status = cancelled ? 'timeout' : 'failed';
+        // T27 / SA-04: a failed discovery (not just a timeout) must be resumable
+        // — emit a bare cursor so the next pass can retry the account.
+        outcome.foldersPending.push(...(queue.length?queue.slice(Math.max(0,current)):[{accountName:account.name,accountId:account.id,accountRevision:accountRevision(account)}])); }
       finally { if (timer) clearTimeout(timer); cancelled = true; }
       outcomes[index] = outcome;
       for (const message of local) messages.push(message);

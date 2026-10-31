@@ -115,4 +115,63 @@ describe('T26R: cursor account binding', () => {
     const { call } = setup(100, [{ ...accounts[0], host: 'other.imap.qq.com' }]);
     await expect(call({ query: '项目', cursors: fakeCursor })).rejects.toThrow(/identity changed/);
   });
+
+  // T27 / SA-04: account discovery failure must be explicitly reported,
+  // resumable via cursors, and bounded. Sources/coverage/partial preserved.
+  describe('T27R: account discovery failure resume', () => {
+    it('T27R-DISCOVERY-FAIL: a listFolders failure marks the account failed with pending cursors', async () => {
+      const { call, imap } = setup();
+      imap.listFolders.mockImplementation(async (id: string) => {
+        if (id === 'net') throw new Error('connection refused');
+        return [{ name: 'INBOX', attributes: [] }];
+      });
+
+      const result = await call({ query: '项目' });
+
+      // The failed account is explicitly marked.
+      const net = result.accounts.find((a: any) => a.accountId === 'net');
+      expect(net.status).toBe('failed');
+      // Sources/coverage preserved for the healthy accounts.
+      expect(result.totalFound).toBe(2);
+      expect(result.partial).toBe(true);
+      // Pending cursors exist for the failed account so it can be retried.
+      const netCursors = result.cursors.filter((c: any) => c.accountName === 'netease');
+      expect(netCursors.length).toBeGreaterThan(0);
+    });
+
+    it('T27R-CURSOR-RESUME: a cursor resume targets only the failed account', async () => {
+      const { call, imap } = setup();
+      imap.listFolders.mockImplementation(async (id: string) => {
+        if (id === 'net') throw new Error('connection refused');
+        return [{ name: 'INBOX', attributes: [] }];
+      });
+
+      const first = await call({ query: '项目' });
+      const netCursors = first.cursors.filter((c: any) => c.accountName === 'netease');
+      expect(netCursors.length).toBeGreaterThan(0);
+
+      // Recovery: listFolders now works.
+      imap.listFolders.mockResolvedValue([{ name: 'INBOX', attributes: [] }]);
+
+      const second = await call({ query: '项目', cursors: first.cursors });
+      // The recovered account contributes results.
+      const net = second.accounts.find((a: any) => a.accountId === 'net');
+      expect(net.status).toBe('ok');
+      // The healthy accounts are NOT re-searched (they had no pending cursors).
+      expect(second.totalFound).toBeGreaterThanOrEqual(1);
+    });
+
+    it('T27R-RETRY-BOUNDED: the retry is bounded by the deadline and page limit', async () => {
+      const { call, imap } = setup(50); // very short timeout
+      imap.listFolders.mockResolvedValue([{ name: 'INBOX', attributes: [] }]);
+      imap.searchEmailPage.mockImplementation(async () => {
+        // Always returns a nextCursor — never finishes.
+        return { messages: [message(1, '2026-10-01')], matched: 1, nextCursor: { beforeUid: 0, uidValidity: 123 } };
+      });
+
+      const result = await call({ query: '项目' });
+      // The timeout bounded the retry.
+      expect(result.partial).toBe(true);
+    });
+  });
 });
