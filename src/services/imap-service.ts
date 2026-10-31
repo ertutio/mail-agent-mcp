@@ -898,7 +898,8 @@ export class ImapService {
 
       // T25: capture the mailbox UIDVALIDITY under the same lock that read the
       // message so callers can bind later reads (forward attachments) to it.
-      const uidValidity = client.mailbox?.uidValidity !== undefined ? Number(client.mailbox.uidValidity) : undefined;
+      const mailbox = client.mailbox || undefined;
+      const uidValidity = mailbox?.uidValidity !== undefined ? Number(mailbox.uidValidity) : undefined;
       const source = await client.fetchOne(uid, { source: boundedSource, size: true, flags: true }, { uid: true });
 
       if (!source || !source.source) {
