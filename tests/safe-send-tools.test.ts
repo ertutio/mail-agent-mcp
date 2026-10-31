@@ -125,14 +125,14 @@ describe('safe-send MCP tools', () => {
   });
 
   it('previews a forward verbatim and freezes downloaded original attachments before confirmation', async () => {
-    const { handlers, smtpService, imapService, original, originalAttachmentBuffer, sentSnapshots } = harness();
+    const { handlers, account, smtpService, imapService, original, originalAttachmentBuffer, sentSnapshots } = harness();
     const preview = json(await handlers.get('imap_preview_forward_email')!({
       accountId: 'acct-1', folder: 'Archive', uid: 42, to: 'you@example.com',
       body: 'UNTRUSTED caller text; preserve verbatim', includeAttachments: true,
     }));
     expect(JSON.stringify(preview)).not.toContain('UNTRUSTED');
     expect(imapService.getEmailContent).toHaveBeenCalledWith('acct-1', 'Archive', 42, { bodyFormat: 'html' });
-    expect(imapService.getAttachmentContent).toHaveBeenCalledWith('acct-1', 'Archive', 42, 'original.txt', 111, 0);
+    expect(imapService.getAttachmentContent).toHaveBeenCalledWith('acct-1', 'Archive', 42, 'original.txt', 111, 0, accountRevision(account));
 
     originalAttachmentBuffer.fill(0);
     original.subject = 'mutated after preview';
@@ -151,7 +151,7 @@ describe('safe-send MCP tools', () => {
   });
 
   it('forwards same-name attachments by occurrence order instead of the first match twice', async () => {
-    const { handlers, imapService, sentSnapshots, original } = harness();
+    const { handlers, account, imapService, sentSnapshots, original } = harness();
     const versions = [Buffer.from('quarterly v1'), Buffer.from('quarterly v2')];
     original.attachments = [
       { filename: 'report.pdf', contentType: 'application/pdf', size: versions[0]!.length },
@@ -164,14 +164,14 @@ describe('safe-send MCP tools', () => {
     ) => ({ filename, contentType: 'application/pdf', content: versions[partIndex ?? 0]! }));
 
     await handlers.get('imap_preview_forward_email')!({ accountId: 'acct-1', folder: 'INBOX', uid: 42, to: ['you@example.com'], includeAttachments: true });
-    expect(imapService.getAttachmentContent).toHaveBeenNthCalledWith(1, 'acct-1', 'INBOX', 42, 'report.pdf', 111, 0);
-    expect(imapService.getAttachmentContent).toHaveBeenNthCalledWith(2, 'acct-1', 'INBOX', 42, 'report.pdf', 111, 1);
+    expect(imapService.getAttachmentContent).toHaveBeenNthCalledWith(1, 'acct-1', 'INBOX', 42, 'report.pdf', 111, 0, accountRevision(account));
+    expect(imapService.getAttachmentContent).toHaveBeenNthCalledWith(2, 'acct-1', 'INBOX', 42, 'report.pdf', 111, 1, accountRevision(account));
     await handlers.get('imap_confirm_send')!({ draftId: 'draft-1', confirmed: true });
     expect(sentSnapshots[0].composer.attachments.map((a: any) => a.content.toString())).toEqual(['quarterly v1', 'quarterly v2']);
   });
 
   it('keeps inline CID attachments inline and keys the lookup by the contentId', async () => {
-    const { handlers, imapService, sentSnapshots, original } = harness();
+    const { handlers, account, imapService, sentSnapshots, original } = harness();
     const logo = Buffer.from('logo bytes');
     original.attachments = [{ filename: 'logo.png', contentType: 'image/png', size: logo.length, contentId: '<img-1@example.com>' }];
     imapService.getAttachmentContent.mockImplementation(async (
@@ -180,7 +180,7 @@ describe('safe-send MCP tools', () => {
 
     await handlers.get('imap_preview_forward_email')!({ accountId: 'acct-1', folder: 'INBOX', uid: 42, to: ['you@example.com'], includeAttachments: true });
     // The contentId (kept verbatim, angle brackets included) keys the lookup.
-    expect(imapService.getAttachmentContent).toHaveBeenCalledWith('acct-1', 'INBOX', 42, '<img-1@example.com>', 111, 0);
+    expect(imapService.getAttachmentContent).toHaveBeenCalledWith('acct-1', 'INBOX', 42, '<img-1@example.com>', 111, 0, accountRevision(account));
     await handlers.get('imap_confirm_send')!({ draftId: 'draft-1', confirmed: true });
     expect(sentSnapshots[0].composer.attachments[0]).toMatchObject({ contentDisposition: 'inline', cid: '<img-1@example.com>' });
   });

@@ -1140,13 +1140,21 @@ export class ImapService {
     uid: number,
     filename: string,
     expectedUidValidity?: number,
-    partIndex?: number
+    partIndex?: number,
+    expectedAccountRevision?: string
   ): Promise<{ content: Buffer; contentType: string; filename: string; partIndex?: number; totalMatches?: number }> {
     const client = await this.ensureConnected(accountId);
 
     let lock;
     try {
       lock = await client.getMailboxLock(folderName);
+
+      // T25 audit H1: per-fetch identity check - the forward chain binds each
+      // read to the preview account revision, so an edit landing after the
+      // handler boundary check cannot redirect this fetch to a new identity.
+      if (expectedAccountRevision !== undefined && this.getAccountRevision(accountId) !== expectedAccountRevision) {
+        throw new Error('Account identity changed while reading the attachment; re-run the forward preview');
+      }
 
       // T25 / MAIL-11: verify UIDVALIDITY before fetching — a UIDVALIDITY
       // change means the UID may point to a different message entirely.

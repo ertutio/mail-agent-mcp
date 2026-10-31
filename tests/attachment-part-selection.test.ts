@@ -187,4 +187,31 @@ describe('T25R: forward chain identity binding (real ImapService, real MIME)', (
       .rejects.toThrow(/identity changed/);
     expect(smtpService.sendEmail).not.toHaveBeenCalled();
   });
+
+  it('T25R-FWD-PER-FETCH-IDENTITY: an edit landing after the boundary check is caught by the per-fetch check', async () => {
+    const { handlers, getAccount, account, smtpService } = setupForward();
+    // Calls 1-2 (handler capture, boundary check) see the original identity;
+    // the edit lands before the per-fetch checks run inside
+    // getAttachmentContent, so no fetch may happen under the new identity.
+    let calls = 0;
+    getAccount.mockImplementation((): any => {
+      calls += 1;
+      return calls <= 2 ? account : { ...account, host: 'other.imap.synth.test' };
+    });
+    await expect(handlers.get('imap_preview_forward_email')!({ accountId: 'acc1', folder: 'INBOX', uid: 7, to: ['you@synth.test'], includeAttachments: true }))
+      .rejects.toThrow(/identity changed/);
+    expect(smtpService.sendEmail).not.toHaveBeenCalled();
+    await expect(handlers.get('imap_confirm_send')!({ draftId: 'draft-1', confirmed: true })).rejects.toThrow(/Unknown|tampered/);
+  });
+
+  it('T25R-FWD-NO-VALIDITY-FAILS-CLOSED: a mailbox without UIDVALIDITY metadata rejects instead of skipping the check', async () => {
+    const { handlers, client, smtpService } = setupForward();
+    // Model a client that cannot report UIDVALIDITY: the forward must fail
+    // closed rather than silently skip the identity binding (audit H2).
+    delete (client.mailbox as any);
+    (client as any).mailbox = undefined;
+    await expect(handlers.get('imap_preview_forward_email')!({ accountId: 'acc1', folder: 'INBOX', uid: 7, to: ['you@synth.test'], includeAttachments: true }))
+      .rejects.toThrow(/UIDVALIDITY unavailable/);
+    expect(smtpService.sendEmail).not.toHaveBeenCalled();
+  });
 });

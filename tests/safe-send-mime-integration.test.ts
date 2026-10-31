@@ -24,7 +24,14 @@ const original = Buffer.from([
 
 async function harness() {
   const imap = new ImapService();
-  const client = { getMailboxLock: vi.fn(async () => ({ release: vi.fn() })), fetchOne: vi.fn(async () => ({ source: original, flags: new Set(), size: original.length })) };
+  const client = {
+    // T25: the forward chain binds reads to the mailbox UIDVALIDITY captured
+    // at the original read, so the fake client must expose it (fail-closed).
+    mailbox: { uidValidity: 4242n } as any,
+    status: vi.fn(async () => ({ uidValidity: 4242n })),
+    getMailboxLock: vi.fn(async () => ({ release: vi.fn() })),
+    fetchOne: vi.fn(async () => ({ source: original, flags: new Set(), size: original.length })),
+  };
   // Only protocol I/O is substituted: actual getEmailContent and mailparser are exercised.
   vi.spyOn(imap as any, 'ensureConnected').mockResolvedValue(client);
   const copies: Buffer[] = [];

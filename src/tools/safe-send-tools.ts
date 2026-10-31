@@ -58,6 +58,11 @@ async function materializeOriginalAttachments(
   if (imapService.getAccountRevision(accountId) !== binding.accountRevision) {
     throw new Error('Account identity changed while reading the original email; re-run the forward preview');
   }
+  // T25 audit H2: fail closed when the mailbox identity cannot be bound -
+  // silently skipping the UIDVALIDITY check would defeat the binding.
+  if (binding.uidValidity === undefined) {
+    throw new Error('Mailbox UIDVALIDITY unavailable; cannot bind the forward reads to the original email; re-run the forward preview');
+  }
   // Same-name attachments disambiguate by occurrence order — the k-th
   // entry keyed by contentId/filename must fetch the k-th match, not
   // silently the first (the forward used to attach one file twice).
@@ -73,6 +78,7 @@ async function materializeOriginalAttachments(
       key,
       binding.uidValidity,
       partIndex,
+      binding.accountRevision,
     );
     return {
       filename: downloaded.filename,
