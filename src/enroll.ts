@@ -173,6 +173,17 @@ export async function runEnrollmentCli(
       }
 
       activeQqRepairs.add(selectedTarget);
+      // T17: re-verify the account before entering the rotation transaction —
+      // outside the try: this error is not a rollback scenario (nothing was
+      // written yet).
+      const recheck = (dependencies.getAccounts ? dependencies.getAccounts() : new AccountManager().getAllAccounts()).find(
+        (a: { id: string; auth?: { credentialTarget?: string } }) =>
+          a.id === account.id && a.auth?.credentialTarget === selectedTarget,
+      );
+      if (!recheck) {
+        activeQqRepairs.delete(selectedTarget);
+        throw new Error('QQ account was removed or its credential target changed during repair');
+      }
       try {
         const replacement = await ask('QQ Mail authorization code', { secret: true });
         const credentials = dependencies.credentials ?? new WindowsCredentialBackend();
@@ -245,6 +256,15 @@ export async function runEnrollmentCli(
       }
 
       activeGmailRepairs.add(selectedTarget);
+      // T17: re-verify before the rotation transaction — outside the try.
+      const recheck = (dependencies.getAccounts ? dependencies.getAccounts() : new AccountManager().getAllAccounts()).find(
+        (a: { id: string; auth?: { credentialTarget?: string } }) =>
+          a.id === account.id && a.auth?.credentialTarget === selectedTarget,
+      );
+      if (!recheck) {
+        activeGmailRepairs.delete(selectedTarget);
+        throw new Error('Gmail account was removed or its credential target changed during repair');
+      }
       try {
         const credentials = dependencies.credentials ?? new WindowsCredentialBackend();
         const clientSecret = auth.clientSecretTarget
