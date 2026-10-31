@@ -9,6 +9,7 @@ import { accountForPersistence, assertCredentialTarget } from '../credentials/ac
 import type { CredentialBackend } from '../credentials/credential-backend.js';
 import {AsyncLocalStorage} from 'node:async_hooks';
 import {withAccountStoreLock} from '../utils/account-store-lock.js';
+import {validateAccountCandidate, type AccountCandidate} from '../utils/account-candidate.js';
 
 
 type ProviderAccountCandidate = Pick<ImapAccount, 'host' | 'smtp' | 'auth'>;
@@ -80,15 +81,20 @@ export class AccountManager {
     return this.withStoreTransaction(()=>this.addAccountUnlocked(account));
   }
   private async addAccountUnlocked(account: Omit<ImapAccount,'id'>):Promise<ImapAccount>{
-    assertProviderAccountAuth(account);
+    // Pure candidate validation (T07 / BUG-SEC-06): schema, types, credential
+    // placeholder rules and unknown-field rejection happen before any store
+    // access, so an invalid candidate can never reach accounts.json. The
+    // normalized candidate — never the raw input — is persisted.
+    const candidate = validateAccountCandidate(account);
+    assertProviderAccountAuth(candidate);
     for (const existing of this.accounts.values()) {
-      if (existing.name === account.name) throw new Error('Account name already exists; choose a unique name');
-      if (account.auth && existing.auth?.provider === account.auth.provider && existing.user === account.user) {
+      if (existing.name === candidate.name) throw new Error('Account name already exists; choose a unique name');
+      if (candidate.auth && existing.auth?.provider === candidate.auth.provider && existing.user === candidate.user) {
         throw new Error('Credential-backed account already exists; repair it instead of enrolling twice');
       }
     }
     const id = crypto.randomUUID();
-    const persistenceInput = accountForPersistence({ ...account, id });
+    const persistenceInput = accountForPersistence({ ...candidate, id });
     const newAccount: ImapAccount = {
       ...persistenceInput,
       id,
@@ -105,8 +111,15 @@ export class AccountManager {
 
     this.accounts.set(id, newAccount);
     await this.saveAccounts();
-    
-    return { ...newAccount, password: account.password, smtp: account.smtp };
+
+    // T07 review: the caller gets the persisted record with secrets decrypted
+    // back — the same normalized values that just hit the disk, never the raw
+    // un-normalized input.
+    const returned: ImapAccount = { ...newAccount, password: this.decrypt(newAccount.password) };
+    if (newAccount.smtp?.password !== undefined) {
+      returned.smtp = { ...newAccount.smtp, password: this.decrypt(newAccount.smtp.password) };
+    }
+    return returned;
   }
 
 
@@ -192,11 +205,25 @@ export class AccountManager {
       throw new Error(`Account with id ${id} not found`);
     }
 
-    const candidate = {
+    // The merged result is a candidate too: schema and unknown-field rules
+    // apply before anything is written (T07). Stored ciphertext is NOT
+    // re-validated as plaintext (a long stored password would exceed the
+    // plaintext budget in encrypted form) — it is restored after validation
+    // and flows through unchanged unless an update provides a new value.
+    const mergedInput: Record<string, unknown> = {
       ...existingAccount,
       ...updates,
       smtp: updates.smtp ?? existingAccount.smtp,
+      password: updates.password !== undefined ? updates.password : '',
     };
+    if (mergedInput.smtp !== undefined && updates.smtp?.password === undefined) {
+      mergedInput.smtp = { ...(mergedInput.smtp as Record<string, unknown>), password: '' };
+    }
+    const candidate = validateAccountCandidate(mergedInput);
+    if (updates.password === undefined) candidate.password = existingAccount.password;
+    if (candidate.smtp && updates.smtp?.password === undefined && existingAccount.smtp?.password !== undefined) {
+      candidate.smtp.password = existingAccount.smtp.password;
+    }
     for (const [otherId, other] of this.accounts) {
       if (otherId !== id && other.name === candidate.name) {
         throw new Error('Account name already exists; choose a unique name');
@@ -209,12 +236,14 @@ export class AccountManager {
 
     // Encrypt password if it's being updated. Use an explicit undefined check so
     // an empty placeholder ("" — used for env-managed credentials) is encrypted
-    // to a decryptable value rather than stored raw.
-    const processedUpdates = accountForPersistence({ ...existingAccount, ...updates, id });
+    // to a decryptable value rather than stored raw. Built from the VALIDATED
+    // candidate (T07 review) so normalization reaches the disk, not just the
+    // validation pass.
+    const processedUpdates = accountForPersistence({ ...candidate, id });
     if (existingAccount.auth || updates.password !== undefined) {
       processedUpdates.password = this.encrypt(processedUpdates.password);
     }
-    
+
     // Encrypt SMTP password if it's being updated
     if (updates.smtp?.password && processedUpdates.smtp?.password) {
       processedUpdates.smtp = {
