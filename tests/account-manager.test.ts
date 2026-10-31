@@ -35,6 +35,7 @@ vi.mock('fs', async () => {
 // Need to import after mocking
 import { AccountManager } from '../src/services/account-manager.js';
 import { credentialTarget, gmailClientSecretTarget, type CredentialBackend } from '../src/credentials/credential-backend.js';
+import { validateAccountCandidate } from '../src/utils/account-candidate.js';
 import { readFileSync, writeFileSync, mkdirSync } from 'fs';
 
 describe('AccountManager', () => {
@@ -851,6 +852,359 @@ describe('AccountManager', () => {
       });
 
       expect(updated.id).toBe(account.id);
+    });
+  });
+// T07 / BUG-SEC-06 (candidate contract): account candidates are validated as a
+// pure step before any store write. Only known fields pass; garbage types,
+// null credentials and unknown extras are rejected; the empty-string
+// placeholder rule (env-managed credentials) stays compatible.
+describe('T07: account candidate schema', () => {
+  const baseCandidate = {
+    name: 'T07 Candidate',
+    host: 'imap.synth.test',
+    port: 993,
+    user: 'user@synth.test',
+    password: ['t07-', 'synthetic', '-pw'].join(''),
+    tls: true,
+  };
+
+  describe('validateAccountCandidate (pure)', () => {
+    it('T07-SCHEMA-UNKNOWN-FIELD: rejects unknown extra fields by name', () => {
+      expect(() => validateAccountCandidate({ ...baseCandidate, evilExtra: 'x' }))
+        .toThrow(/evilExtra/);
+    });
+
+    it('T07-SCHEMA-TYPES: rejects wrong types and out-of-range ports', () => {
+      for (const broken of [
+        { ...baseCandidate, port: '993' },
+        { ...baseCandidate, port: 0 },
+        { ...baseCandidate, port: 70000 },
+        { ...baseCandidate, tls: 'yes' },
+        { ...baseCandidate, name: '   ' },
+        { ...baseCandidate, host: 993 },
+        { ...baseCandidate, user: 42 },
+      ]) {
+        expect(() => validateAccountCandidate(broken)).toThrow();
+      }
+      expect(() => validateAccountCandidate(null)).toThrow();
+      expect(() => validateAccountCandidate([baseCandidate])).toThrow();
+      expect(() => validateAccountCandidate('nope')).toThrow();
+    });
+
+    it('T07-SCHEMA-NULL-CREDENTIALS: null credentials rejected, empty-string placeholders accepted', () => {
+      expect(() => validateAccountCandidate({ ...baseCandidate, password: null })).toThrow();
+      const placeholder = validateAccountCandidate({ ...baseCandidate, user: '', password: '' });
+      expect(placeholder.user).toBe('');
+      expect(placeholder.password).toBe('');
+    });
+
+    it('T07-SCHEMA-NORMALIZES: applies defaults and drops nothing silently', () => {
+      const normalized = validateAccountCandidate({ ...baseCandidate, port: undefined, tls: undefined });
+      expect(normalized.port).toBe(993);
+      expect(normalized.tls).toBe(true);
+      const starttls = validateAccountCandidate({ ...baseCandidate, port: undefined, tls: false });
+      expect(starttls.port).toBe(143);
+      expect(Object.keys(normalized).sort()).toEqual(
+        ['host', 'name', 'password', 'port', 'tls', 'user']
+      );
+    });
+
+    it('T07-SCHEMA-WEB-SHAPE: accepts the exact shape the setup API builds', () => {
+      const shape = {
+        name: 'Web Shape',
+        host: 'imap.synth.test',
+        port: 993,
+        user: 'user@synth.test',
+        password: '',
+        tls: true,
+        email: 'user@synth.test',
+        smtp: { host: 'smtp.synth.test', port: 465, secure: true, user: 'user@synth.test', password: '' },
+        sentFolder: 'Gesendet',
+        defaultBcc: ['audit@synth.test'],
+      };
+      const normalized = validateAccountCandidate(shape);
+      expect(normalized.smtp?.host).toBe('smtp.synth.test');
+      expect(normalized.defaultBcc).toEqual(['audit@synth.test']);
+      expect(() => validateAccountCandidate({ ...shape, smtp: { ...shape.smtp, port: '465' } })).toThrow();
+      expect(() => validateAccountCandidate({ ...shape, smtp: { ...shape.smtp, authMethod: 'BOGUS' } })).toThrow();
+    });
+
+    it('T07-SCHEMA-AUTH: accepts known provider auth references, rejects unknown auth fields', () => {
+      const qq = validateAccountCandidate({
+        ...baseCandidate,
+        auth: { kind: 'credential', provider: 'qq', credentialTarget: 'MailAgentMCP:qq:synth' },
+      });
+      expect(qq.auth?.kind).toBe('credential');
+      expect(() => validateAccountCandidate({
+        ...baseCandidate,
+        auth: { kind: 'credential', provider: 'qq', credentialTarget: 'MailAgentMCP:qq:synth', evilAuthField: 1 },
+      })).toThrow(/evilAuthField/);
+      expect(() => validateAccountCandidate({
+        ...baseCandidate,
+        auth: { kind: 'oauth2', provider: 'gmail' },
+      })).toThrow(/credentialTarget/);
+    });
+  });
+
+  describe('addAccount / updateAccount wiring', () => {
+    it('T07-ADD-REJECTS-NO-WRITE: an invalid candidate is refused with zero store writes', async () => {
+      const manager = new AccountManager();
+      await expect(
+        manager.addAccount({ ...baseCandidate, evilExtra: 'x' } as any)
+      ).rejects.toThrow(/evilExtra/);
+      expect(vi.mocked(fs.writeFile)).not.toHaveBeenCalled();
+      expect(vi.mocked(writeFileSync)).not.toHaveBeenCalled();
+    });
+
+    it('T07-ADD-TYPE-REJECT: a string port never reaches the store', async () => {
+      const manager = new AccountManager();
+      await expect(
+        manager.addAccount({ ...baseCandidate, port: '993' } as any)
+      ).rejects.toThrow();
+      expect(vi.mocked(fs.writeFile)).not.toHaveBeenCalled();
+    });
+
+    it('T07-ADD-COMPAT: a valid web-shape candidate persists only known fields', async () => {
+      const manager = new AccountManager();
+      const account = await manager.addAccount({ ...baseCandidate });
+      const stored = JSON.parse(String(vi.mocked(fs.writeFile).mock.calls[0][1]));
+      expect(stored[0].name).toBe('T07 Candidate');
+      expect(Object.keys(stored[0]).sort()).toEqual(
+        ['host', 'id', 'name', 'password', 'port', 'tls', 'user']
+      );
+    });
+
+    it('T07-UPDATE-REJECTS-UNKNOWN-FIELD: unknown update fields never reach the store', async () => {
+      const manager = new AccountManager();
+      const account = await manager.addAccount({ ...baseCandidate });
+      vi.mocked(fs.writeFile).mockClear();
+      await expect(
+        manager.updateAccount(account.id, { evilExtra: 'x' } as any)
+      ).rejects.toThrow(/evilExtra/);
+      expect(vi.mocked(fs.writeFile)).not.toHaveBeenCalled();
+    });
+  });
+});
+  // T07 night-review remediation: the SMTP sub-candidate follows the same
+  // missing/null/default contract as the top level, the NORMALIZED candidate
+  // is what gets persisted AND returned (disk and return agree), and illegal
+  // add/update stays zero-write.
+  describe('T07R: review remediation', () => {
+    it('T07R-SMTP-DEFAULTS: missing smtp port/secure derive from secure', async () => {
+      const manager = new AccountManager();
+      const account = await manager.addAccount({
+        name: 'T07R A', host: 'imap.synth.test', port: 993,
+        user: 'a@synth.test', password: ['t07r-', 'pw'].join(''), tls: true,
+        smtp: { host: 'smtp.synth.test' },
+      } as any);
+      expect(account.smtp!.port).toBe(465);
+      expect(account.smtp!.secure).toBe(true);
+
+      const noTls = await manager.addAccount({
+        name: 'T07R B', host: 'imap.synth.test', port: 143, user: 'b@synth.test',
+        password: ['t07r-', 'pw2'].join(''), tls: false,
+        smtp: { host: 'smtp.synth.test', secure: false },
+      } as any);
+      expect(noTls.smtp!.port).toBe(587);
+    });
+
+    it('T07R-SMTP-NULL-CONSISTENT: null smtp and null smtp fields are rejected', () => {
+      expect(() => validateAccountCandidate({
+        name: 'T07R C', host: 'imap.synth.test', port: 993, user: 'c@synth.test',
+        password: ['t07r-', 'pw3'].join(''), tls: true, smtp: null,
+      })).toThrow(/smtp/);
+      expect(() => validateAccountCandidate({
+        name: 'T07R D', host: 'imap.synth.test', port: 993, user: 'd@synth.test',
+        password: ['t07r-', 'pw4'].join(''), tls: true,
+        smtp: { host: 'smtp.synth.test', port: 465, secure: true, user: null },
+      })).toThrow(/smtp.user/);
+    });
+
+    it('T07R-TRIM-NORMALIZATION: name/host/user are trimmed before persistence', () => {
+      const normalized = validateAccountCandidate({
+        name: '  T07R E  ', host: '  imap.synth.test  ', port: 993,
+        user: '  e@synth.test  ', password: ['t07r-', 'pw5'].join(''), tls: true,
+      });
+      expect(normalized.name).toBe('T07R E');
+      expect(normalized.host).toBe('imap.synth.test');
+      expect(normalized.user).toBe('e@synth.test');
+    });
+
+    it('T07R-RETURN-MATCHES-DISK: the returned account equals the persisted one', async () => {
+      const manager = new AccountManager();
+      const inputPassword = ['t07r-', 'disk'].join('');
+      const account = await manager.addAccount({
+        name: '  T07R F  ', host: '  imap.synth.test  ', port: 993,
+        user: '  f@synth.test  ', password: inputPassword, tls: true,
+        smtp: { host: 'smtp.synth.test' },
+      } as any);
+
+      // The stored record (what saveAccounts wrote) must match the return.
+      const stored = JSON.parse(String(vi.mocked(fs.writeFile).mock.calls.at(-1)![1]));
+      expect(stored).toHaveLength(1);
+      expect(stored[0].name).toBe(account.name);
+      expect(stored[0].host).toBe(account.host);
+      expect(stored[0].user).toBe(account.user);
+      expect(stored[0].smtp.port).toBe(account.smtp!.port);
+      expect(stored[0].password).not.toBe(inputPassword); // encrypted at rest
+      // The manager decrypts back to the same plaintext it validated.
+      const reread = manager.getAccount(account.id)!;
+      expect(reread.name).toBe(account.name);
+      expect(reread.password).toBe(account.password);
+      expect(account.password).toBe(inputPassword);
+    });
+
+
+    it('T07R-MERGE-CIPHERTEXT: stored ciphertext is not re-validated as plaintext', async () => {
+      const manager = new AccountManager();
+      const longPassword = ['long-', 'password'].join('').repeat(250); // 3000 chars
+      const account = await manager.addAccount({
+        name: 'T07R I', host: 'imap.synth.test', port: 993,
+        user: 'i@synth.test', password: longPassword, tls: true,
+      });
+      const updated = await manager.updateAccount(account.id, { name: 'T07R I renamed' });
+      expect(updated.name).toBe('T07R I renamed');
+      const reread = manager.getAccount(account.id)!;
+      expect(reread.password).toBe(longPassword);
+    });
+
+    it('T07R-UPDATE-NORMALIZED: updateAccount persists and returns trimmed values', async () => {
+      const manager = new AccountManager();
+      const account = await manager.addAccount({
+        name: 'T07R G', host: 'imap.synth.test', port: 993,
+        user: 'g@synth.test', password: ['t07r-', 'pw6'].join(''), tls: true,
+      });
+      const updated = await manager.updateAccount(account.id, { name: '  T07R H  ' });
+      expect(updated.name).toBe('T07R H');
+      const stored = JSON.parse(String(vi.mocked(fs.writeFile).mock.calls.at(-1)![1]));
+      expect(stored[0].name).toBe('T07R H');
+    });
+
+  });
+  // T09 / SA-07: a failed store load must never leave stale in-memory
+  // accounts behind. ENOENT means an empty store; a corrupt or unreadable
+  // store is explicitly refused (reads fail loud, writes refuse to overwrite
+  // the broken file), and a deleted store never revives old records.
+  describe('T09: store load failure semantics', () => {
+    const storedJson = (value: unknown) => JSON.stringify(value);
+
+    it('T09-ENOENT-CLEARS: deleting the store empties the visible accounts', async () => {
+      const manager = new AccountManager();
+      await manager.addAccount({
+        name: 'T09 A', host: 'imap.synth.test', port: 993,
+        user: 'a@synth.test', password: ['t09-', 'pw'].join(''), tls: true,
+      });
+      // Simulate the file disappearing (mocked fs: next read misses).
+      vi.mocked(readFileSync).mockImplementation((file: any) => {
+        if (String(file).endsWith('.key')) return mockEncryptionKey;
+        throw Object.assign(new Error('missing'), { code: 'ENOENT' });
+      });
+      expect(manager.getAccount('anything')).toBeUndefined();
+      expect(() => manager.resolveAccountId()).toThrow(/No accounts configured/);
+    });
+
+    it('T09-CORRUPT-READS-REJECT: a corrupt store fails reads loudly', async () => {
+      vi.mocked(readFileSync).mockImplementation((file: any) => {
+        if (String(file).endsWith('.key')) return mockEncryptionKey;
+        if (String(file).endsWith('accounts.json')) return '{ not json';
+        throw Object.assign(new Error('missing'), { code: 'ENOENT' });
+      });
+      const m = new AccountManager();
+      expect(() => m.getAllAccounts()).toThrow(/unreadable or invalid/);
+      expect(() => m.getAccount('x')).toThrow(/unreadable or invalid/);
+    });
+
+    it('T09-WRITE-REFUSES: addAccount on a corrupt store keeps the bytes', async () => {
+      vi.mocked(readFileSync).mockImplementation((file: any) => {
+        if (String(file).endsWith('.key')) return mockEncryptionKey;
+        if (String(file).endsWith('accounts.json')) return '{ not json';
+        throw Object.assign(new Error('missing'), { code: 'ENOENT' });
+      });
+      vi.mocked(writeFileSync).mockClear();
+      vi.mocked(fs.writeFile).mockClear();
+      const m = new AccountManager();
+      await expect(m.addAccount({
+        name: 'T09 B', host: 'imap.synth.test', port: 993,
+        user: 'b@synth.test', password: ['t09-', 'pw2'].join(''), tls: true,
+      })).rejects.toThrow(/unreadable or invalid/);
+      expect(vi.mocked(fs.writeFile)).not.toHaveBeenCalled();
+    });
+
+    it('T09-DELETE-NO-REVIVE: adding after deletion starts a fresh store', async () => {
+      const manager = new AccountManager();
+      await manager.addAccount({
+        name: 'T09 Old', host: 'imap.synth.test', port: 993,
+        user: 'old@synth.test', password: ['t09-', 'old'].join(''), tls: true,
+      });
+      vi.mocked(readFileSync).mockImplementation((file: any) => {
+        if (String(file).endsWith('.key')) return mockEncryptionKey;
+        throw Object.assign(new Error('missing'), { code: 'ENOENT' });
+      });
+      await manager.addAccount({
+        name: 'T09 New', host: 'imap.synth.test', port: 993,
+        user: 'new@synth.test', password: ['t09-', 'new'].join(''), tls: true,
+      });
+      const lastWrite = String(vi.mocked(fs.writeFile).mock.calls.at(-1)![1]);
+      expect(lastWrite).not.toContain('T09 Old');
+      expect(lastWrite).toContain('T09 New');
+    });
+
+
+  // T10 / SA-06: update commit and return are atomic — the response is
+  // constructed BEFORE the commit, so a construction failure leaves memory,
+  // disk and response untouched; and the empty placeholder ("") round-trips
+  // as an empty string, not a decrypt failure.
+  describe('T10R: update commit/return atomicity', () => {
+    it('T10R-EMPTY-PLACEHOLDER: an empty password placeholder round-trips', async () => {
+      const manager = new AccountManager();
+      const account = await manager.addAccount({
+        name: 'T10 A', host: 'imap.synth.test', port: 993,
+        user: 'a@synth.test', password: ['t10-', 'pw'].join(''), tls: true,
+      });
+      const updated = await manager.updateAccount(account.id, { password: '' });
+      expect(updated.password).toBe('');
+      const reread = manager.getAccount(account.id)!;
+      expect(reread.password).toBe('');
+    });
+
+    it('T10R-RETURN-BEFORE-COMMIT: a decrypt failure during return construction leaves disk and memory unchanged', async () => {
+      const manager = new AccountManager();
+      const account = await manager.addAccount({
+        name: 'T10 B', host: 'imap.synth.test', port: 993,
+        user: 'b@synth.test', password: ['t10-', 'pw2'].join(''), tls: true,
+      });
+      vi.mocked(fs.writeFile).mockClear();
+
+      // Sabotage decryption of the newly-encrypted password so the return
+      // object construction fails AFTER the account map was set but the
+      // atomic commit (saveAccounts) must not have happened... actually the
+      // construction happens before saveAccounts in the fixed flow; assert
+      // the old ordering is gone by verifying the error and that NO store
+      // write carried the update.
+      const decryptSpy = vi.spyOn(manager as any, 'decrypt').mockImplementation(() => {
+        throw new Error('decrypt failed');
+      });
+
+      await expect(manager.updateAccount(account.id, { name: 'T10 B2' }))
+        .rejects.toThrow(/decrypt failed/);
+      decryptSpy.mockRestore();
+
+      // No store write carried the update: response, memory and disk stay
+      // at the pre-update state.
+      for (const call of vi.mocked(fs.writeFile).mock.calls) {
+        expect(String(call[1])).not.toContain('T10 B2');
+      }
+      expect(manager.getAccount(account.id)!.name).toBe('T10 B');
+    });
+  });
+    it('T09-NON-ARRAY-REJECT: a non-array store is refused like corrupt data', async () => {
+      vi.mocked(readFileSync).mockImplementation((file: any) => {
+        if (String(file).endsWith('.key')) return mockEncryptionKey;
+        if (String(file).endsWith('accounts.json')) return storedJson({ not: 'an array' });
+        throw Object.assign(new Error('missing'), { code: 'ENOENT' });
+      });
+      const m = new AccountManager();
+      expect(() => m.getAllAccounts()).toThrow(/unreadable or invalid/);
     });
   });
 });

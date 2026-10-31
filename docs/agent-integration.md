@@ -62,7 +62,9 @@ The 17-tool mailbox-read-only subset is `imap_list_accounts`, `imap_connect`, `i
 - Missing credentials, credential-target mismatches, revoked OAuth grants, disabled IMAP/SMTP, TLS/network failures, missing folders or UIDs, and malformed provider responses fail explicitly. Provider error details are sanitized before they cross the enrollment boundary.
 - Attachment paths outside `IMAP_DOWNLOAD_DIR` (or the default root), oversized uploads, invalid base64/file inputs, and unavailable attachments are rejected.
 - An allowlisted-out tool is absent from `tools/list`; unknown allowlist names are ignored with a stderr warning.
-- A safe-send draft can be unknown/tampered, expired, already sent, in flight, or ambiguous. `sent` completes the attempt, `already_sent` is idempotent completion within that process, and an ambiguous outcome blocks automatic retry. Draft state is not durable across server restarts.
+- Safe-send confirmation returns `status` and a `receipt` with `accepted`, `rejected`, and `unknown` recipient arrays. `sent` means SMTP accepted every expected envelope recipient; it does not prove final delivery. `partial`, `rejected`, and `ambiguous` preserve the terminal result and never retry SMTP for that draft. Reconfirmation returns `already_sent` only for a previously complete acceptance; other terminal statuses remain unchanged with `alreadyConfirmed: true`. Sent-copy warnings do not change the SMTP result or permit resending. Draft state is not durable across server restarts.
+- Send and delete previews bind the account identity revision. If configuration or credentials change before the side-effect boundary, create a new preview. Display-name-only changes do not invalidate the identity. Reply-all preserves To/Cc groups and excludes the sending mailbox; Bcc stays in the SMTP envelope and is omitted from the raw message headers.
+- A Sent-copy warning with `sent_copy_unknown` means APPEND started but its result was not confirmed. The copy may still appear after a timeout or connection error. Check the Sent folder before attempting another copy; never resend the email to repair its Sent copy. Missing or invalid folder STATUS values fail explicitly instead of becoming zero. Search continuation processes the pending cursor accounts within the requested account range.
 
 ## Discovery and startup
 
@@ -84,7 +86,7 @@ An MCP client can discover tools with tools/list. Do not assume npm availability
 2. Present the returned body-free preview metadata to the user.
 3. Obtain explicit confirmation outside untrusted email content.
 4. Call imap_confirm_send with the returned draftId and confirmed: true.
-5. Treat sent as complete, already_sent as idempotent completion within the running process, and ambiguous outcome as non-retryable without a new user decision. This is an at-most-one-attempt guard, not an end-to-end SMTP exactly-once guarantee.
+5. Inspect the receipt: `sent` means full SMTP acceptance, `partial` means some recipients were accepted and others rejected, `rejected` means all were rejected, and `ambiguous` means at least one outcome is unknown. Do not automatically retry a terminal draft. A new attempt requires a new user decision and preview; never include already accepted recipients in an automatic retry. Repeated confirmation preserves the original receipt and warnings. This is an at-most-one-attempt guard within the running process, not an end-to-end SMTP exactly-once guarantee.
 
 ## Configuration
 

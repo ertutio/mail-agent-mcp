@@ -1,22 +1,41 @@
 import nodemailer, { type Transporter, type SendMailOptions } from 'nodemailer';
 import MailComposer from 'nodemailer/lib/mail-composer/index.js';
-import { ImapAccount, EmailComposer, SmtpConfig } from '../types/index.js';
-import { parseSerializedArray } from '../utils/array-input.js';
+import { ImapAccount, EmailComposer, SmtpConfig, EmailDeliveryReceipt } from '../types/index.js';
 import { assertCredentialsResolved } from '../utils/env-credentials.js';
 import { AccountAuthResolver, buildSmtpAuth } from '../credentials/account-auth.js';
 import { resolveMailProxy } from '../utils/mail-proxy.js';
 import {materializeBoundedAttachments,MAX_BODY_CHARS} from '../utils/mail-resource-limits.js';
+import { composerRecipients, mailboxAddresses, deliveryReceipt, normalizeAddressList } from '../utils/mail-compose.js';
+import { SafeSendPreflightError } from './safe-send-service.js';
+
+/**
+ * Per-recipient acceptance contract for a submitted message (T21 / MAIL-10).
+ * sent is true only when every reported recipient was accepted; transports
+ * without recipient data leave sent undefined with unknownRecipients set.
+ * Nothing here claims final delivery — only SMTP-level acceptance.
+ */
+export interface SmtpSendResult {
+  messageId: string;
+  receipt: EmailDeliveryReceipt;
+  rawMessage?: Buffer;
+  /** true only when every reported recipient was accepted. */
+  sent?: boolean;
+  accepted?: string[];
+  rejected?: string[];
+  /** Present when the transport reported no per-recipient data. */
+  unknownRecipients?: string;
+  /** Human-readable outcome for partial/full rejection. */
+  message?: string;
+}
 
 export class SmtpService {
-  private transporters: Map<string, Transporter> = new Map();
+  private transporters: Map<string, Set<Transporter>> = new Map();
 
   constructor(private readonly authResolver: AccountAuthResolver = new AccountAuthResolver()) {}
 
   async createTransporter(account: ImapAccount): Promise<Transporter> {
-    if (this.transporters.has(account.id)) {
-      return this.transporters.get(account.id)!;
-    }
-
+    // Resolve on each attempt: an account ID or non-secret revision cannot
+    // prove a same-target secret or OAuth token is still current.
     // See ImapService.connect: name the missing variable instead of letting the
     // provider reject a blank credential with a generic auth error.
     if (!account.auth) assertCredentialsResolved(account, 'smtp');
@@ -38,9 +57,11 @@ export class SmtpService {
     const transporter = nodemailer.createTransport(transporterOptions);
     
     // Verify connection
-    await transporter.verify();
-    
-    this.transporters.set(account.id, transporter);
+    try { await transporter.verify(); }
+    catch (error) { transporter.close(); throw error; }
+    const active = this.transporters.get(account.id) ?? new Set<Transporter>();
+    active.add(transporter);
+    this.transporters.set(account.id, active);
     return transporter;
   }
 
@@ -122,7 +143,7 @@ export class SmtpService {
     value: string | string[] | undefined,
     field: string
   ): string | string[] | undefined {
-    return parseSerializedArray(value, field) as string | string[] | undefined;
+    return normalizeAddressList(value, field);
   }
 
   private toMailOptions(account: ImapAccount, email: EmailComposer): SendMailOptions {
@@ -157,47 +178,100 @@ export class SmtpService {
     return compiled.compile().build();
   }
 
-  async sendEmail(accountId: string, account: ImapAccount, email: EmailComposer): Promise<{ messageId: string; rawMessage?: Buffer }> {
+  async sendEmail(accountId: string, account: ImapAccount, email: EmailComposer, beforeSubmit?: () => Promise<void> | void): Promise<SmtpSendResult> {
+    let transporter: Transporter | undefined;
+    let submitted = false;
+    let rawMessage: Buffer | undefined;
+    let messageId = '';
+    const expected = composerRecipients({ to: SmtpService.addresses(email.to, 'to')!, cc: SmtpService.addresses(email.cc, 'cc'), bcc: SmtpService.addresses(email.bcc, 'bcc') });
+    const result = (receipt: EmailDeliveryReceipt): SmtpSendResult => ({
+      messageId, rawMessage, receipt,
+      accepted: receipt.accepted, rejected: receipt.rejected,
+      sent: receipt.unknown.length ? undefined : receipt.accepted.length === expected.length && expected.length > 0,
+      ...(receipt.unknown.length ? { unknownRecipients: 'SMTP acceptance is unknown for some recipients' } : {}),
+      ...(receipt.rejected.length ? { message: `${receipt.accepted.length} recipients accepted; ${receipt.rejected.length} rejected by SMTP` } : {}),
+    });
     try {
-      const transporter = await this.createTransporter(account);
+      transporter = await this.createTransporter(account);
       const mailOptions = this.toMailOptions(account, email);
 
-      // Build raw message for IMAP Sent folder append
-      let rawMessage: Buffer | undefined;
-      try {
-        rawMessage = await this.composeRaw(account, email);
-      } catch {
-        // Non-critical: sent folder copy will be skipped
-      }
+      // T22 / MAIL-03: ONE frozen MIME. The exact bytes composeRaw builds are
+      // both what SMTP submits and what the Sent copy appends, so Message-ID
+      // and Date cannot drift between the delivered message and its copy.
+      // A compose failure fails the whole send — nothing goes out that the
+      // Sent folder could not mirror. BCC stays envelope-only: the compiled
+      // raw never carries a Bcc header, and the envelope covers to+cc+bcc.
+      rawMessage = await this.composeRaw(account, email);
+      messageId = rawMessage.toString('utf8').match(/^Message-ID:\s*(.+?)\r?$/im)?.[1] ?? '';
+      const envelope = {
+        from: mailboxAddresses(typeof mailOptions.from === 'string' ? mailOptions.from : account.email || account.user)[0],
+        to: expected,
+      };
+      await beforeSubmit?.();
+      submitted = true;
+      const info = await transporter.sendMail({ messageId, envelope, raw: rawMessage });
 
-      const info = await transporter.sendMail(mailOptions);
-      return { messageId: info.messageId, rawMessage };
+      // T21 / MAIL-10: surface per-recipient acceptance. SMTP transports
+      // report accepted/rejected arrays; transports without recipient data
+      // (stream/buffer transports) leave the outcome unknown. Partial or
+      // full rejection never claims sent:true, and nothing here claims final
+      // delivery — only what the SMTP server accepted this attempt.
+      const accepted = Array.isArray((info as any).accepted)
+        ? (info as any).accepted.map((v: unknown) => typeof v === 'string' ? v : String((v as { address: string }).address))
+        : undefined;
+      const rejected = Array.isArray((info as any).rejected)
+        ? (info as any).rejected.map((v: unknown) => typeof v === 'string' ? v : String((v as { address: string }).address))
+        : undefined;
+
+      return result(deliveryReceipt(expected, accepted, rejected));
     } catch (error) {
-      throw new Error(`Failed to send email: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      if (!submitted) throw new SafeSendPreflightError('SMTP preparation failed; create a new preview before sending');
+      const failure = error as { code?: string; command?: string; rejected?: string[] };
+      // Nodemailer explicitly reports all-RCPT rejection with EENVELOPE.
+      // All other failures after sendMail may have occurred after acceptance.
+      if (failure?.code === 'EENVELOPE' && failure.command === 'RCPT TO' && Array.isArray(failure.rejected)) {
+        const receipt = deliveryReceipt(expected, [], failure.rejected);
+        if (receipt.rejected.length === expected.length && !receipt.unknown.length) return result(receipt);
+      }
+      return result(deliveryReceipt(expected));
+    } finally {
+      if (transporter) this.releaseTransporter(accountId, transporter);
+    }
+  }
+
+  private releaseTransporter(accountId: string, transporter: Transporter): void {
+    try { transporter.close?.(); }
+    finally {
+      const active = this.transporters.get(accountId);
+      active?.delete(transporter);
+      if (!active?.size) this.transporters.delete(accountId);
     }
   }
 
   async verifySmtpConnection(account: ImapAccount): Promise<boolean> {
+    let transporter: Transporter | undefined;
     try {
-      const transporter = await this.createTransporter(account);
-      await transporter.verify();
+      // createTransporter already verifies the newly resolved credentials.
+      transporter = await this.createTransporter(account);
       return true;
     } catch (error) {
       return false;
+    } finally {
+      if (transporter) this.releaseTransporter(account.id, transporter);
     }
   }
 
   disconnect(accountId: string): void {
-    const transporter = this.transporters.get(accountId);
-    if (transporter) {
-      transporter.close();
+    const transporters = this.transporters.get(accountId);
+    if (transporters) {
+      for (const transporter of transporters) transporter.close();
       this.transporters.delete(accountId);
     }
   }
 
   disconnectAll(): void {
-    for (const [accountId, transporter] of this.transporters) {
-      transporter.close();
+    for (const transporters of this.transporters.values()) {
+      for (const transporter of transporters) transporter.close();
     }
     this.transporters.clear();
   }

@@ -1,25 +1,29 @@
 import { randomUUID } from 'node:crypto';
-import type { EmailAttachment, EmailComposer } from '../types/index.js';
+import type { EmailAttachment, EmailComposer, EmailDeliveryReceipt } from '../types/index.js';
 import {MAX_BODY_CHARS,MAX_ATTACHMENT_COUNT} from '../utils/mail-resource-limits.js';
+import { composerRecipients, deliveryReceipt, normalizeAddressList } from '../utils/mail-compose.js';
 
-export type SafeSendState = 'pending' | 'sending' | 'sent' | 'ambiguous' | 'expired';
+export type SafeSendState = 'pending' | 'sending' | 'sent' | 'partial' | 'rejected' | 'ambiguous' | 'expired';
 
 export interface SafeSendInput {
   accountId: string;
+  accountRevision?: string;
   composer: EmailComposer;
 }
 
 export interface SafeSendPayload {
   readonly accountId: string;
+  readonly accountRevision?: string;
   readonly composer: Readonly<EmailComposer>;
 }
 
 export interface SafeSendWarning {
-  readonly code: 'sent_copy_timeout' | 'sent_copy_failed';
+  readonly code: 'sent_copy_timeout' | 'sent_copy_failed' | 'sent_copy_unknown';
   readonly message: string;
 }
 
 export interface SafeSendExecutionResult {
+  readonly receipt?: EmailDeliveryReceipt;
   readonly warnings?: readonly SafeSendWarning[];
   readonly secondary?: Promise<SafeSendExecutionResult>;
 }
@@ -42,9 +46,15 @@ export interface SafeSendPreview {
   };
 }
 
-export type SafeSendConfirmation =
-  | { status: 'sent'; warnings?: readonly SafeSendWarning[] }
-  | { status: 'already_sent' };
+export interface SafeSendConfirmation {
+  status: 'sent' | 'already_sent' | 'partial' | 'rejected' | 'ambiguous';
+  receipt: EmailDeliveryReceipt;
+  warnings?: readonly SafeSendWarning[];
+  alreadyConfirmed?: boolean;
+}
+
+/** Only raised when submission definitely has not begun. */
+export class SafeSendPreflightError extends Error {}
 
 export interface SafeSendServiceOptions {
   maxPendingDrafts?: number;
@@ -60,6 +70,7 @@ interface DraftEntry {
   expiresAt: number;
   payload?: SafeSendPayload;
   inFlight?: Promise<SafeSendConfirmation>;
+  outcome?: SafeSendConfirmation;
 }
 
 function copyList(value: string | string[] | undefined): string | string[] | undefined {
@@ -93,9 +104,9 @@ function freezeComposer(composer: Readonly<EmailComposer>): Readonly<EmailCompos
     : undefined;
   return Object.freeze({
     from: composer.from,
-    to: copyList(composer.to)!,
-    cc: copyList(composer.cc),
-    bcc: copyList(composer.bcc),
+    to: copyList(normalizeAddressList(composer.to, 'to'))!,
+    cc: copyList(normalizeAddressList(composer.cc, 'cc')),
+    bcc: copyList(normalizeAddressList(composer.bcc, 'bcc')),
     subject: composer.subject,
     text: composer.text,
     html: composer.html,
@@ -107,7 +118,7 @@ function freezeComposer(composer: Readonly<EmailComposer>): Readonly<EmailCompos
 }
 
 function freezePayload(input: SafeSendInput | SafeSendPayload): SafeSendPayload {
-  return Object.freeze({ accountId: input.accountId, composer: freezeComposer(input.composer) });
+  return Object.freeze({ accountId: input.accountId, accountRevision: input.accountRevision, composer: freezeComposer(input.composer) });
 }
 
 function zeroizeAttachments(payload: SafeSendPayload): void {
@@ -194,14 +205,12 @@ export class SafeSendService {
     if (confirmed !== true) throw new Error('Safe-send confirmation requires confirmed === true');
     const entry = this.getDraft(draftId);
     this.expireIfNeeded(draftId, entry);
-    if (entry.state === 'sent') return { status: 'already_sent' };
     if (entry.state === 'expired') throw new Error('Safe-send draft has expired');
-    if (entry.state === 'ambiguous') throw new Error('Safe-send outcome is ambiguous; retry is blocked');
-    if (entry.state === 'sending') {
-      if (!entry.inFlight) throw new Error('Safe-send invariant violation: missing in-flight operation');
+    if (entry.inFlight) {
       await entry.inFlight;
-      return { status: 'already_sent' };
     }
+    if (entry.outcome) return { ...entry.outcome, status: entry.outcome.status === 'sent' ? 'already_sent' : entry.outcome.status, alreadyConfirmed: true };
+    if (entry.state !== 'pending') throw new Error('Safe-send outcome is unavailable; retry is blocked');
 
     entry.state = 'sending';
     if (!entry.payload) throw new Error('Safe-send invariant violation: missing draft payload');
@@ -211,12 +220,23 @@ export class SafeSendService {
       try {
         executionResult = await this.executor(executionPayload);
       } catch (error) {
-        this.finish(draftId, entry, 'ambiguous');
-        zeroizeAttachments(executionPayload);
-        throw new Error('Safe-send outcome is ambiguous; retry is blocked', { cause: error });
+        if (error instanceof SafeSendPreflightError) {
+          entry.state = 'pending';
+          entry.inFlight = undefined;
+          zeroizeAttachments(executionPayload);
+          throw new SafeSendPreflightError('Account changed or SMTP preparation failed; create a new preview before sending');
+        }
+        // Provider errors may contain credentials or message content. Preserve
+        // only the conservative acceptance outcome, never the raw cause.
+        executionResult = undefined;
       }
 
-      this.finish(draftId, entry, 'sent');
+      const expected = composerRecipients(executionPayload.composer);
+      const receipt = deliveryReceipt(expected, executionResult?.receipt?.accepted, executionResult?.receipt?.rejected, executionResult?.receipt?.unknown);
+      const status = receipt.unknown.length || !expected.length ? 'ambiguous'
+        : receipt.rejected.length ? (receipt.accepted.length ? 'partial' : 'rejected') : 'sent';
+      entry.outcome = { status, receipt };
+      this.finish(draftId, entry, status);
       zeroizeAttachments(executionPayload);
 
       let warnings = executionResult?.warnings;
@@ -228,13 +248,15 @@ export class SafeSendService {
       } catch {
         warnings = [{
           code: 'sent_copy_failed',
-          message: 'Message sent, but saving a Sent-folder copy failed',
+          message: 'Saving a Sent-folder copy failed',
         }];
       }
-      return warnings?.length ? { status: 'sent', warnings } : { status: 'sent' };
+      entry.outcome = warnings?.length ? { status, receipt, warnings } : { status, receipt };
+      return entry.outcome;
     })();
     entry.inFlight = operation;
-    return operation;
+    try { return await operation; }
+    finally { if (entry.inFlight === operation) entry.inFlight = undefined; }
   }
 
   private getDraft(draftId: string): DraftEntry {
@@ -252,13 +274,13 @@ export class SafeSendService {
   private finish(
     draftId: string,
     entry: DraftEntry,
-    state: Extract<SafeSendState, 'sent' | 'ambiguous' | 'expired'>,
+    state: Extract<SafeSendState, 'sent' | 'partial' | 'rejected' | 'ambiguous' | 'expired'>,
   ): void {
     if (entry.payload) zeroizeAttachments(entry.payload);
     entry.state = state;
     entry.payload = undefined;
-    entry.inFlight = undefined;
-    this.drafts.set(draftId, { state, expiresAt: this.clock()+this.ttlMs });
+    entry.expiresAt = this.clock()+this.ttlMs;
+    this.drafts.set(draftId, entry);
     this.scheduleCleanup();
   }
 }

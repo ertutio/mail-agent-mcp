@@ -8,6 +8,7 @@ import { htmlToMarkdown, normalizeWhitespace } from './html-to-markdown.js';
 import { assertCredentialsResolved } from '../utils/env-credentials.js';
 import { AccountAuthResolver, buildImapAuth } from '../credentials/account-auth.js';
 import { resolveMailProxy } from '../utils/mail-proxy.js';
+import { accountRevision } from '../utils/account-revision.js';
 
 /**
  * Providers that require IMAP access to be manually enabled in account settings.
@@ -89,6 +90,7 @@ function enrichConnectionError(error: unknown, host: string): string {
 }
 
 interface ConnectionState {
+  managed?:boolean;
   client: ImapFlow;
   account: ImapAccount;
   isConnected: boolean;
@@ -122,6 +124,21 @@ export interface MoveEmailBatchResult {
   destination: string;
   destinationCreated?: boolean;
   results: MoveEmailBatchResultItem[];
+}
+
+/**
+ * Stable description of a selected mailbox, captured while its mailbox lock
+ * was held. Plain values only — the live imapflow MailboxObject keeps
+ * mutating after release (EXISTS updates etc.) and must not leak to callers.
+ */
+export interface FolderSnapshot {
+  path: string;
+  exists?: number;
+  uidValidity?: bigint;
+  uidNext?: number;
+  readOnly?: boolean;
+  flags: string[];
+  permanentFlags?: string[];
 }
 
 /**
@@ -168,6 +185,11 @@ export class ImapService {
   private connections: Map<string, ConnectionState> = new Map();
   private pendingConnections: Map<string, ImapFlow> = new Map();
   private reconnectAttempts: Map<string, number> = new Map();
+  // T12: the account revision each live connection was built with.
+  private connectionRevisions: Map<string, string> = new Map();
+  // T14: in-flight connect promises — concurrent callers share the same dial.
+  private connectPromises: Map<string, Promise<void>> = new Map();
+  private connectAttempts = new Map<string, {revision:string;cancelled:boolean;managed:boolean}>();
   private maxReconnectAttempts = 3;
   private accountManager?: AccountManager;
 
@@ -191,15 +213,48 @@ export class ImapService {
   }
 
   async connect(account: ImapAccount): Promise<void> {
+    const revision=accountRevision(account);
     const existing = this.connections.get(account.id);
-    if (existing?.isConnected) {
+    if (existing?.isConnected && existing.client.usable && this.connectionRevisions.get(account.id)===revision) {
       return;
     }
 
+    // T14 / SA-02: concurrent callers share the same in-flight dial instead
+    // of each creating a competing ImapFlow instance (which would fight over
+    // the pendingConnections slot and abort each other).
+    const inFlight = this.connectPromises.get(account.id);
+    const previous=this.connectAttempts.get(account.id);
+    if (inFlight && previous?.revision===revision && !previous.cancelled) return inFlight;
+    if(existing || previous) this.abortConnection(account.id);
+
+    // Explicit test candidates are intentionally absent from AccountManager.
+    // Only identities that began as configured accounts require continued
+    // presence; removal of a configured account must never become a bypass.
+    const attempt={revision,cancelled:false,managed:!!this.accountManager?.getAccount(account.id)};
+    this.connectAttempts.set(account.id,attempt);
+    const promise = this.connectInner(account,attempt);
+    this.connectPromises.set(account.id, promise);
+    try {
+      await promise;
+    } finally {
+      if(this.connectPromises.get(account.id)===promise)this.connectPromises.delete(account.id);
+      if(this.connectAttempts.get(account.id)===attempt)this.connectAttempts.delete(account.id);
+    }
+  }
+
+  private async connectInner(account: ImapAccount, attempt:{revision:string;cancelled:boolean;managed:boolean}): Promise<void> {
+    const assertCurrent=()=>{
+      const configured=this.accountManager?.getAccount(account.id);
+      if(attempt.cancelled || this.connectAttempts.get(account.id)!==attempt || (attempt.managed && (!configured || accountRevision(configured)!==attempt.revision))) {
+        throw new Error('IMAP connection attempt was aborted or account configuration changed');
+      }
+    };
     // Fail with the missing variable name rather than dialing out with a blank
     // credential and getting back an indistinguishable "AUTHENTICATE failed".
     if (!account.auth) assertCredentialsResolved(account, 'imap');
     const resolvedAuth = await this.authResolver.resolve(account, 'imap');
+    // T15: re-verify after the auth await — abortConnection may have fired.
+    assertCurrent();
     const proxy = resolveMailProxy(process.env, account.host, account.auth?.provider);
 
     const client = new ImapFlow({ maxLiteralSize: MAX_MESSAGE_BYTES + 1,
@@ -236,10 +291,12 @@ export class ImapService {
     this.pendingConnections.set(account.id, client);
     try {
       await client.connect();
+      assertCurrent();
     } catch (err) {
       if (this.pendingConnections.get(account.id) === client) {
         this.pendingConnections.delete(account.id);
       }
+      try{client.close();}catch{/* already closed */}
       throw new Error(enrichConnectionError(err, account.host));
     }
     if (this.pendingConnections.get(account.id) !== client) {
@@ -249,23 +306,44 @@ export class ImapService {
     this.pendingConnections.delete(account.id);
 
     this.connections.set(account.id, {
+      managed:attempt.managed,
       client,
       account,
       isConnected: true,
     });
     this.reconnectAttempts.set(account.id, 0);
+    // T12: every successfully created connection records its identity revision.
+    this.connectionRevisions.set(account.id, accountRevision(account));
   }
 
   async disconnect(accountId: string): Promise<void> {
+    const attempt=this.connectAttempts.get(accountId);
+    if(attempt) {
+      attempt.cancelled=true;
+      this.connectAttempts.delete(accountId);
+      this.connectPromises.delete(accountId);
+    }
+    const pending=this.pendingConnections.get(accountId);
+    this.pendingConnections.delete(accountId);
+    try{pending?.close();}catch{/* already closed */}
     const state = this.connections.get(accountId);
     if (state) {
       try {
         await state.client.logout();
       } catch {
-        // Ignore logout errors
+        // T18 review: a refused logout must still end the socket — fall back
+        // to a hard close so the connection never outlives its owner.
+        try {
+          state.client.close();
+        } catch {
+          // The client is already gone.
+        }
       }
-      this.connections.delete(accountId);
-      this.reconnectAttempts.delete(accountId);
+      if(this.connections.get(accountId)===state) {
+        this.connections.delete(accountId);
+        this.connectionRevisions.delete(accountId);
+        this.reconnectAttempts.delete(accountId);
+      }
     }
   }
 
@@ -274,10 +352,15 @@ export class ImapService {
    * deadline. Unlike disconnect(), this does not wait for a graceful LOGOUT.
    */
   abortConnection(accountId: string): void {
+    const attempt=this.connectAttempts.get(accountId);
+    if(attempt)attempt.cancelled=true;
+    this.connectAttempts.delete(accountId);
+    this.connectPromises.delete(accountId);
     const state = this.connections.get(accountId);
     const pending = this.pendingConnections.get(accountId);
     this.connections.delete(accountId);
     this.pendingConnections.delete(accountId);
+    this.connectionRevisions.delete(accountId);
     this.reconnectAttempts.delete(accountId);
     for (const client of [state?.client, pending]) {
       try {
@@ -291,11 +374,23 @@ export class ImapService {
   private async ensureConnected(accountId: string): Promise<ImapFlow> {
     // A browser session can remove an account while this process has a live client.
     const configuredAccount = this.accountManager?.getAccount(accountId);
-    if (this.accountManager && !configuredAccount) {
+    if (this.accountManager && !configuredAccount && this.connections.get(accountId)?.managed!==false) {
       this.abortConnection(accountId);
       throw new Error(`Account ${accountId} was removed or not found. Open the local browser setup to manage accounts.`);
     }
     let state = this.connections.get(accountId);
+    if (state && configuredAccount) {
+      // T12 / SA-01: the connection was established with one identity; if the
+      // account's revision has changed (connection config, send policy or
+      // credential reference — NOT display name or tuning), the live client
+      // carries a stale identity and must be replaced before this operation.
+      const storedRev = this.connectionRevisions.get(accountId);
+      const currentRev = accountRevision(configuredAccount);
+      if (storedRev !== undefined && storedRev !== currentRev) {
+        this.abortConnection(accountId);
+        state = undefined;
+      }
+    }
     if (!state) {
       // Auto-connect using stored account credentials
       if (this.accountManager) {
@@ -324,7 +419,9 @@ export class ImapService {
       this.reconnectAttempts.set(accountId, attempts + 1);
       console.log(`Reconnecting to account ${accountId} (attempt ${attempts + 1})`);
 
-      const account = state.account;
+      // T12: reconnect with the CURRENT identity, not the stale one the dead
+      // connection was built with.
+      const account = configuredAccount ?? state.account;
       try {
         // Dispose the unusable instance; the connection is already gone, so
         // ignore any teardown error.
@@ -333,11 +430,19 @@ export class ImapService {
         } catch {
           // ignore
         }
-        this.connections.delete(accountId);
+        const refreshedAccount=this.accountManager?.getAccount(accountId);
+        if(state.managed && this.accountManager && !refreshedAccount)throw new Error('Account identity was removed; reconnect is not permitted');
+        // A newer connect may have replaced this state while logout awaited.
+        // Dispose only the state owned by this reconnect; never erase its
+        // replacement or cancel a newer revision's pending authentication.
+        if(this.connections.get(accountId)===state) {
+          this.connections.delete(accountId);
+          this.connectionRevisions.delete(accountId);
+        }
 
         // Build a brand-new ImapFlow client + connection state. connect() resets
         // the reconnect-attempt counter to 0 on success.
-        await this.connect(account);
+        if(!this.connections.has(accountId))await this.connect(refreshedAccount ?? account);
         state = this.connections.get(accountId);
         if (!state) {
           throw new Error('connection state missing after reconnect');
@@ -347,7 +452,25 @@ export class ImapService {
       }
     }
 
+    // Re-read after all connection/authentication awaits. A completed promise
+    // proves only the identity with which that attempt was constructed.
+    const latest=this.accountManager?.getAccount(accountId);
+    if(this.accountManager && ((state.managed && !latest) || (latest && this.connectionRevisions.get(accountId)!==accountRevision(latest)))) {
+      this.abortConnection(accountId);
+      throw new Error('Account identity changed while connecting; retry the operation');
+    }
+    if(this.connections.get(accountId)?.client!==state.client)throw new Error('IMAP connection was superseded');
+    if(!state.isConnected || !state.client.usable)throw new Error('IMAP connection is unavailable after reconnect');
     return state.client;
+  }
+
+  /**
+   * The account's current identity revision (T11/T13): undefined when the
+   * account is not configured. Delegates to the account manager's record.
+   */
+  getAccountRevision(accountId: string): string | undefined {
+    const account = this.accountManager?.getAccount(accountId);
+    return account ? accountRevision(account) : undefined;
   }
 
   async listFolders(accountId: string): Promise<Folder[]> {
@@ -378,9 +501,89 @@ export class ImapService {
     }));
   }
 
-  async selectFolder(accountId: string, folderName: string): Promise<any> {
+  /**
+   * Select a folder through the same per-folder mailbox lock every UID read,
+   * flag change, move and delete uses (MAIL-01). A bare mailboxOpen() here
+   * would bypass the lock queue and re-point another operation's in-flight
+   * UID commands to this folder.
+   *
+   * Returns a stable snapshot (plain copies), not the live client.mailbox
+   * reference, and always releases the lock — success, failure or cancel.
+   */
+  async selectFolder(accountId: string, folderName: string): Promise<FolderSnapshot> {
     const client = await this.ensureConnected(accountId);
-    return await client.mailboxOpen(folderName);
+    const lock = await client.getMailboxLock(folderName);
+    try {
+      // The lock grant SELECTs folderName unless it is already selected, so
+      // client.mailbox is now that folder's live object.
+      const box = client.mailbox;
+      if (!box || box.path !== folderName) {
+        throw new Error(`Mailbox "${folderName}" is not selected after acquiring its lock`);
+      }
+      return {
+        path: box.path,
+        ...(box.exists !== undefined ? { exists: Number(box.exists) } : {}),
+        ...(box.uidValidity !== undefined ? { uidValidity: box.uidValidity } : {}),
+        ...(box.uidNext !== undefined ? { uidNext: Number(box.uidNext) } : {}),
+        ...(box.readOnly !== undefined ? { readOnly: Boolean(box.readOnly) } : {}),
+        flags: Array.from(box.flags ?? []),
+        ...(box.permanentFlags ? { permanentFlags: Array.from(box.permanentFlags) } : {}),
+      };
+    } finally {
+      lock.release();
+    }
+  }
+
+  /**
+   * STATUS counts and the flag snapshot captured under ONE mailbox lock
+   * (T01 review): folder_status must never mix metadata from two moments —
+   * counts and flags are taken in the same locked region, after any
+   * interleaved operation on the folder has released it.
+   */
+  private validatedFolderStatus(status:unknown):{messages:number;recent:number;unseen:number;uidValidity:number;uidNext:number} {
+    const read=(key:string,minimum:number):number=>{
+      const raw=status && typeof status==='object' ? (status as Record<string,unknown>)[key] : undefined;
+      if(typeof raw!=='number' && typeof raw!=='bigint')throw new Error(`Invalid or missing STATUS ${key}`);
+      const value=Number(raw);
+      if(!Number.isSafeInteger(value) || value<minimum)throw new Error(`Invalid STATUS ${key}`);
+      return value;
+    };
+    return {messages:read('messages',0),recent:read('recent',0),unseen:read('unseen',0),uidValidity:read('uidValidity',1),uidNext:read('uidNext',1)};
+  }
+
+  async getFolderStatusSnapshot(accountId: string, folderName: string): Promise<{
+    status: { messages: number; recent: number; unseen: number; uidValidity: number; uidNext: number };
+    snapshot: FolderSnapshot;
+  }> {
+    const client = await this.ensureConnected(accountId);
+    const lock = await client.getMailboxLock(folderName);
+    try {
+      const status = await client.status(folderName, {
+        messages: true,
+        recent: true,
+        unseen: true,
+        uidNext: true,
+        uidValidity: true,
+      });
+      const box = client.mailbox;
+      if (!box || box.path !== folderName) {
+        throw new Error(`Mailbox "${folderName}" is not selected after acquiring its lock`);
+      }
+      return {
+        status: this.validatedFolderStatus(status),
+        snapshot: {
+          path: box.path,
+          ...(box.exists !== undefined ? { exists: Number(box.exists) } : {}),
+          ...(box.uidValidity !== undefined ? { uidValidity: box.uidValidity } : {}),
+          ...(box.uidNext !== undefined ? { uidNext: Number(box.uidNext) } : {}),
+          ...(box.readOnly !== undefined ? { readOnly: Boolean(box.readOnly) } : {}),
+          flags: Array.from(box.flags ?? []),
+          ...(box.permanentFlags ? { permanentFlags: Array.from(box.permanentFlags) } : {}),
+        },
+      };
+    } finally {
+      lock.release();
+    }
   }
 
   async getFolderStatus(accountId: string, folderName: string): Promise<{
@@ -398,13 +601,7 @@ export class ImapService {
       uidNext: true,
       uidValidity: true,
     });
-    return {
-      messages: Number(status.messages ?? 0),
-      recent: Number(status.recent ?? 0),
-      unseen: Number(status.unseen ?? 0),
-      uidValidity: Number(status.uidValidity ?? 0),
-      uidNext: Number(status.uidNext ?? 0),
-    };
+    return this.validatedFolderStatus(status);
   }
 
   /**
@@ -742,7 +939,7 @@ export class ImapService {
     } = options;
 
     assertMessageSize(source);
-    const parsed = await simpleParser(source,{skipHtmlToText:true,skipTextToHtml:true,maxHtmlLengthToParse:1024*1024});
+    const parsed = await simpleParser(source,{skipHtmlToText:true,skipTextToHtml:true,keepCidLinks:true,maxHtmlLengthToParse:1024*1024});
     if((parsed.attachments?.length??0)>MAX_ATTACHMENT_COUNT)throw new Error('Too many message attachments');
     const flagArray = Array.from(flags || []) as string[];
 
@@ -809,11 +1006,21 @@ export class ImapService {
       }
     }
 
+    const addresses=(value:unknown):string[]=>{
+      if(Array.isArray(value))return value.flatMap(addresses);
+      if(!value || typeof value!=='object')return [];
+      const node=value as {address?:unknown;value?:unknown;group?:unknown};
+      if(typeof node.address==='string' && node.address.trim())return [node.address.trim()];
+      return addresses(node.value ?? node.group);
+    };
     return {
       uid,
       date: parsed.date || new Date(),
       from: parsed.from?.text || '',
-      to: parsed.to ? (Array.isArray(parsed.to) ? parsed.to.map((t: any) => t.text || '') : [parsed.to.text || '']) : [],
+      fromAddresses: addresses(parsed.from),
+      to: addresses(parsed.to),
+      cc: parsed.cc ? addresses(parsed.cc) : undefined,
+      replyTo: parsed.replyTo ? addresses(parsed.replyTo) : undefined,
       subject: parsed.subject || '',
       messageId: parsed.messageId || '',
       inReplyTo: parsed.inReplyTo as string | undefined,
@@ -1219,6 +1426,41 @@ export class ImapService {
     }
   }
 
+  private assertClientRevision(accountId:string,client:ImapFlow,expectedRevision:string):void {
+    const state=this.connections.get(accountId);
+    const current=this.accountManager?.getAccount(accountId) ?? (!this.accountManager?state?.account:undefined);
+    if(!current || accountRevision(current)!==expectedRevision || state?.client!==client || this.connectionRevisions.get(accountId)!==expectedRevision) {
+      throw new Error('Account identity changed during operation; create a new preview');
+    }
+  }
+
+  private async observeDeletion(client:ImapFlow,uids:number[],permanent:boolean,trashFolder:string,assertIdentity:()=>void):Promise<{completed:number;detail:string}> {
+    const targets=new Set(uids);
+    const uidSet=[...targets].join(',');
+    const observe=async():Promise<Set<number>|undefined>=>{
+      try{
+        const found=await client.search({uid:uidSet},{uid:true});
+        return Array.isArray(found)?new Set(found.filter(uid=>targets.has(uid))):undefined;
+      }catch{return undefined;}
+    };
+    const before=await observe();
+    assertIdentity();
+    const range=uids.length===1?uids[0]!:uidSet;
+    const outcome=permanent?await client.messageDelete(range,{uid:true}):await client.messageMove(range,trashFolder,{uid:true});
+    if(!outcome)return {completed:0,detail:'No server confirmation; outcome unknown'};
+    const map=(outcome as {uidMap?:Map<unknown,unknown>}).uidMap;
+    if(map instanceof Map){
+      const completed=[...targets].filter(uid=>map.has(uid)).length;
+      return {completed,detail:`Server confirmed only ${completed}/${targets.size} target UIDs; remaining outcome unknown`};
+    }
+    const after=await observe();
+    if(!before || !after)return {completed:0,detail:'UID observations unavailable; outcome unknown'};
+    const completed=[...targets].filter(uid=>before.has(uid)&&!after.has(uid)).length;
+    // A source disappearance is observable completion, not proof that this
+    // command (rather than another IMAP session) caused the disappearance.
+    return {completed,detail:`Observed disappearance of ${completed}/${targets.size} source UIDs; missing or remaining UIDs unconfirmed`};
+  }
+
   async deleteEmail(accountId: string, folderName: string, uid: number): Promise<void> {
     const client = await this.ensureConnected(accountId);
     const trashFolder = await this.resolveTrashFolder(accountId);
@@ -1229,15 +1471,10 @@ export class ImapService {
     let lock;
     try {
       lock = await client.getMailboxLock(folderName);
-      if (folderName === trashFolder) {
-        // Already in Trash, permanently delete
-        this.assertPermanentDeleteCapability(client);
-        await client.messageDelete(uid, { uid: true });
-      } else {
-        // Move to Trash instead of permanent expunge
-        this.assertNativeMoveCapability(client);
-        await client.messageMove(uid, trashFolder, { uid: true });
-      }
+      const permanent=folderName===trashFolder;
+      if(permanent)this.assertPermanentDeleteCapability(client);else this.assertNativeMoveCapability(client);
+      const result=await this.observeDeletion(client,[uid],permanent,trashFolder,()=>{});
+      if(result.completed!==1)throw new Error(`Delete of UID ${uid} was not confirmed: ${result.detail}`);
     } finally {
       if (lock) {
         lock.release();
@@ -1253,6 +1490,7 @@ export class ImapService {
     onProgress?: (deleted: number, total: number) => void,
     expectedUidValidity?:number,
     expectedPermanent?:boolean,
+    expectedAccountRevision?:string,
   ): Promise<{ deleted: number; failed: number; errors: string[] }> {
     if (!Number.isInteger(chunkSize) || chunkSize < 1 || chunkSize > 1000) throw new Error('chunkSize must be an integer from 1 to 1000');
     if (!uids.every(uid => Number.isInteger(uid) && uid > 0 && uid <= 0xffffffff)) throw new Error('Invalid email UID');
@@ -1296,21 +1534,28 @@ export class ImapService {
 
         // Use sequence set for bulk operations
         const uidSet = chunk.join(',');
+        // Re-check capabilities after any mid-loop reconnect so a swapped-in
+        // client can never silently fall back (T03/T04).
         if (isAlreadyInTrash) {
           this.assertPermanentDeleteCapability(client);
-          await client.messageDelete(uidSet, { uid: true });
         } else {
           this.assertNativeMoveCapability(client);
-          await client.messageMove(uidSet, trashFolder, { uid: true });
         }
-
-        deleted += chunk.length;
-
-        if (onProgress) {
-          onProgress(deleted, uids.length);
-        }
+        // imapflow resolves messageMove/messageDelete with false/undefined
+        // when the server rejected or the outcome is unconfirmed — without
+        // throwing (T05 / MAIL-08). Such a chunk's side effect is unknown:
+        // it must not be counted as deleted, only reported as failed/unknown.
+        const assertIdentity=()=>{
+          if(expectedAccountRevision===undefined)return;
+          this.assertClientRevision(accountId,client,expectedAccountRevision);
+        };
+        assertIdentity();
+        const result=await this.observeDeletion(client,chunk,isAlreadyInTrash,trashFolder,assertIdentity);
+        deleted+=result.completed;failed+=chunk.length-result.completed;
+        if(result.completed<chunk.length)errors.push(result.detail);
+        if(result.completed && onProgress)onProgress(deleted,uids.length);
       } catch (err) {
-        if(err instanceof Error&&err.message==='Mailbox UIDVALIDITY changed during deletion'){
+        if(err instanceof Error&&(err.message==='Mailbox UIDVALIDITY changed during deletion'||err.message.startsWith('Account identity changed during operation'))){
           failed+=uids.length-i;errors.push(err.message);break;
         }
         failed += chunk.length;
@@ -1634,24 +1879,29 @@ export class ImapService {
     rawMessage: Buffer | string,
     sentFolderOverride?: string,
     timeoutMs = 10_000,
+    expectedAccountRevision?:string,
   ): Promise<SentSaveResult> {
     const deadlineMs = Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 10_000;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let cancelled=false;
+    let appendStarted=false;
     try {
       return await Promise.race([
-        this.appendToSentFolderInternal(accountId, rawMessage, sentFolderOverride),
+        this.appendToSentFolderInternal(accountId, rawMessage, sentFolderOverride,()=>cancelled,expectedAccountRevision,()=>{appendStarted=true;}),
         new Promise<SentSaveResult>((resolve) => {
           timer = setTimeout(() => {
-            this.abortConnection(accountId);
+            cancelled=true;
             resolve({
               saved: false,
               errorCategory: 'timeout',
-              error: 'Sent-folder copy timed out',
+              ...(appendStarted?{outcomeUnknown:true}:{}),
+              error: appendStarted ? 'Sent-folder APPEND timed out after starting; copy outcome unknown and it may still complete. Do not automatically retry.' : 'Sent-folder copy timed out',
             });
           }, deadlineMs);
         }),
       ]);
     } finally {
+      cancelled=true;
       if (timer !== undefined) clearTimeout(timer);
     }
   }
@@ -1660,6 +1910,9 @@ export class ImapService {
     accountId: string,
     rawMessage: Buffer | string,
     sentFolderOverride?: string,
+    isCancelled:()=>boolean=()=>false,
+    expectedAccountRevision?:string,
+    onAppendStarted:()=>void=()=>{},
   ): Promise<SentSaveResult> {
     const sentFolderNames = [
       // English / standard
@@ -1682,6 +1935,7 @@ export class ImapService {
     if (!folder) {
       folder = await this.findSpecialUseFolder(accountId, '\\Sent', sentFolderNames);
     }
+    if(isCancelled())return {saved:false,errorCategory:'timeout',error:'Sent-folder copy timed out'};
     if (!folder) {
       const error = 'No Sent folder found: the server advertises no \\Sent SPECIAL-USE folder and no folder matched the known localized names. '
         + 'Use imap_list_folders to find the right folder and configure sentFolder locally in the browser setup API.';
@@ -1689,11 +1943,16 @@ export class ImapService {
       return { saved: false, errorCategory: 'folder_not_found', error };
     }
 
+    let appendStarted=false;
     try {
       const client = await this.ensureConnected(accountId);
+      if(isCancelled())return {saved:false,errorCategory:'timeout',error:'Sent-folder copy timed out'};
+      if(expectedAccountRevision!==undefined)this.assertClientRevision(accountId,client,expectedAccountRevision);
       // T30 / N-03: imapflow resolves append with false (server NO) or
       // undefined (preconditions unmet) instead of throwing — an unconfirmed
       // result must never be reported as a saved copy.
+      appendStarted=true;
+      onAppendStarted();
       const outcome = await client.append(folder, rawMessage, ['\\Seen']);
       if (!outcome) {
         const error = `Sent-folder APPEND to "${folder}" was not confirmed by the server (no result); treating the copy as not saved`;
@@ -1707,7 +1966,7 @@ export class ImapService {
       const hint = sentFolderOverride
         ? ' The account\'s configured sentFolder may not exist on the server — check it with imap_list_folders.'
         : '';
-      return { saved: false, folder, errorCategory: 'append_failed', error: `Failed to append to "${folder}": ${reason}.${hint}` };
+      return { saved: false, folder, errorCategory: 'append_failed',...(appendStarted?{outcomeUnknown:true}:{}), error: `Failed to append to "${folder}": ${reason}.${hint}${appendStarted?' Copy outcome unknown; it may have been saved. Do not automatically retry.':''}` };
     }
   }
 
@@ -1791,6 +2050,31 @@ export class ImapService {
     }
   }
 
+  /**
+   * Unread count for one folder via named STATUS (T29 / MAIL-06): the server
+   * counts server-side, so mailboxes past the search cap stay cheap, and a
+   * missing or failed answer is an explicit unknown instead of a silent zero.
+   */
+  async getFolderUnseenStatus(accountId: string, folderName: string): Promise<{ unseen?: number; unknownReason?: string }> {
+    try {
+      // A connection/authentication failure is a per-folder unknown too —
+      // the unread overview must survive to report the folders it COULD read.
+      const client = await this.ensureConnected(accountId);
+      const status = await client.status(folderName, { unseen: true });
+      if (status?.unseen === undefined || status.unseen === null) {
+        return { unknownReason: 'status_unseen_missing' };
+      }
+      const unseen = Number(status.unseen);
+      if (!Number.isInteger(unseen) || unseen < 0) {
+        return { unknownReason: 'status_unseen_invalid' };
+      }
+      return { unseen };
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
+      return { unknownReason: `status_failed: ${reason}` };
+    }
+  }
+
   async authenticateOnly(account: ImapAccount): Promise<void> {
     if (!account.auth) assertCredentialsResolved(account, 'imap');
     const resolvedAuth = await this.authResolver.resolve(account, 'imap');
@@ -1852,8 +2136,6 @@ export class ImapService {
         // INBOX might not exist or have different name
       }
 
-      await testClient.logout();
-
       return {
         success: true,
         folders,
@@ -1864,6 +2146,19 @@ export class ImapService {
         success: false,
         error: enrichConnectionError(err, account.host),
       };
+    } finally {
+      // Owner cleanup (T18 / BUG-SEC-A1): the temp client must end even when
+      // LIST or STATUS fails, and cleanup must not mask the first error — a
+      // failed logout falls back to a hard socket close.
+      try {
+        await testClient.logout();
+      } catch {
+        try {
+          testClient.close();
+        } catch {
+          // The client is already gone.
+        }
+      }
     }
   }
 

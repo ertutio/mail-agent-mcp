@@ -1,5 +1,5 @@
 import express from 'express';
-import { randomBytes, timingSafeEqual } from 'node:crypto';
+import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import bodyParser from 'body-parser';
 import path from 'path';
 import fs from 'fs';
@@ -248,7 +248,7 @@ export class WebUIServer {
 
         // Create temporary account for testing
         const testAccount: ImapAccount = {
-          id: 'test-' + Date.now(),
+          id: 'test-' + randomUUID(),
           name: 'Test',
           host: host || 'imap.gmail.com',
           port: port || 993,
@@ -259,17 +259,23 @@ export class WebUIServer {
         
         // Try to connect
         await this.imapService.connect(testAccount);
-        
-        // Get folder list to verify connection works
-        const folders = await this.imapService.listFolders(testAccount.id);
-        
-        // Disconnect
-        await this.imapService.disconnect(testAccount.id);
-        
-        res.json({ 
-          success: true, 
-          folders: folders.map(f => f.name) 
-        });
+
+        // Owner cleanup (T18 / BUG-SEC-A1): the temp connection is owned by
+        // this endpoint — a failing folder LIST must still disconnect it, or
+        // the synthetic test-<id> connection leaks in the service map.
+        let listFailure:unknown;
+        try {
+          const folders = await this.imapService.listFolders(testAccount.id);
+          res.json({
+            success: true,
+            folders: folders.map(f => f.name)
+          });
+        } catch(error) {
+          listFailure=error;
+          throw error;
+        } finally {
+          try{await this.imapService.disconnect(testAccount.id);}catch(error){if(listFailure===undefined)throw error;}
+        }
       } catch (error) {
         res.status(400).json({ 
           success: false, 

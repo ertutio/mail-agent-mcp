@@ -67,12 +67,23 @@ export interface EmailMessage {
 export type EmailBodyFormat = 'markdown' | 'text' | 'html' | 'auto';
 
 export interface EmailContent extends EmailMessage {
+  /** Individual mailboxes from mailparser's structured address values. */
+  fromAddresses?: string[];
+  replyTo?: string[];
+  cc?: string[];
   textContent?: string;
   htmlContent?: string;
   markdownContent?: string;
   bodyFormat?: EmailBodyFormat;
   headers: Record<string, string | string[]>;
   attachments: Attachment[];
+}
+
+/** SMTP acceptance only; this does not assert final delivery. */
+export interface EmailDeliveryReceipt {
+  accepted: string[];
+  rejected: string[];
+  unknown: string[];
 }
 
 export interface Attachment {
@@ -88,6 +99,8 @@ export interface Attachment {
  * a failure instead of the save silently reporting `false` (issue #125). */
 export interface SentSaveResult {
   saved: boolean;
+  /** APPEND started but its result was not confirmed; a copy may already exist. */
+  outcomeUnknown?: boolean;
   /** Folder the append targeted (resolved or overridden). Absent when no Sent folder could be found. */
   folder?: string;
   /** Why the save failed, when `saved` is false. */

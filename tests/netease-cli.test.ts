@@ -10,9 +10,14 @@ describe('NetEase local registration CLI', () => {
     state.accounts = [];
     const secret = ['synthetic', '-auth-code'].join('');
     const prompt = vi.fn(async (label: string) => label === 'Email address' ? 'owner@example.test' : label === 'Account name' ? provider : secret);
-    const credentials = { read: vi.fn().mockReturnValue(undefined), write: vi.fn(), delete: vi.fn() };
+    // T16: enrollment now verifies the credential with a login check before
+    // committing; this fixture mocks that verification and gives the vault
+    // backend the boolean contract the real one has.
+    const authenticateOnly = vi.fn(async () => undefined);
+    const credentials = { read: vi.fn().mockReturnValue(undefined), write: vi.fn(() => true), delete: vi.fn(() => true) };
     const output: string[] = [];
-    await runEnrollmentCli([provider], { platform: 'win32', prompt, credentials, writeOutput: text => { output.push(text); } });
+    await runEnrollmentCli([provider], { platform: 'win32', prompt, credentials, authenticateOnly, writeOutput: text => { output.push(text); } });
+    expect(authenticateOnly).toHaveBeenCalledOnce();
     expect(prompt).toHaveBeenCalledWith('NetEase client authorization code', { secret: true });
     expect(state.accounts[0].auth.provider).toBe('netease');
     expect(JSON.stringify(state.accounts)).not.toContain(secret); expect(output.join('')).not.toContain(secret);

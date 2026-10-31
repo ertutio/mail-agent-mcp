@@ -82,3 +82,138 @@ describe('ImapService reconnect (ImapFlow instances are single-use)', () => {
     await expect(imapService.listFolders(account.id)).resolves.toBeDefined();
   });
 });
+
+// T12 / SA-01: a live connection built with one identity must be replaced
+// when the account's revision changes — connection config, send policy or
+// credential reference — and must NOT be replaced for display-name-only
+// changes (the revision contract excludes them).
+describe('T12R: revision-based connection invalidation', () => {
+  let imapService: ImapService;
+  let account: ImapAccount;
+  let servedAccount: ImapAccount;
+
+  beforeEach(() => {
+    instances.length = 0;
+    imapService = new ImapService();
+    account = {
+      id: 'acc',
+      name: 'Test',
+      host: 'imap.test.com',
+      port: 993,
+      user: 'user@test.com',
+      password: 'pw',
+      tls: true,
+    };
+    servedAccount = { ...account };
+    imapService.setAccountManager({
+      getAccount: (id: string) => (id === account.id ? servedAccount : undefined),
+    } as any);
+  });
+
+  it('T12R-HOST-CHANGE: a host change forces a fresh connection', async () => {
+    await imapService.connect(account);
+    expect(instances).toHaveLength(1);
+
+    // The manager now serves a changed identity (host moved).
+    servedAccount = { ...account, host: 'other.imap.test.com' };
+
+    await imapService.listFolders(account.id);
+    // The old connection was replaced with a brand-new client.
+    expect(instances).toHaveLength(2);
+    expect(instances[1]).not.toBe(instances[0]);
+  });
+
+  it('T12R-NAME-CHANGE-KEEPS: a display-name-only change keeps the live connection', async () => {
+    await imapService.connect(account);
+    expect(instances).toHaveLength(1);
+
+    // Display name is excluded from the revision contract.
+    servedAccount = { ...account, name: 'Renamed Account' };
+
+    await imapService.listFolders(account.id);
+    expect(instances).toHaveLength(1);
+  });
+
+  it('T12R-SAVE-TO-SENT-CHANGE: a send-policy change forces a fresh connection', async () => {
+    await imapService.connect(account);
+    expect(instances).toHaveLength(1);
+
+    servedAccount = { ...account, saveToSent: false };
+
+    await imapService.listFolders(account.id);
+    expect(instances).toHaveLength(2);
+  });
+});
+
+// T14 / SA-02: concurrent connects for the same account share a single
+// dial (single-flight). Ten simultaneous first-access calls result in ONE
+// ImapFlow instance — not ten.
+describe('T14R: concurrent connect single-flight', () => {
+  let imapService: ImapService;
+  let account: ImapAccount;
+
+  beforeEach(() => {
+    instances.length = 0;
+    imapService = new ImapService();
+    account = {
+      id: 'acc',
+      name: 'Test',
+      host: 'imap.test.com',
+      port: 993,
+      user: 'user@test.com',
+      password: 'pw',
+      tls: true,
+    };
+    imapService.setAccountManager({
+      getAccount: (id: string) => (id === account.id ? { ...account } : undefined),
+    } as any);
+  });
+
+  it('T14R-CONCURRENT-CONNECT: ten simultaneous first-access calls dial once', async () => {
+    const results = await Promise.all(
+      Array.from({ length: 10 }, () => imapService.listFolders(account.id)),
+    );
+    for (const folders of results) expect(folders).toHaveLength(1);
+    expect(instances).toHaveLength(1);
+  });
+
+  it('T14R-SINGLE-ACCESS: a single access still connects normally', async () => {
+    const folders = await imapService.listFolders(account.id);
+    expect(folders).toHaveLength(1);
+    expect(instances).toHaveLength(1);
+  });
+
+  // T15 / SA-03: abortConnection during an in-flight connect stops the
+  // attempt (no leaked client), and aborting one account does not interfere
+  // with another's connection.
+  describe('T15R: auth cancellation and shared non-interference', () => {
+    it('T15R-AUTH-CANCEL: abortConnection before a new connect does not poison retries', async () => {
+      imapService.abortConnection(account.id);
+      await expect(imapService.connect(account)).resolves.toBeUndefined();
+      expect(instances).toHaveLength(1);
+    });
+
+    it('T15R-SHARED-NON-INTERFERE: aborting account A does not abort account B', async () => {
+      const accountB = { ...account, id: 'acc-B', name: 'B' };
+      imapService.setAccountManager({
+        getAccount: (id: string) => {
+          if (id === account.id) return { ...account };
+          if (id === accountB.id) return { ...accountB };
+          return undefined;
+        },
+      } as any);
+      await Promise.all([
+        imapService.connect(account),
+        imapService.connect(accountB),
+      ]);
+      expect(instances).toHaveLength(2);
+
+      imapService.abortConnection(account.id);
+      expect(instances).toHaveLength(2);
+
+      // B is still usable.
+      const folders = await imapService.listFolders(accountB.id);
+      expect(folders).toHaveLength(1);
+    });
+  });
+});

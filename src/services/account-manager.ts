@@ -9,6 +9,7 @@ import { accountForPersistence, assertCredentialTarget } from '../credentials/ac
 import type { CredentialBackend } from '../credentials/credential-backend.js';
 import {AsyncLocalStorage} from 'node:async_hooks';
 import {withAccountStoreLock} from '../utils/account-store-lock.js';
+import {validateAccountCandidate, type AccountCandidate} from '../utils/account-candidate.js';
 
 
 type ProviderAccountCandidate = Pick<ImapAccount, 'host' | 'smtp' | 'auth'>;
@@ -45,20 +46,28 @@ export function assertProviderAccountAuth(
 export class AccountManager {
   private configPath: string;
   private configDir: string;
-  private accounts: Map<string, ImapAccount> = new Map();
+  private committedAccounts: Map<string, ImapAccount> = new Map();
+  private get accounts(): Map<string, ImapAccount> {
+    const transaction=this.transactionContext.getStore();
+    return transaction?.active ? transaction.working : this.committedAccounts;
+  }
+  private set accounts(accounts: Map<string, ImapAccount>) {
+    const transaction=this.transactionContext.getStore();
+    if(transaction?.active) transaction.working=accounts;
+    else this.committedAccounts=accounts;
+  }
   private encryptionKey: string;
   private capturedEnvOverrides: Map<string, string> = new Map();
-  private readonly transactionContext=new AsyncLocalStorage<boolean>();
+  private readonly transactionContext=new AsyncLocalStorage<{active:boolean;working:Map<string,ImapAccount>}>();
   private writeInProgress=false;
 
   async withStoreTransaction<T>(action:()=>Promise<T>):Promise<T>{
-    if(this.transactionContext.getStore()) return action();
+    if(this.transactionContext.getStore()?.active) return action();
     return withAccountStoreLock(this.configDir,async()=>{
       this.loadAccountsSync(true);
-      const snapshot=new Map(this.accounts);this.writeInProgress=true;
-      try{return await this.transactionContext.run(true,action);}
-      catch(error){this.accounts=snapshot;throw error;}
-      finally{this.writeInProgress=false;}
+      const transaction={active:true,working:new Map(this.committedAccounts)};this.writeInProgress=true;
+      try{return await this.transactionContext.run(transaction,action);}
+      finally{transaction.active=false;this.writeInProgress=false;}
     });
   }
 
@@ -73,22 +82,34 @@ export class AccountManager {
     this.configPath = path.join(this.configDir, 'accounts.json');
     this.encryptionKey = this.getOrCreateEncryptionKey();
     this.captureEnvOverrides();
-    this.loadAccountsSync();
+    try {
+      this.loadAccountsSync();
+    } catch (error) {
+      // T09 / SA-07: startup stays usable — the browser setup is the recovery
+      // path — but every account read re-raises the failure until the store
+      // is fixed, and no stale accounts leak into memory.
+      console.error('Account store could not be loaded:', error instanceof Error ? error.message : error);
+    }
   }
 
   async addAccount(account: Omit<ImapAccount, 'id'>): Promise<ImapAccount> {
     return this.withStoreTransaction(()=>this.addAccountUnlocked(account));
   }
   private async addAccountUnlocked(account: Omit<ImapAccount,'id'>):Promise<ImapAccount>{
-    assertProviderAccountAuth(account);
+    // Pure candidate validation (T07 / BUG-SEC-06): schema, types, credential
+    // placeholder rules and unknown-field rejection happen before any store
+    // access, so an invalid candidate can never reach accounts.json. The
+    // normalized candidate — never the raw input — is persisted.
+    const candidate = validateAccountCandidate(account);
+    assertProviderAccountAuth(candidate);
     for (const existing of this.accounts.values()) {
-      if (existing.name === account.name) throw new Error('Account name already exists; choose a unique name');
-      if (account.auth && existing.auth?.provider === account.auth.provider && existing.user === account.user) {
+      if (existing.name === candidate.name) throw new Error('Account name already exists; choose a unique name');
+      if (candidate.auth && existing.auth?.provider === candidate.auth.provider && existing.user === candidate.user) {
         throw new Error('Credential-backed account already exists; repair it instead of enrolling twice');
       }
     }
     const id = crypto.randomUUID();
-    const persistenceInput = accountForPersistence({ ...account, id });
+    const persistenceInput = accountForPersistence({ ...candidate, id });
     const newAccount: ImapAccount = {
       ...persistenceInput,
       id,
@@ -103,10 +124,15 @@ export class AccountManager {
       };
     }
 
+    // Validate the normalized, decrypted response before the durable write,
+    // so response construction cannot fail after committing the account.
+    const returned: ImapAccount = { ...newAccount, password: this.decryptField(newAccount.password) };
+    if (newAccount.smtp?.password !== undefined) {
+      returned.smtp = { ...newAccount.smtp, password: this.decryptField(newAccount.smtp.password) };
+    }
     this.accounts.set(id, newAccount);
     await this.saveAccounts();
-    
-    return { ...newAccount, password: account.password, smtp: account.smtp };
+    return returned;
   }
 
 
@@ -192,11 +218,25 @@ export class AccountManager {
       throw new Error(`Account with id ${id} not found`);
     }
 
-    const candidate = {
+    // The merged result is a candidate too: schema and unknown-field rules
+    // apply before anything is written (T07). Stored ciphertext is NOT
+    // re-validated as plaintext (a long stored password would exceed the
+    // plaintext budget in encrypted form) — it is restored after validation
+    // and flows through unchanged unless an update provides a new value.
+    const mergedInput: Record<string, unknown> = {
       ...existingAccount,
       ...updates,
       smtp: updates.smtp ?? existingAccount.smtp,
+      password: updates.password !== undefined ? updates.password : '',
     };
+    if (mergedInput.smtp !== undefined && updates.smtp?.password === undefined) {
+      mergedInput.smtp = { ...(mergedInput.smtp as Record<string, unknown>), password: '' };
+    }
+    const candidate = validateAccountCandidate(mergedInput);
+    if (updates.password === undefined) candidate.password = existingAccount.password;
+    if (candidate.smtp && updates.smtp?.password === undefined && existingAccount.smtp?.password !== undefined) {
+      candidate.smtp.password = existingAccount.smtp.password;
+    }
     for (const [otherId, other] of this.accounts) {
       if (otherId !== id && other.name === candidate.name) {
         throw new Error('Account name already exists; choose a unique name');
@@ -209,12 +249,14 @@ export class AccountManager {
 
     // Encrypt password if it's being updated. Use an explicit undefined check so
     // an empty placeholder ("" — used for env-managed credentials) is encrypted
-    // to a decryptable value rather than stored raw.
-    const processedUpdates = accountForPersistence({ ...existingAccount, ...updates, id });
+    // to a decryptable value rather than stored raw. Built from the VALIDATED
+    // candidate (T07 review) so normalization reaches the disk, not just the
+    // validation pass.
+    const processedUpdates = accountForPersistence({ ...candidate, id });
     if (existingAccount.auth || updates.password !== undefined) {
       processedUpdates.password = this.encrypt(processedUpdates.password);
     }
-    
+
     // Encrypt SMTP password if it's being updated
     if (updates.smtp?.password && processedUpdates.smtp?.password) {
       processedUpdates.smtp = {
@@ -230,22 +272,25 @@ export class AccountManager {
       id, // Ensure ID doesn't change
     };
 
-    this.accounts.set(id, updatedAccount);
-    await this.saveAccounts();
-
-    // Return decrypted version
+    // T10 / SA-06: construct the decrypted RESPONSE before committing — if
+    // return-object construction fails (e.g. a decrypt error), the update is
+    // not committed at all, keeping response, memory and disk in the same
+    // pre-update state.
     const decrypted: ImapAccount = {
       ...updatedAccount,
       password: this.decrypt(updatedAccount.password),
     };
-    
+
     if (updatedAccount.smtp?.password) {
       decrypted.smtp = {
         ...updatedAccount.smtp,
         password: this.decrypt(updatedAccount.smtp.password),
       };
     }
-    
+
+    this.accounts.set(id, updatedAccount);
+    await this.saveAccounts();
+
     return decrypted;
   }
 
@@ -438,20 +483,33 @@ export class AccountManager {
   }
 
   private loadAccountsSync(strict=false): void {
+    if(this.transactionContext.getStore()?.active) return;
     if(this.writeInProgress&&!strict) return;
     try {
       const data = readFileSync(this.configPath, 'utf-8');
-      const accounts = JSON.parse(data) as ImapAccount[];
-
-      this.accounts.clear();
-      for (const account of accounts) {
-        this.accounts.set(account.id, account);
+      const accounts = JSON.parse(data);
+      if (!Array.isArray(accounts)) {
+        throw new Error('Account store is not a JSON array');
       }
+      const loaded = new Map<string, ImapAccount>();
+      for (const account of accounts) {
+        if (typeof account !== 'object' || account === null || typeof (account as ImapAccount).id !== 'string') {
+          throw new Error('Account store contains a malformed entry');
+        }
+        loaded.set((account as ImapAccount).id, account as ImapAccount);
+      }
+      this.accounts = loaded;
     } catch (error) {
+      // T09 / SA-07: a failed load must not leave stale in-memory accounts.
+      // ENOENT means an empty store; anything else (corrupt JSON, non-array,
+      // malformed entries, refused reads) clears the visible accounts — and a
+      // strict load (taken before any write) still refuses to overwrite the
+      // broken file, so the original bytes survive until the user fixes them.
+      this.accounts = new Map();
       if(strict&&(error as NodeJS.ErrnoException).code!=='ENOENT') throw new Error('Account store is unreadable or invalid; refusing to overwrite it');
-      // File doesn't exist yet, that's okay
+      if (strict) return;
       if ((error as any).code !== 'ENOENT') {
-        console.error('Error loading accounts:', error);
+        throw new Error('Account store is unreadable or invalid; fix or remove it before using accounts', { cause: error });
       }
     }
   }
@@ -459,12 +517,19 @@ export class AccountManager {
   private async saveAccounts(): Promise<void> {
     const accounts = Array.from(this.accounts.values());
     const dir = path.dirname(this.configPath);
-    await fs.mkdir(dir, { recursive: true, mode: 0o700 });
-
     const temporary=this.configPath+'.'+crypto.randomUUID()+'.tmp';
     try{
+      await fs.mkdir(dir, { recursive: true, mode: 0o700 });
       await fs.writeFile(temporary,JSON.stringify(accounts,null,2),{mode:0o600,flag:'wx'});
       await fs.rename(temporary,this.configPath);
+      // Atomic replacement is the durable boundary. Keep enrollment's save
+      // inside its existing credential rollback catch, publishing only now.
+      this.committedAccounts=new Map(this.accounts);
+    }catch(error){
+      // A caller may catch a failed save and continue the outer transaction.
+      // Its next save must start from the latest successfully renamed state.
+      this.accounts=new Map(this.committedAccounts);
+      throw error;
     }finally{await fs.unlink(temporary).catch(()=>undefined);}
 
     await this.enforceStorePermissions();

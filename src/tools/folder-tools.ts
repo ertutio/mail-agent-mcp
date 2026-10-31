@@ -18,7 +18,7 @@ export function folderTools(
 ): void {
   // List folders tool
   server.registerTool('imap_list_folders', {
-    description: 'List all folders/mailboxes for an account (names, hierarchy delimiter, attributes, RFC 6154 special-use role). Use this first to discover exact folder names before searching, moving, or creating subfolders — folder naming varies by provider (e.g. "Archive" vs "[Gmail]/All Mail" vs "INBOX.Archive"). The specialUse field ("\\\\Sent", "\\\\Drafts", "\\\\Trash", "\\\\Junk", "\\\\Archive") identifies a folder\'s role independent of its localized name (e.g. "Gesendet" is the Sent folder when specialUse is "\\\\Sent").',
+    description: 'List all folders/mailboxes for an account (names, hierarchy delimiter, attributes, RFC 6154 special-use role). Use this first to discover exact folder names before searching, moving, or creating subfolders  folder naming varies by provider (e.g. "Archive" vs "[Gmail]/All Mail" vs "INBOX.Archive"). The specialUse field ("\\\\Sent", "\\\\Drafts", "\\\\Trash", "\\\\Junk", "\\\\Archive") identifies a folder\'s role independent of its localized name (e.g. "Gesendet" is the Sent folder when specialUse is "\\\\Sent").',
     inputSchema: {
       ...accountSelector,
     }
@@ -54,16 +54,16 @@ export function folderTools(
   }, async ({ accountId: rawAccountId, accountName, folder }) => {
     const accountId = accountManager.resolveAccountId(rawAccountId, accountName);
 
-    // Counts come from STATUS, not SELECT: imapflow's mailboxOpen() reports
-    // `exists` but neither RECENT nor UNSEEN. STATUS runs first because RFC 3501
-    // discourages issuing it against the currently selected mailbox.
-    const status = await imapService.getFolderStatus(accountId, folder);
-    const box = await imapService.selectFolder(accountId, folder);
+    // T01 review: counts (STATUS) and the flag snapshot come from ONE locked
+    // region — getFolderStatusSnapshot — so the response can never mix
+    // metadata from two moments or two mailboxes, and the locked SELECT can
+    // never re-point an in-flight operation to a different folder (MAIL-01).
+    const { status, snapshot } = await imapService.getFolderStatusSnapshot(accountId, folder);
 
     // imapflow returns flag sets as `Set`, which JSON.stringify renders as {}.
     const toFlagArray = (flags: Iterable<string> | undefined): string[] =>
       Array.from(flags ?? []);
-    const flags = toFlagArray(box.flags);
+    const flags = toFlagArray(snapshot.flags);
 
     return {
       content: [{
@@ -78,7 +78,7 @@ export function folderTools(
           uidvalidity: status.uidValidity,
           uidnext: status.uidNext,
           flags,
-          permanentFlags: toFlagArray(box.permanentFlags),
+          permanentFlags: toFlagArray(snapshot.permanentFlags),
           customKeywords: flags.filter(f => !isSystemFlag(f)),
         }, null, 2)
       }]
@@ -129,7 +129,7 @@ export function folderTools(
 
   // Get unread count tool
   server.registerTool('imap_get_unread_count', {
-    description: 'Count unread (unseen) emails per folder, plus a total. Use for "how many unread do I have?" overviews. Defaults to all folders; pass a folders list to limit scope and speed it up.',
+    description: 'Count unread (unseen) emails per folder via named STATUS, plus a total. Use for "how many unread do I have?" overviews. Defaults to all folders; pass a folders list to limit scope. Folders whose count cannot be determined are listed in unknownFolders — they are never counted as zero.',
     inputSchema: {
       ...accountSelector,
       folders: z.array(z.string()).optional().describe('List of folders to check (default: all)'),
@@ -138,28 +138,38 @@ export function folderTools(
     const accountId = accountManager.resolveAccountId(rawAccountId, accountName);
     const allFolders = await imapService.listFolders(accountId);
     const foldersToCheck = folders || allFolders.map(f => f.name);
-    
-    const unreadCounts: Record<string, number> = {};
+
+    const byFolder: Record<string, number> = {};
+    const unknownFolders: string[] = [];
     let totalUnread = 0;
-    
+
+    // T29 / MAIL-06: named STATUS counts server-side (no metadata download,
+    // no search cap). A folder that cannot be queried is reported as unknown
+    // rather than silently counted as zero.
     for (const folderName of foldersToCheck) {
       try {
-        const unreadMessages = await imapService.searchEmails(accountId, folderName, { seen: false });
-        const count = unreadMessages.length;
-        unreadCounts[folderName] = count;
-        totalUnread += count;
-      } catch (error) {
-        // Skip folders that can't be accessed
-        unreadCounts[folderName] = 0;
+        const outcome = await imapService.getFolderUnseenStatus(accountId, folderName);
+        if (outcome.unknownReason !== undefined || outcome.unseen === undefined) {
+          unknownFolders.push(folderName);
+          continue;
+        }
+        byFolder[folderName] = outcome.unseen;
+        totalUnread += outcome.unseen;
+      } catch (err) {
+        // T29 review: a connection/auth failure mid-sweep must not lose the
+        // counts already acquired — the folder is unknown, the rest continue.
+        unknownFolders.push(folderName);
       }
     }
-    
+
     return {
       content: [{
         type: 'text',
         text: JSON.stringify({
           totalUnread,
-          byFolder: unreadCounts,
+          complete: unknownFolders.length === 0,
+          byFolder,
+          ...(unknownFolders.length > 0 ? { unknownFolders } : {}),
         }, null, 2)
       }]
     };

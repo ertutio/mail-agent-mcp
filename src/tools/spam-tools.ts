@@ -3,6 +3,23 @@ import { ImapService } from '../services/imap-service.js';
 import { SpamService, HeaderRedFlag } from '../services/spam-service.js';
 import { z } from 'zod';
 
+/**
+ * Lowercased domain of the address inside a formatted "Name <addr>" string,
+ * or null when no address is present. The domain is everything after the
+ * last '@' of the address itself — never text from the display name.
+ */
+function addressDomain(from: string): string | null {
+  if (!from) return null;
+  // The address is the LAST angle-bracketed token: formatAddress appends
+  // " <addr>" after the display name, so a decoy inside the display name
+  // ('"Bob <decoy@x>" <real@y>') must never win (T37 review).
+  const matches = [...from.matchAll(/<([^<>]*)>/g)];
+  const address = (matches.length > 0 ? matches[matches.length - 1][1] : from).trim();
+  const at = address.lastIndexOf('@');
+  if (at === -1) return null;
+  return address.slice(at + 1).toLowerCase();
+}
+
 export function spamTools(
   server: McpServer,
   imapService: ImapService,
@@ -314,10 +331,18 @@ export function spamTools(
       dryRun: z.boolean().default(true).describe('If true, only report what would be deleted'),
     }
   }, async ({ accountId, folder, domain, dryRun }) => {
-    // Search for emails from the domain
-    const messages = await imapService.searchEmails(accountId, folder, {
+    // MAIL-07 (T37): the IMAP FROM search is a substring match, so raw
+    // candidates include look-alike domains (user@example.test.evil.net) and
+    // quoted display names that merely contain the domain text. Parse every
+    // candidate's address and keep exact domain matches only — the preview
+    // and the frozen deletion set are both built from this filtered list.
+    // Subdomains are a different domain and are excluded; widening to
+    // subdomains would be a separate product decision.
+    const wantedDomain = domain.trim().toLowerCase();
+    const candidates = await imapService.searchEmails(accountId, folder, {
       from: `@${domain}`,
     });
+    const messages = candidates.filter(m => addressDomain(m.from) === wantedDomain);
 
     if (messages.length === 0) {
       return {

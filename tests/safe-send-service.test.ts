@@ -73,6 +73,7 @@ describe('SafeSendService', () => {
         },
       });
       expect((payload.composer.attachments![0].content as Buffer).toString()).toBe('attachment-fixture');
+      return { receipt: { accepted: ['alice@example.test', 'copy@example.test'], rejected: [], unknown: [] } };
     });
     const { service } = harness(executor);
     const input = makeInput();
@@ -110,7 +111,7 @@ describe('SafeSendService', () => {
     expect(JSON.stringify(preview)).not.toContain('private HTML body');
     expect(service.getState(preview.draftId)).toBe('pending');
 
-    await expect(service.confirm(preview.draftId, true)).resolves.toEqual({ status: 'sent' });
+    await expect(service.confirm(preview.draftId, true)).resolves.toMatchObject({ status: 'sent' });
     expect(executor).toHaveBeenCalledTimes(1);
   });
 
@@ -143,6 +144,7 @@ describe('SafeSendService', () => {
       expect(payload.composer.text).toBe('private plain-text body');
       expect((payload.composer.attachments![0].content as Buffer).toString()).toBe('attachment-fixture');
       await gate;
+      return { receipt: { accepted: ['alice@example.test', 'copy@example.test'], rejected: [], unknown: [] } };
     });
     const { service } = harness(executor);
     const { draftId } = service.preview(makeInput());
@@ -153,9 +155,9 @@ describe('SafeSendService', () => {
     expect(executor).toHaveBeenCalledTimes(1);
     release();
 
-    await expect(first).resolves.toEqual({ status: 'sent' });
-    await expect(concurrent).resolves.toEqual({ status: 'already_sent' });
-    await expect(service.confirm(draftId, true)).resolves.toEqual({ status: 'already_sent' });
+    await expect(first).resolves.toMatchObject({ status: 'sent' });
+    await expect(concurrent).resolves.toMatchObject({ status: 'already_sent', alreadyConfirmed: true });
+    await expect(service.confirm(draftId, true)).resolves.toMatchObject({ status: 'already_sent', alreadyConfirmed: true });
     expect(service.getState(draftId)).toBe('sent');
     expect(executor).toHaveBeenCalledTimes(1);
     expect((executor.mock.calls[0][0].composer.attachments![0].content as Buffer).every((byte) => byte === 0)).toBe(true);
@@ -166,10 +168,10 @@ describe('SafeSendService', () => {
     const { service } = harness(executor);
     const { draftId } = service.preview(makeInput());
 
-    await expect(service.confirm(draftId, true)).rejects.toThrow(/ambiguous/i);
+    await expect(service.confirm(draftId, true)).resolves.toMatchObject({ status: 'ambiguous', receipt: { accepted: [], rejected: [], unknown: ['alice@example.test', 'copy@example.test'] } });
     expect(service.getState(draftId)).toBe('ambiguous');
     expect((executor.mock.calls[0][0].composer.attachments![0].content as Buffer).every((byte) => byte === 0)).toBe(true);
-    await expect(service.confirm(draftId, true)).rejects.toThrow(/ambiguous/i);
+    await expect(service.confirm(draftId, true)).resolves.toMatchObject({ status: 'ambiguous', alreadyConfirmed: true });
     expect(executor).toHaveBeenCalledTimes(1);
   });
 

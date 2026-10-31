@@ -1,5 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { unifiedSearchTools } from '../src/tools/unified-search-tools.js';
+import { createHash } from 'node:crypto';
+import { accountRevision } from '../src/utils/account-revision.js';
 
 const accounts = [
   { id: 'qq', name: 'personal', host: 'imap.qq.com' },
@@ -36,9 +38,9 @@ describe('unified mailbox search', () => {
     expect(JSON.stringify(result)).not.toContain('sensitive');
     expect(result.accounts.find((a: any) => a.accountId === 'net').status).toBe('failed');
   });
-  it('bounds stuck accounts and aborts their connection', async () => {
+  it('bounds stuck accounts without aborting connections shared by other consumers', async () => {
     const { call, imap } = setup(10); imap.searchEmailPage.mockImplementation((id: string) => id === 'net' ? new Promise(() => {}) : Promise.resolve({messages:[],matched:0}));
-    const result = await call(); expect(result.partial).toBe(true); expect(imap.abortConnection).toHaveBeenCalledWith('net');
+    const result = await call(); expect(result.partial).toBe(true); expect(imap.abortConnection).not.toHaveBeenCalled();
     expect(result.accounts.find((a: any) => a.accountId === 'net').status).toBe('timeout');
   });
   it('supports a named subset and refuses unknown names before connecting', async () => {
@@ -64,5 +66,53 @@ describe('unified mailbox search', () => {
   it('rejects invalid dates before network access', async () => {
     const { call, imap } = setup(); await expect(call({ since: '2026-02-30' })).rejects.toThrow(/date/i);
     expect(imap.listFolders).not.toHaveBeenCalled();
+  });
+});
+
+
+describe('T26R: cursor account binding', () => {
+  const cursor = (accountId: string, accountName: string, revision: string) => ({
+    accountId, accountName, accountRevision: revision,
+    folder: 'INBOX', beforeUid: 5, uidValidity: 123,
+    filterKey: require('crypto').createHash('sha256').update(JSON.stringify({criteria:{},limit:50,searchAllFolders:true,folder:'INBOX',includeTrash:false,includeSpam:false,includeDrafts:false})).digest('hex'),
+  });
+  const revision = (id: string, name: string) => {
+    const { accountRevision } = require('../src/utils/account-revision.js');
+    return accountRevision({ id, name, host: 'imap.qq.com', port: 993, user: 'u@synth.test', password: '', tls: true } as any);
+  };
+
+  it('includes accountId and accountRevision in output cursors', async () => {
+    const { call } = setup(100, accounts);
+    const result = await call({ query: '项目' });
+    // Existing mock resolves all folders instantly — cursors only appear on
+    // timeout/partial. Force partial by making one account time out.
+    const slow = setup(0, accounts); // timeout 0 → all timeout
+    const partial = await slow.call({ query: '项目' });
+    if (partial.cursors.length > 0) {
+      for (const c of partial.cursors) {
+        expect(c.accountId).toBeDefined();
+        expect(c.accountRevision).toMatch(/^[0-9a-f]{16}$/);
+      }
+    }
+  });
+
+  it('rejects a cursor when the account is removed', async () => {
+    const fakeCursor = [cursor('gone', 'Gone', 'a'.repeat(16))];
+    const { call } = setup(100, accounts);
+    await expect(call({ query: '项目', cursors: fakeCursor })).rejects.toThrow(/no longer exists/);
+  });
+
+  it('rejects a cursor when the account is renamed', async () => {
+    const fakeCursor = [cursor('qq', 'personal', 'a'.repeat(16))];
+    const { call } = setup(100, [{ ...accounts[0], name: 'renamed' }]);
+    await expect(call({ query: '项目', cursors: fakeCursor })).rejects.toThrow(/renamed/);
+  });
+
+  it('rejects a cursor when the account identity changed', async () => {
+    const real = accountRevision({ id: 'qq', name: 'personal', host: 'imap.qq.com', port: 993, user: 'u@synth.test', password: '', tls: true } as any);
+    const fakeCursor = [cursor('qq', 'personal', real)];
+    // Change the host (identity-relevant) → revision bumps.
+    const { call } = setup(100, [{ ...accounts[0], host: 'other.imap.qq.com' }]);
+    await expect(call({ query: '项目', cursors: fakeCursor })).rejects.toThrow(/identity changed/);
   });
 });
