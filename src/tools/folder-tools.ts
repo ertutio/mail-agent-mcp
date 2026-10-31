@@ -18,7 +18,7 @@ export function folderTools(
 ): void {
   // List folders tool
   server.registerTool('imap_list_folders', {
-    description: 'List all folders/mailboxes for an account (names, hierarchy delimiter, attributes, RFC 6154 special-use role). Use this first to discover exact folder names before searching, moving, or creating subfolders — folder naming varies by provider (e.g. "Archive" vs "[Gmail]/All Mail" vs "INBOX.Archive"). The specialUse field ("\\\\Sent", "\\\\Drafts", "\\\\Trash", "\\\\Junk", "\\\\Archive") identifies a folder\'s role independent of its localized name (e.g. "Gesendet" is the Sent folder when specialUse is "\\\\Sent").',
+    description: 'List all folders/mailboxes for an account (names, hierarchy delimiter, attributes, RFC 6154 special-use role). Use this first to discover exact folder names before searching, moving, or creating subfolders  folder naming varies by provider (e.g. "Archive" vs "[Gmail]/All Mail" vs "INBOX.Archive"). The specialUse field ("\\\\Sent", "\\\\Drafts", "\\\\Trash", "\\\\Junk", "\\\\Archive") identifies a folder\'s role independent of its localized name (e.g. "Gesendet" is the Sent folder when specialUse is "\\\\Sent").',
     inputSchema: {
       ...accountSelector,
     }
@@ -54,16 +54,16 @@ export function folderTools(
   }, async ({ accountId: rawAccountId, accountName, folder }) => {
     const accountId = accountManager.resolveAccountId(rawAccountId, accountName);
 
-    // Counts come from STATUS, not SELECT: imapflow's mailboxOpen() reports
-    // `exists` but neither RECENT nor UNSEEN. STATUS runs first because RFC 3501
-    // discourages issuing it against the currently selected mailbox.
-    const status = await imapService.getFolderStatus(accountId, folder);
-    const box = await imapService.selectFolder(accountId, folder);
+    // T01 review: counts (STATUS) and the flag snapshot come from ONE locked
+    // region — getFolderStatusSnapshot — so the response can never mix
+    // metadata from two moments or two mailboxes, and the locked SELECT can
+    // never re-point an in-flight operation to a different folder (MAIL-01).
+    const { status, snapshot } = await imapService.getFolderStatusSnapshot(accountId, folder);
 
     // imapflow returns flag sets as `Set`, which JSON.stringify renders as {}.
     const toFlagArray = (flags: Iterable<string> | undefined): string[] =>
       Array.from(flags ?? []);
-    const flags = toFlagArray(box.flags);
+    const flags = toFlagArray(snapshot.flags);
 
     return {
       content: [{
@@ -78,7 +78,7 @@ export function folderTools(
           uidvalidity: status.uidValidity,
           uidnext: status.uidNext,
           flags,
-          permanentFlags: toFlagArray(box.permanentFlags),
+          permanentFlags: toFlagArray(snapshot.permanentFlags),
           customKeywords: flags.filter(f => !isSystemFlag(f)),
         }, null, 2)
       }]
