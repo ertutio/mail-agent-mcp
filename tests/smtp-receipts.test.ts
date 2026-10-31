@@ -66,7 +66,7 @@ describe('T21: SMTP acceptance receipts', () => {
     withTransport(vi.fn(async () => ({
       messageId: '<m2@synth.test>',
       accepted: ['a@synth.test'],
-      rejected: ['b@synth.test'],
+      rejected: ['b@synth.test', 'hidden@synth.test'],
       response: '250 OK, 550 unknown recipient',
     })));
 
@@ -74,7 +74,7 @@ describe('T21: SMTP acceptance receipts', () => {
 
     expect(result.sent).toBe(false);
     expect(result.accepted).toEqual(['a@synth.test']);
-    expect(result.rejected).toEqual(['b@synth.test']);
+    expect(result.rejected).toEqual(['b@synth.test', 'hidden@synth.test']);
     expect(result.message).toMatch(/rejected/i);
     expect(result.message).not.toMatch(/deliver/i); // no final-delivery claim
   });
@@ -106,7 +106,8 @@ describe('T21: SMTP acceptance receipts', () => {
 
     expect(result.sent).toBeUndefined();
     expect(result.unknownRecipients).toMatch(/unknown/i);
-    expect(result.accepted).toBeUndefined();
+    expect(result.accepted).toEqual([]);
+    expect(result.receipt.unknown).toEqual(['a@synth.test', 'b@synth.test', 'hidden@synth.test']);
   });
 
   it('T21-COMPAT: messageId and rawMessage remain on the result', async () => {
@@ -119,7 +120,7 @@ describe('T21: SMTP acceptance receipts', () => {
 
     const result = await service.sendEmail(account.id, account, composer as any);
 
-    expect(result.messageId).toBe('<m5@synth.test>');
+    expect(result.messageId).toBe(result.rawMessage!.toString().match(/^Message-ID:\s*(.+?)\r?$/im)![1]);
     expect(result.rawMessage).toBeInstanceOf(Buffer);
   });
 });

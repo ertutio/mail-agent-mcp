@@ -46,20 +46,28 @@ export function assertProviderAccountAuth(
 export class AccountManager {
   private configPath: string;
   private configDir: string;
-  private accounts: Map<string, ImapAccount> = new Map();
+  private committedAccounts: Map<string, ImapAccount> = new Map();
+  private get accounts(): Map<string, ImapAccount> {
+    const transaction=this.transactionContext.getStore();
+    return transaction?.active ? transaction.working : this.committedAccounts;
+  }
+  private set accounts(accounts: Map<string, ImapAccount>) {
+    const transaction=this.transactionContext.getStore();
+    if(transaction?.active) transaction.working=accounts;
+    else this.committedAccounts=accounts;
+  }
   private encryptionKey: string;
   private capturedEnvOverrides: Map<string, string> = new Map();
-  private readonly transactionContext=new AsyncLocalStorage<boolean>();
+  private readonly transactionContext=new AsyncLocalStorage<{active:boolean;working:Map<string,ImapAccount>}>();
   private writeInProgress=false;
 
   async withStoreTransaction<T>(action:()=>Promise<T>):Promise<T>{
-    if(this.transactionContext.getStore()) return action();
+    if(this.transactionContext.getStore()?.active) return action();
     return withAccountStoreLock(this.configDir,async()=>{
       this.loadAccountsSync(true);
-      const snapshot=new Map(this.accounts);this.writeInProgress=true;
-      try{return await this.transactionContext.run(true,action);}
-      catch(error){this.accounts=snapshot;throw error;}
-      finally{this.writeInProgress=false;}
+      const transaction={active:true,working:new Map(this.committedAccounts)};this.writeInProgress=true;
+      try{return await this.transactionContext.run(transaction,action);}
+      finally{transaction.active=false;this.writeInProgress=false;}
     });
   }
 
@@ -116,16 +124,14 @@ export class AccountManager {
       };
     }
 
+    // Validate the normalized, decrypted response before the durable write,
+    // so response construction cannot fail after committing the account.
+    const returned: ImapAccount = { ...newAccount, password: this.decryptField(newAccount.password) };
+    if (newAccount.smtp?.password !== undefined) {
+      returned.smtp = { ...newAccount.smtp, password: this.decryptField(newAccount.smtp.password) };
+    }
     this.accounts.set(id, newAccount);
     await this.saveAccounts();
-
-    // T07 review: the caller gets the persisted record with secrets decrypted
-    // back — the same normalized values that just hit the disk, never the raw
-    // un-normalized input.
-    const returned: ImapAccount = { ...newAccount, password: this.decrypt(newAccount.password) };
-    if (newAccount.smtp?.password !== undefined) {
-      returned.smtp = { ...newAccount.smtp, password: this.decrypt(newAccount.smtp.password) };
-    }
     return returned;
   }
 
@@ -477,6 +483,7 @@ export class AccountManager {
   }
 
   private loadAccountsSync(strict=false): void {
+    if(this.transactionContext.getStore()?.active) return;
     if(this.writeInProgress&&!strict) return;
     try {
       const data = readFileSync(this.configPath, 'utf-8');
@@ -510,12 +517,19 @@ export class AccountManager {
   private async saveAccounts(): Promise<void> {
     const accounts = Array.from(this.accounts.values());
     const dir = path.dirname(this.configPath);
-    await fs.mkdir(dir, { recursive: true, mode: 0o700 });
-
     const temporary=this.configPath+'.'+crypto.randomUUID()+'.tmp';
     try{
+      await fs.mkdir(dir, { recursive: true, mode: 0o700 });
       await fs.writeFile(temporary,JSON.stringify(accounts,null,2),{mode:0o600,flag:'wx'});
       await fs.rename(temporary,this.configPath);
+      // Atomic replacement is the durable boundary. Keep enrollment's save
+      // inside its existing credential rollback catch, publishing only now.
+      this.committedAccounts=new Map(this.accounts);
+    }catch(error){
+      // A caller may catch a failed save and continue the outer transaction.
+      // Its next save must start from the latest successfully renamed state.
+      this.accounts=new Map(this.committedAccounts);
+      throw error;
     }finally{await fs.unlink(temporary).catch(()=>undefined);}
 
     await this.enforceStorePermissions();

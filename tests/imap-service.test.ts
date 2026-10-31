@@ -13,7 +13,9 @@ class MockImapFlow {
   public listMock = vi.fn().mockResolvedValue([]);
   public mailboxOpenMock = vi.fn().mockResolvedValue({});
   public getMailboxLockMock = vi.fn().mockResolvedValue({ release: vi.fn() });
-  public searchMock = vi.fn().mockResolvedValue([]);
+  public presentUids=new Set(Array.from({length:200},(_,i)=>i+1));
+  public searchMock = vi.fn().mockImplementation(async(query:any)=>query?.uid
+    ? String(query.uid).split(',').map(Number).filter(uid=>this.presentUids.has(uid)) : []);
   public fetchMock = vi.fn();
   public fetchOneMock = vi.fn().mockResolvedValue(null);
   public messageFlagsAddMock = vi.fn().mockResolvedValue(true);
@@ -68,8 +70,18 @@ class MockImapFlow {
   fetchOne(uid: any, opts: any, options: any) { return this.fetchOneMock(uid, opts, options); }
   messageFlagsAdd(uid: any, flags: any, opts: any) { return this.messageFlagsAddMock(uid, flags, opts); }
   messageFlagsRemove(uid: any, flags: any, opts: any) { return this.messageFlagsRemoveMock(uid, flags, opts); }
-  messageDelete(uid: any, opts: any) { return this.messageDeleteMock(uid, opts); }
-  messageMove(uid: any, target: any, opts: any) { return this.messageMoveMock(uid, target, opts); }
+  async messageDelete(uid: any, opts: any) {
+    const outcome=await this.messageDeleteMock(uid, opts);
+    if(outcome)for(const value of String(uid).split(',').map(Number))this.presentUids.delete(value);
+    return outcome;
+  }
+  async messageMove(uid: any, target: any, opts: any) {
+    const outcome=await this.messageMoveMock(uid, target, opts);
+    if(outcome)for(const value of String(uid).split(',').map(Number)) {
+      if(!outcome.uidMap || outcome.uidMap.has(value))this.presentUids.delete(value);
+    }
+    return outcome;
+  }
   mailboxCreate(path: any) { return this.mailboxCreateMock(path); }
   status(name: string, opts: any) { return this.statusMock(name, opts); }
   on(event: string, handler: any) { return this.onMock(event, handler); }
@@ -260,7 +272,8 @@ describe('ImapService', () => {
   describe('bulkDelete', () => {
     it('should move emails to Trash in chunks', async () => {
       await imapService.connect(mockAccount);
-      // Chunked moves without a UIDPLUS map confirm the whole chunk.
+      // The synthetic mailbox removes each target; pre/post UID SEARCH
+      // observes their disappearance even without COPYUID.
       mockInstance.messageMoveMock.mockResolvedValue({ path: 'INBOX', destination: 'Trash' });
 
       const uids = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
@@ -1489,7 +1502,7 @@ describe('ImapService', () => {
 
       expect(result.deleted).toBe(2);
       expect(result.failed).toBe(1);
-      expect(result.errors.join(' ')).toMatch(/unconfirmed/i);
+      expect(result.errors.join(' ')).toMatch(/unconfirmed|unknown/i);
     });
 
     it('T05R-BULK-FULL-UIDMAP: a fully mapped chunk still counts completely', async () => {

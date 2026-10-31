@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { SmtpService } from '../src/services/smtp-service.js';
+import { SafeSendPreflightError } from '../src/services/safe-send-service.js';
 import type { ImapAccount } from '../src/types/index.js';
 
 // T22 / MAIL-03: one frozen MIME. The exact bytes composeRaw builds are what
@@ -84,8 +85,9 @@ describe('T22: single frozen MIME for submission and Sent copy', () => {
       ...composer,
       text: 'x'.repeat(100001), // beyond MAX_BODY_CHARS
     };
-    await expect(service.sendEmail(account.id, account, oversized as any))
-      .rejects.toThrow(/Failed to send email/i);
+    const attempt = service.sendEmail(account.id, account, oversized as any);
+    await expect(attempt).rejects.toBeInstanceOf(SafeSendPreflightError);
+    await expect(attempt).rejects.toThrow('SMTP preparation failed; create a new preview before sending');
     expect(sendMail).not.toHaveBeenCalled();
   });
   // T22 review: prove the frozen-raw path against a REAL nodemailer

@@ -187,15 +187,10 @@ describe('T14R: concurrent connect single-flight', () => {
   // attempt (no leaked client), and aborting one account does not interfere
   // with another's connection.
   describe('T15R: auth cancellation and shared non-interference', () => {
-    it('T15R-AUTH-CANCEL: abortConnection before connect causes it to abort', async () => {
-      // Abort first: the abortedConnects set is populated.
+    it('T15R-AUTH-CANCEL: abortConnection before a new connect does not poison retries', async () => {
       imapService.abortConnection(account.id);
-      // Debug: confirm the abort flag is set
-      expect((imapService as any).abortedConnects.has(account.id)).toBe(true);
-      // The connect checks the flag after the auth await and throws.
-      await expect(imapService.connect(account)).rejects.toThrow(/aborted/i);
-      // No ImapFlow was constructed.
-      expect(instances).toHaveLength(0);
+      await expect(imapService.connect(account)).resolves.toBeUndefined();
+      expect(instances).toHaveLength(1);
     });
 
     it('T15R-SHARED-NON-INTERFERE: aborting account A does not abort account B', async () => {

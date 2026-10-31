@@ -106,6 +106,9 @@ function validateAuth(value: unknown): AccountAuth {
   const credentialTarget = stringField(value, 'credentialTarget', { max: 512 });
   if (!credentialTarget) fail('auth.credentialTarget is required');
   if (kind === 'oauth2' && provider !== 'gmail') fail('oauth2 auth is only supported for gmail');
+  if (provider === 'gmail' && kind !== 'oauth2') fail('gmail requires oauth2 auth');
+  if (provider !== 'gmail' && (Object.hasOwn(value,'clientId') || Object.hasOwn(value,'clientSecretTarget'))) fail('OAuth client fields are only supported for gmail');
+  if (provider !== 'netease' && Object.hasOwn(value,'endpoints')) fail(`auth.endpoints is not supported for ${provider}`);
   if (value.clientId !== undefined && typeof value.clientId !== 'string') fail('auth.clientId must be a string');
   if (value.clientSecretTarget !== undefined && (typeof value.clientSecretTarget !== 'string' || value.clientSecretTarget.length === 0)) {
     fail('auth.clientSecretTarget must be a non-empty string');
@@ -123,7 +126,12 @@ function validateAuth(value: unknown): AccountAuth {
     if (typeof imapPort !== 'number' || !Number.isInteger(imapPort) || imapPort < 1 || imapPort > 65535) fail('auth.endpoints.imapPort must be an integer between 1 and 65535');
     if (typeof smtpPort !== 'number' || !Number.isInteger(smtpPort) || smtpPort < 1 || smtpPort > 65535) fail('auth.endpoints.smtpPort must be an integer between 1 and 65535');
   }
-  return value as unknown as AccountAuth;
+  if (provider === 'netease') {
+    const endpoints=value.endpoints as Record<string,unknown>;
+    return {kind:'credential',provider:'netease',credentialTarget,endpoints:{imapHost:endpoints.imapHost as string,imapPort:endpoints.imapPort as number,smtpHost:endpoints.smtpHost as string,smtpPort:endpoints.smtpPort as number}};
+  }
+  if(provider==='qq')return {kind:'credential',provider:'qq',credentialTarget};
+  return {kind:'oauth2',provider:'gmail',credentialTarget,...(value.clientId!==undefined?{clientId:value.clientId as string}:{}),...(value.clientSecretTarget!==undefined?{clientSecretTarget:value.clientSecretTarget as string}:{})};
 }
 
 function validateSmtp(value: unknown): SmtpConfig {

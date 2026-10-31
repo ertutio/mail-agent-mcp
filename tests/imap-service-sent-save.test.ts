@@ -72,7 +72,7 @@ describe('ImapService.appendToSentFolder', () => {
     expect(result.error).toContain('configured sentFolder');
   });
 
-  it('times out independently, classifies the failure, and aborts the stale connection', async () => {
+  it('times out independently and preserves connections shared with other consumers', async () => {
     vi.useFakeTimers();
     try {
       vi.spyOn(service, 'findSpecialUseFolder').mockResolvedValue('Sent');
@@ -85,9 +85,11 @@ describe('ImapService.appendToSentFolder', () => {
       await expect(pending).resolves.toEqual({
         saved: false,
         errorCategory: 'timeout',
-        error: 'Sent-folder copy timed out',
+        outcomeUnknown: true,
+        error: expect.stringMatching(/outcome unknown.*Do not automatically retry/i),
       });
-      expect(abort).toHaveBeenCalledWith('acc1');
+      expect(append).toHaveBeenCalledTimes(1);
+      expect(abort).not.toHaveBeenCalled();
     } finally {
       vi.useRealTimers();
     }

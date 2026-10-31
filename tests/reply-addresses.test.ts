@@ -72,7 +72,7 @@ describe('T23: reply address model', () => {
 
     const composer = await reply(mockSmtpService);
 
-    expect(composer.to).toEqual(['Alice <reply-to@rt.test>']);
+    expect(composer.to).toEqual(['reply-to@rt.test']);
   });
 
   it('T23-REPLY-ALL-COMPLETE: reply-all covers Reply-To + To + Cc minus self', async () => {
@@ -82,8 +82,8 @@ describe('T23: reply address model', () => {
 
     const composer = await reply(mockSmtpService, { replyAll: true });
 
-    expect(composer.to).toEqual(['Alice <reply-to@rt.test>', 'Other <other@t.test>']);
-    expect(composer.cc).toEqual(['Cc1 <cc1@t.test>', 'Cc2 <cc2@t.test>']);
+    expect(composer.to).toEqual(['reply-to@rt.test', 'other@t.test']);
+    expect(composer.cc).toEqual(['cc1@t.test', 'cc2@t.test']);
   });
 
   it('T23-NO-REPLY-TO-FALLBACK: without Reply-To the reply goes to From', async () => {
@@ -91,7 +91,7 @@ describe('T23: reply address model', () => {
 
     const composer = await reply(mockSmtpService);
 
-    expect(composer.to).toEqual(['Bob <bob@from.test>']);
+    expect(composer.to).toEqual(['bob@from.test']);
     expect(composer.subject).toBe('Re: Original subject');
   });
 

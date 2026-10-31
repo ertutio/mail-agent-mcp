@@ -37,8 +37,20 @@ const stored = (service: SafeSendService, draftId: string): Record<string, unkno
 
 const expectTombstone = (service: SafeSendService, draftId: string, state: string) => {
   const entry = stored(service, draftId);
-  expect(entry).toEqual({ state, expiresAt: expect.any(Number) });
-  expect(JSON.stringify(entry)).not.toMatch(/account-1|recipient@example\.test|sensitive synthetic body|fixture\.txt/);
+  if (state === 'expired') {
+    expect(entry).toEqual({ state, expiresAt: expect.any(Number) });
+    expect(JSON.stringify(entry)).not.toContain('recipient@example.test');
+  } else {
+    expect(entry).toMatchObject({ state, expiresAt: expect.any(Number), outcome: { status: state } });
+    expect(Object.keys(entry).filter(key => entry[key] !== undefined).sort()).toEqual(['expiresAt', 'outcome', 'state']);
+  }
+  expect(entry.payload).toBeUndefined();
+  expect(entry.inFlight).toBeUndefined();
+  const retained = JSON.stringify(entry);
+  expect(retained).not.toMatch(/"(?:composer|raw|rawMessage|body|text|html|attachments|content|password|token|auth|accountId|accountRevision)"\s*:/);
+  expect(retained).not.toMatch(/account-1|sender@example\.test|Synthetic subject|sensitive synthetic body|fixture\.txt|synthetic attachment|synthetic raw/);
+  expect(retained).not.toContain(SYNTHETIC_PASSWORD_1);
+  return entry;
 };
 
 describe('provider-bound generic account boundary', () => {
@@ -55,21 +67,29 @@ describe('provider-bound generic account boundary', () => {
 });
 
 describe('safe-send terminal privacy', () => {
-  it('replaces sent, ambiguous, and expired payloads with minimal tombstones', async () => {
-    const sent = new SafeSendService({ executor: vi.fn(async () => undefined), id: () => 'sent-id' });
+  it('retains sanitized terminal receipts and warnings while removing message payloads', async () => {
+    const receipt = { accepted: ['recipient@example.test'], rejected: [], unknown: [] };
+    const warnings = [{ code: 'sent_copy_failed' as const, message: 'Saving a Sent-folder copy failed' }];
+    const sentExecutor = vi.fn(async () => ({ receipt, warnings }));
+    const sent = new SafeSendService({ executor: sentExecutor, id: () => 'sent-id' });
     sent.preview(input());
-    await sent.confirm('sent-id', true);
-    expectTombstone(sent, 'sent-id', 'sent');
-    await expect(sent.confirm('sent-id', true)).resolves.toEqual({ status: 'already_sent' });
+    const sentResult = await sent.confirm('sent-id', true);
+    expect(sentResult).toEqual({ status: 'sent', receipt, warnings });
+    expect(expectTombstone(sent, 'sent-id', 'sent').outcome).toEqual(sentResult);
+    await expect(sent.confirm('sent-id', true)).resolves.toEqual({ ...sentResult, status: 'already_sent', alreadyConfirmed: true });
+    expect(sentExecutor).toHaveBeenCalledOnce();
 
+    const ambiguousExecutor = vi.fn(async () => { throw new Error(`synthetic raw: sensitive synthetic body; ${SYNTHETIC_PASSWORD_1}`); });
     const ambiguous = new SafeSendService({
-      executor: vi.fn(async () => { throw new Error('synthetic uncertainty'); }),
+      executor: ambiguousExecutor,
       id: () => 'ambiguous-id',
     });
     ambiguous.preview(input());
-    await expect(ambiguous.confirm('ambiguous-id', true)).rejects.toThrow(/ambiguous/i);
-    expectTombstone(ambiguous, 'ambiguous-id', 'ambiguous');
-    await expect(ambiguous.confirm('ambiguous-id', true)).rejects.toThrow(/ambiguous/i);
+    const ambiguousResult = await ambiguous.confirm('ambiguous-id', true);
+    expect(ambiguousResult).toEqual({ status: 'ambiguous', receipt: { accepted: [], rejected: [], unknown: ['recipient@example.test'] } });
+    expect(expectTombstone(ambiguous, 'ambiguous-id', 'ambiguous').outcome).toEqual(ambiguousResult);
+    await expect(ambiguous.confirm('ambiguous-id', true)).resolves.toEqual({ ...ambiguousResult, alreadyConfirmed: true });
+    expect(ambiguousExecutor).toHaveBeenCalledOnce();
 
     let now = 1_000;
     const expired = new SafeSendService({

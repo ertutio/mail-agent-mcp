@@ -18,16 +18,10 @@ import {
 import { extractPdfPreview } from '../utils/pdf-preview.js';
 import { MAX_BODY_CHARS } from '../utils/mail-resource-limits.js';
 import { parseSearchDateBound, validateSearchRange } from '../utils/search-input.js';
+import { forwardBodies, replyRecipientGroups } from '../utils/mail-compose.js';
 
 // Reusable, backward-compatible account selector. accountId stays accepted as
 // before; accountName and the single-account default are additive conveniences.
-const escapeHtml = (value: string): string => value
-  .replace(/&/g, '&amp;')
-  .replace(/</g, '&lt;')
-  .replace(/>/g, '&gt;')
-  .replace(/"/g, '&quot;')
-  .replace(/'/g, '&#39;');
-
 const accountSelector = {
   accountId: z.string().optional().describe('Account ID (from imap_list_accounts). Optional if accountName is given or only one account is configured.'),
   accountName: z.string().optional().describe('Account name instead of accountId. Optional if accountId is given or only one account is configured.'),
@@ -1161,48 +1155,12 @@ export function emailTools(
 
     // Get original email (envelope only is needed here; skip body conversion)
     const originalEmail = await imapService.getEmailContent(accountId, folder, uid, { bodyFormat: 'text' });
-
-    // Extract the bare email address from a header value that may include a
-    // display name (e.g. 'Alice <alice@example.com>' → 'alice@example.com').
-    // Returns lowercase for case-insensitive comparison per RFC 5321 §2.4.
-    const extractEmail = (addr: string): string => {
-      const match = addr.match(/<([^>]+)>/);
-      return (match ? match[1] : addr).trim().toLowerCase();
-    };
-    const headerValue = (name: string): string | undefined => {
-      const value = (originalEmail.headers as Record<string, string | string[] | undefined> | undefined)?.[name];
-      if (value === undefined) return undefined;
-      const text = (Array.isArray(value) ? value.join(', ') : value).trim();
-      return text.length > 0 ? text : undefined;
-    };
-
-    // T23 / MAIL-04: replies go to Reply-To when the original advertises one;
-    // reply-all covers the full recipient set (Reply-To + original To +
-    // original Cc) minus our own address, deduplicated by bare address.
-    const replyTarget = headerValue('reply-to') || originalEmail.from;
-    const accountEmail = extractEmail(account.email || account.user);
-    const recipients = [replyTarget];
-    const ccRecipients: string[] = [];
-    if (replyAll) {
-      const seen = new Set<string>([accountEmail, extractEmail(replyTarget)]);
-      for (const addr of originalEmail.to ?? []) {
-        const normalized = extractEmail(addr);
-        if (!normalized || seen.has(normalized)) continue;
-        seen.add(normalized);
-        recipients.push(addr);
-      }
-      for (const addr of originalEmail.cc ?? []) {
-        const normalized = extractEmail(addr);
-        if (!normalized || seen.has(normalized)) continue;
-        seen.add(normalized);
-        ccRecipients.push(addr);
-      }
-    }
+    const recipients = replyRecipientGroups(originalEmail, account, replyAll);
 
     const emailComposer = {
       from: account.email || account.user,
-      to: recipients,
-      ...(ccRecipients.length > 0 ? { cc: ccRecipients } : {}),
+      to: recipients.to,
+      ...(recipients.cc.length ? { cc: recipients.cc } : {}),
       subject: originalEmail.subject.startsWith('Re: ') ? originalEmail.subject : `Re: ${originalEmail.subject}`,
       text: text ?? body,
       html,
@@ -1253,32 +1211,11 @@ export function emailTools(
     // Get original email (needs both plain text and raw HTML to reconstruct the forward)
     const originalEmail = await imapService.getEmailContent(accountId, folder, uid, { bodyFormat: 'html' });
 
-    // Prepare forwarded content
-    const forwardHeader = `\n\n---------- Forwarded message ----------\nFrom: ${originalEmail.from}\nDate: ${originalEmail.date.toLocaleString()}\nSubject: ${originalEmail.subject}\nTo: ${originalEmail.to.join(', ')}\n\n`;
-
-    // T24 / MAIL-05: the HTML view carries the same user note and forwarded
-    // header as the text view — safely escaped so hostile note/header values
-    // cannot inject markup — with the original HTML (and its cid: references)
-    // kept verbatim after them.
-    const note = text ?? body ?? '';
-    const noteHtml = note
-      ? `<p>${escapeHtml(note).replace(/\r?\n/g, '<br>')}</p>\n`
-      : '';
-    const forwardHeaderHtml =
-      '<p>---------- Forwarded message ----------<br>\n' +
-      `From: ${escapeHtml(originalEmail.from)}<br>\n` +
-      `Date: ${escapeHtml(originalEmail.date.toLocaleString())}<br>\n` +
-      `Subject: ${escapeHtml(originalEmail.subject)}<br>\n` +
-      `To: ${escapeHtml(originalEmail.to.join(', '))}</p>\n`;
-
     const emailComposer = {
       from: account.email || account.user,
       to,
       subject: originalEmail.subject.startsWith('Fwd: ') ? originalEmail.subject : `Fwd: ${originalEmail.subject}`,
-      text: (text ?? body ?? '') + forwardHeader + (originalEmail.textContent || ''),
-      html: originalEmail.htmlContent
-        ? noteHtml + forwardHeaderHtml + originalEmail.htmlContent
-        : undefined,
+      ...forwardBodies(originalEmail, text ?? body ?? ''),
       bcc: resolveBcc(account, bcc),
       references: originalEmail.messageId,
     };

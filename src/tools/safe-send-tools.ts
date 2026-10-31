@@ -5,11 +5,13 @@ import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { AccountManager } from '../services/account-manager.js';
 import type { ImapService } from '../services/imap-service.js';
-import { SafeSendService, type SafeSendExecutionResult, type SafeSendServiceOptions } from '../services/safe-send-service.js';
+import { SafeSendService, SafeSendPreflightError, type SafeSendExecutionResult, type SafeSendServiceOptions } from '../services/safe-send-service.js';
 import type { SmtpService } from '../services/smtp-service.js';
 import type { Attachment, EmailAttachment, EmailComposer, EmailContent, ImapAccount } from '../types/index.js';
 import { resolveAttachmentInputPath } from '../utils/attachment-root.js';
 import {materializeBoundedAttachments,MAX_BODY_CHARS} from '../utils/mail-resource-limits.js';
+import { forwardBodies, replyRecipientGroups, normalizeAddressList } from '../utils/mail-compose.js';
+import { accountRevision } from '../utils/account-revision.js';
 
 const DOWNLOAD_DIR = process.env.IMAP_DOWNLOAD_DIR || join(homedir(), 'Downloads', 'imap-attachments');
 const addressList = z.union([z.string(), z.array(z.string())]);
@@ -23,9 +25,8 @@ const attachmentSchema = z.object({
 });
 type AttachmentInput = z.infer<typeof attachmentSchema>;
 
-function list(value: string | string[] | undefined): string[] { return value === undefined ? [] : Array.isArray(value) ? value : [value]; }
 function mergeBcc(defaults: string | string[] | undefined, explicit: string | string[] | undefined): string[] | undefined {
-  const merged = [...list(defaults), ...list(explicit)];
+  const merged = [...(normalizeAddressList(defaults, 'defaultBcc') ?? []), ...(normalizeAddressList(explicit, 'bcc') ?? [])];
   return merged.length ? [...new Set(merged)] : undefined;
 }
 
@@ -62,28 +63,6 @@ async function materializeOriginalAttachments(
   }));
 }
 
-function extractEmail(address: string): string {
-  const match = address.match(/<([^>]+)>/);
-  return (match ? match[1] : address).trim().toLowerCase();
-}
-
-function replyRecipients(originalEmail: EmailContent, account: ImapAccount, replyAll: boolean): string[] {
-  const recipients = [originalEmail.from];
-  if (!replyAll) return recipients;
-  const seen = new Set<string>([
-    extractEmail(account.email || account.user),
-    ...recipients.map(extractEmail),
-  ]);
-  for (const address of originalEmail.to) {
-    const normalized = extractEmail(address);
-    if (!seen.has(normalized)) {
-      recipients.push(address);
-      seen.add(normalized);
-    }
-  }
-  return recipients;
-}
-
 const DEFAULT_SENT_COPY_TIMEOUT_MS = 10_000;
 
 interface SafeSendToolOptions extends Pick<SafeSendServiceOptions, 'clock' | 'id' | 'ttlMs'> {
@@ -96,6 +75,7 @@ async function saveSentBestEffort(
   account: ImapAccount,
   rawMessage: Buffer | string | undefined,
   timeoutMs: number,
+  expectedAccountRevision: string,
 ): Promise<SafeSendExecutionResult> {
   if (!rawMessage || account.saveToSent === false) return {};
 
@@ -105,22 +85,29 @@ async function saveSentBestEffort(
       rawMessage,
       account.sentFolder,
       timeoutMs,
+      expectedAccountRevision,
     );
     if (result.saved) return {};
+    if (result.outcomeUnknown) {
+      return { warnings: [{
+        code: 'sent_copy_unknown',
+        message: 'Sent-folder copy outcome is unknown; it may have been saved. Check the Sent folder before retrying the copy',
+      }] };
+    }
     const timedOut = result.errorCategory === 'timeout';
     return {
       warnings: [{
         code: timedOut ? 'sent_copy_timeout' : 'sent_copy_failed',
         message: timedOut
-          ? 'Message sent, but saving a Sent-folder copy timed out'
-          : 'Message sent, but saving a Sent-folder copy failed',
+          ? 'Saving a Sent-folder copy timed out'
+          : 'Saving a Sent-folder copy failed',
       }],
     };
   } catch {
     return {
       warnings: [{
         code: 'sent_copy_failed',
-        message: 'Message sent, but saving a Sent-folder copy failed',
+        message: 'Saving a Sent-folder copy failed',
       }],
     };
   }
@@ -134,11 +121,24 @@ export function safeSendTools(server: McpServer, imapService: ImapService, accou
   if (!Number.isFinite(sentCopyTimeoutMs) || sentCopyTimeoutMs <= 0) {
     throw new Error('Sent-copy timeout must be a positive finite number');
   }
-  const safeSend = new SafeSendService({ ...options, executor: async ({ accountId, composer }) => {
+  const safeSend = new SafeSendService({ ...options, executor: async ({ accountId, accountRevision: previewRevision, composer }) => {
     const account = await accountManager.getAccount(accountId);
-    if (!account) throw new Error(`Account ${accountId} not found`);
-    const { rawMessage } = await smtpService.sendEmail(accountId, account, composer as EmailComposer);
-    return { secondary: saveSentBestEffort(imapService, accountId, account, rawMessage, sentCopyTimeoutMs) };
+    if (!account || !previewRevision || accountRevision(account) !== previewRevision) {
+      throw new SafeSendPreflightError('Account changed; create a new preview before sending');
+    }
+    const checkRevision = async () => {
+      const current = await accountManager.getAccount(accountId);
+      if (!current || !previewRevision || accountRevision(current) !== previewRevision) {
+        throw new SafeSendPreflightError('Account changed; create a new preview before sending');
+      }
+    };
+    await checkRevision();
+    const result = await smtpService.sendEmail(accountId, account, composer as EmailComposer, checkRevision);
+    return {
+      receipt: result.receipt,
+      secondary: result.receipt?.rejected.length && !result.receipt.accepted.length && !result.receipt.unknown.length
+        ? undefined : saveSentBestEffort(imapService, accountId, account, result.rawMessage, sentCopyTimeoutMs, previewRevision),
+    };
   } });
 
   server.registerTool('imap_preview_send_email', {
@@ -160,8 +160,9 @@ export function safeSendTools(server: McpServer, imapService: ImapService, accou
     const accountId = accountManager.resolveAccountId(rawAccountId, accountName);
     const account = await accountManager.getAccount(accountId);
     if (!account) throw new Error(`Account ${accountId} not found`);
+    const revision = accountRevision(account);
     const composer: EmailComposer = { from: account.email || account.user, to, subject, text: text ?? body, html, cc, bcc: mergeBcc(account.defaultBcc, bcc), replyTo, attachments: await materializeAttachments(attachments) };
-    return previewResponse(safeSend.preview({ accountId, composer }));
+    return previewResponse(safeSend.preview({ accountId, accountRevision: revision, composer }));
   });
 
   server.registerTool('imap_preview_reply_to_email', {
@@ -182,10 +183,13 @@ export function safeSendTools(server: McpServer, imapService: ImapService, accou
     const accountId = accountManager.resolveAccountId(rawAccountId, accountName);
     const account = await accountManager.getAccount(accountId);
     if (!account) throw new Error(`Account ${accountId} not found`);
+    const revision = accountRevision(account);
     const originalEmail = await imapService.getEmailContent(accountId, folder, uid, { bodyFormat: 'text' });
+    const recipients = replyRecipientGroups(originalEmail, account, replyAll);
     const composer: EmailComposer = {
       from: account.email || account.user,
-      to: replyRecipients(originalEmail, account, replyAll),
+      to: recipients.to,
+      ...(recipients.cc.length ? { cc: recipients.cc } : {}),
       subject: originalEmail.subject.startsWith('Re: ') ? originalEmail.subject : `Re: ${originalEmail.subject}`,
       text: text ?? body,
       html,
@@ -194,7 +198,7 @@ export function safeSendTools(server: McpServer, imapService: ImapService, accou
       references: originalEmail.messageId,
       attachments: await materializeAttachments(attachments),
     };
-    return previewResponse(safeSend.preview({ accountId, composer }));
+    return previewResponse(safeSend.preview({ accountId, accountRevision: revision, composer }));
   });
 
   server.registerTool('imap_preview_forward_email', {
@@ -214,21 +218,20 @@ export function safeSendTools(server: McpServer, imapService: ImapService, accou
     const accountId = accountManager.resolveAccountId(rawAccountId, accountName);
     const account = await accountManager.getAccount(accountId);
     if (!account) throw new Error(`Account ${accountId} not found`);
+    const revision = accountRevision(account);
     const originalEmail = await imapService.getEmailContent(accountId, folder, uid, { bodyFormat: 'html' });
-    const forwardHeader = `\n\n---------- Forwarded message ----------\nFrom: ${originalEmail.from}\nDate: ${originalEmail.date.toLocaleString()}\nSubject: ${originalEmail.subject}\nTo: ${originalEmail.to.join(', ')}\n\n`;
     const composer: EmailComposer = {
       from: account.email || account.user,
       to,
       subject: originalEmail.subject.startsWith('Fwd: ') ? originalEmail.subject : `Fwd: ${originalEmail.subject}`,
-      text: (text ?? body ?? '') + forwardHeader + (originalEmail.textContent || ''),
-      html: originalEmail.htmlContent,
+      ...forwardBodies(originalEmail, text ?? body ?? ''),
       bcc: mergeBcc(account.defaultBcc, bcc),
       references: originalEmail.messageId,
       attachments: includeAttachments
         ? await materializeOriginalAttachments(imapService, accountId, folder, uid, originalEmail.attachments)
         : undefined,
     };
-    return previewResponse(safeSend.preview({ accountId, composer }));
+    return previewResponse(safeSend.preview({ accountId, accountRevision: revision, composer }));
   });
 
   server.registerTool('imap_confirm_send', {

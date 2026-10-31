@@ -19,7 +19,7 @@ describe('frozen deletion and batch validation',()=>{
     expect(r.previewOnly).toBe(true); expect(r.operations[0].uids).toEqual([7]);
     expect(imap.bulkDelete).not.toHaveBeenCalled(); expect(imap.deleteEmail).not.toHaveBeenCalled();
     await handlers.get('imap_confirm_delete')({previewId:r.previewId,confirmed:true});
-    expect(imap.bulkDelete).toHaveBeenCalledExactlyOnceWith('synthetic','INBOX',[7],50,undefined,123,false);
+    expect(imap.bulkDelete).toHaveBeenCalledExactlyOnceWith('synthetic','INBOX',[7],50,undefined,123,false,'synthetic-rev-0');
     await expect(handlers.get('imap_confirm_delete')({previewId:r.previewId,confirmed:true})).rejects.toThrow(/used|unknown/i);
   });
   it('freezes matching UIDs and reports permanent Trash deletion',async()=>{
@@ -27,7 +27,7 @@ describe('frozen deletion and batch validation',()=>{
     expect(r.operations[0].permanent).toBe(true);
     imap.searchEmails.mockResolvedValue([{uid:99}]);
     await handlers.get('imap_confirm_delete')({previewId:r.previewId,confirmed:true});
-    expect(imap.bulkDelete).toHaveBeenCalledWith('synthetic','Trash',[7],50,undefined,123,true);expect(imap.searchEmails).toHaveBeenCalledOnce();
+    expect(imap.bulkDelete).toHaveBeenCalledWith('synthetic','Trash',[7],50,undefined,123,true,'synthetic-rev-0');expect(imap.searchEmails).toHaveBeenCalledOnce();
   });
   it('rejects UIDVALIDITY changes before deletion',async()=>{
     const r=parse(await handlers.get('imap_delete_email')({accountId:'synthetic',folder:'INBOX',uid:7}));
@@ -88,6 +88,7 @@ describe('T37: delete-by-domain freezes an exact-domain candidate set',()=>{
       getFolderStatus:vi.fn(async()=>({uidValidity:123})),
       resolveTrashFolder:vi.fn(async()=>'Trash'),
       fetchHeadersForUids:vi.fn(async()=>new Map()),
+      getAccountRevision:vi.fn(async()=>'synthetic-rev-0'),
     };
     const server={registerTool:(n:string,_c:any,h:any)=>handlers.set(n,h)};
     const guarded=guardedDeletion(server as any,imap,()=>0);
@@ -104,7 +105,7 @@ describe('T37: delete-by-domain freezes an exact-domain candidate set',()=>{
   it('T37-FROZEN-CONFIRM: confirmation deletes exactly the frozen set, no re-search',async()=>{
     const r=parse(await handlers.get('imap_delete_by_domain')({accountId:'synthetic',folder:'INBOX',domain:'example.test',dryRun:false}));
     await handlers.get('imap_confirm_delete')({previewId:r.previewId,confirmed:true});
-    expect(imap.bulkDelete).toHaveBeenCalledExactlyOnceWith('synthetic','INBOX',[1,4],50,undefined,123,false);
+    expect(imap.bulkDelete).toHaveBeenCalledExactlyOnceWith('synthetic','INBOX',[1,4],50,undefined,123,false,'synthetic-rev-0');
     expect(imap.searchEmails).toHaveBeenCalledOnce();
   });
 

@@ -201,6 +201,13 @@ class LockModelingImapFlow {
     return this.runUid('messageFlagsAdd', uid, () => true);
   }
 
+  async search(query:{uid?:number|string}):Promise<number[]> {
+    const selected=this.mailbox?.path as string|undefined;
+    const messages=selected?this.folders.get(selected)?.messages:undefined;
+    const targets=new Set(String(query.uid ?? '').split(',').map(Number));
+    return [...(messages?.keys() ?? [])].filter(uid=>targets.has(uid));
+  }
+
   messageMove(uid: number | string, target: string): Promise<any> {
     return this.runUid('messageMove', uid, selection => {
       const spec = selection ? this.folders.get(selection) : undefined;

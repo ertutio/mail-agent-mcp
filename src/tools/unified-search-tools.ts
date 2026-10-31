@@ -64,7 +64,13 @@ export function unifiedSearchTools(server: McpServer, imap: ImapService, manager
         if(rev!==c.accountRevision) throw new Error('Cursor account ' + c.accountName + ' identity changed since the previous pass; restart the search without cursors');
       }
     }
-    const names=args.accountNames??args.cursors?.map(c=>c.accountName);
+    if(args.cursors?.length && args.accountNames) {
+      const range=new Set(args.accountNames);
+      if(args.cursors.some(cursor=>!range.has(cursor.accountName)))throw new Error('Cursor account is outside the requested account scope; restart the search without cursors');
+    }
+    // Continuations contain only unfinished accounts. The original account
+    // range may include completed accounts, which must not restart here.
+    const names=args.cursors ? args.cursors.map(c=>c.accountName) : args.accountNames;
     const selectedIds = names?.map(name => manager.resolveAccountId(undefined, name));
     if(args.cursors?.some(c=>(c.beforeUid===undefined)!==(c.uidValidity===undefined)))throw new Error('Search cursors require both beforeUid and uidValidity');
     const selected = available.filter(account => !selectedIds || selectedIds.includes(account.id));
@@ -127,7 +133,7 @@ export function unifiedSearchTools(server: McpServer, imap: ImapService, manager
       };
       try {
         await Promise.race([operation(), new Promise<never>((_resolve, reject) => {
-          timer = setTimeout(() => { cancelled = true; try { imap.abortConnection(account.id); } catch { /* timeout still applies */ } reject(new Error('timeout')); }, Math.min(runtime.accountTimeoutMs ?? 15_000, remaining));
+          timer = setTimeout(() => { cancelled = true; reject(new Error('timeout')); }, Math.min(runtime.accountTimeoutMs ?? 15_000, remaining));
         })]);
         if (outcome.foldersPending.length) outcome.status='partial';
         if (outcome.foldersErrored.length) outcome.status = outcome.foldersSearched.length||outcome.matched ? 'partial' : 'failed';

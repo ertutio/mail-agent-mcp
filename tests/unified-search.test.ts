@@ -38,9 +38,9 @@ describe('unified mailbox search', () => {
     expect(JSON.stringify(result)).not.toContain('sensitive');
     expect(result.accounts.find((a: any) => a.accountId === 'net').status).toBe('failed');
   });
-  it('bounds stuck accounts and aborts their connection', async () => {
+  it('bounds stuck accounts without aborting connections shared by other consumers', async () => {
     const { call, imap } = setup(10); imap.searchEmailPage.mockImplementation((id: string) => id === 'net' ? new Promise(() => {}) : Promise.resolve({messages:[],matched:0}));
-    const result = await call(); expect(result.partial).toBe(true); expect(imap.abortConnection).toHaveBeenCalledWith('net');
+    const result = await call(); expect(result.partial).toBe(true); expect(imap.abortConnection).not.toHaveBeenCalled();
     expect(result.accounts.find((a: any) => a.accountId === 'net').status).toBe('timeout');
   });
   it('supports a named subset and refuses unknown names before connecting', async () => {
