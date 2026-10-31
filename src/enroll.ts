@@ -10,6 +10,8 @@ import { CredentialRollbackError, rotateCredential, type CredentialRotationOptio
 import { runGmailOAuthLoopback } from './credentials/gmail-oauth-loopback.js';
 import { createGmailAccessTokenExchange } from './credentials/gmail-token-exchange.js';
 import { WindowsCredentialBackend } from './credentials/windows-credential-backend.js';
+import { accountRevision } from './utils/account-revision.js';
+import { withAccountStoreLock, accountStoreDirectory } from './utils/account-store-lock.js';
 import { AccountManager } from './services/account-manager.js';
 import { ImapService } from './services/imap-service.js';
 import type { ImapAccount } from './types/index.js';
@@ -32,6 +34,9 @@ export interface EnrollmentCliDependencies {
   openBrowser?: (url: string) => void | Promise<void>;
   authenticateOnly?: (account: ImapAccount, credentials: CredentialBackend) => Promise<void>;
   writeOutput?: (text: string) => void;
+  /** T17: exclusive cross-process guard (the account-store lock) for the
+   * rotation's identity re-check + vault write critical section. */
+  withStoreLock?: (action: () => Promise<void>) => Promise<void>;
 }
 
 const activeQqRepairs = new Set<string>();
@@ -168,6 +173,7 @@ export async function runEnrollmentCli(
       if (!expectedTargets.includes(selectedTarget)) {
         throw new Error('QQ credential target mismatch');
       }
+      const expectedRevision = accountRevision(account);
       if (activeQqRepairs.has(selectedTarget)) {
         throw new Error('QQ credential repair is already in progress');
       }
@@ -183,6 +189,10 @@ export async function runEnrollmentCli(
       if (!recheck) {
         activeQqRepairs.delete(selectedTarget);
         throw new Error('QQ account was removed or its credential target changed during repair');
+      }
+      if (accountRevision(recheck) !== expectedRevision) {
+        activeQqRepairs.delete(selectedTarget);
+        throw new Error('QQ account identity changed during repair');
       }
       try {
         const replacement = await ask('QQ Mail authorization code', { secret: true });
@@ -201,6 +211,11 @@ export async function runEnrollmentCli(
           expectedTarget: selectedTarget,
           replacement,
           verify,
+          // T17: the identity re-check and the vault write run under the
+          // cross-process store lock, so a concurrent remove/repair cannot
+          // slip between the check and the write.
+          writeGuard: dependencies.withStoreLock
+            ?? ((action: () => Promise<void>) => withAccountStoreLock(accountStoreDirectory(), action)),
           // T17: re-verify at the write boundary — the account may have been
           // removed or its target changed between the outer recheck and the
           // actual vault write.
@@ -211,6 +226,9 @@ export async function runEnrollmentCli(
             );
             if (!stillThere) {
               throw new Error('QQ account was removed during repair; rolling back');
+            }
+            if (accountRevision(stillThere) !== expectedRevision) {
+              throw new Error('QQ account identity changed during repair; rolling back');
             }
           },
         });
@@ -263,6 +281,7 @@ export async function runEnrollmentCli(
         throw new Error('Gmail credential target mismatch');
       }
       const selectedTarget = auth.credentialTarget;
+      const expectedRevision = accountRevision(account);
       if (activeGmailRepairs.has(selectedTarget)) {
         throw new Error('Gmail repair is already in progress');
       }
@@ -276,6 +295,10 @@ export async function runEnrollmentCli(
       if (!recheck) {
         activeGmailRepairs.delete(selectedTarget);
         throw new Error('Gmail account was removed or its credential target changed during repair');
+      }
+      if (accountRevision(recheck) !== expectedRevision) {
+        activeGmailRepairs.delete(selectedTarget);
+        throw new Error('Gmail account identity changed during repair');
       }
       try {
         const credentials = dependencies.credentials ?? new WindowsCredentialBackend();
@@ -308,6 +331,11 @@ export async function runEnrollmentCli(
           expectedTarget: selectedTarget,
           replacement: refreshToken,
           verify,
+          // T17: the identity re-check and the vault write run under the
+          // cross-process store lock, so a concurrent remove/repair cannot
+          // slip between the check and the write.
+          writeGuard: dependencies.withStoreLock
+            ?? ((action: () => Promise<void>) => withAccountStoreLock(accountStoreDirectory(), action)),
           reverify: async () => {
             const stillThere = (dependencies.getAccounts ? dependencies.getAccounts() : new AccountManager().getAllAccounts()).find(
               (a: { id: string; auth?: { credentialTarget?: string } }) =>
@@ -315,6 +343,9 @@ export async function runEnrollmentCli(
             );
             if (!stillThere) {
               throw new Error('Gmail account was removed during repair; rolling back');
+            }
+            if (accountRevision(stillThere) !== expectedRevision) {
+              throw new Error('Gmail account identity changed during repair; rolling back');
             }
           },
         });

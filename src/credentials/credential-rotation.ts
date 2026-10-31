@@ -6,8 +6,18 @@ export interface CredentialRotationOptions {
   expectedTarget: string;
   replacement: string;
   verify: () => Promise<void>;
-  /** T17: called between the write and the verify — the write boundary. */
+  /**
+   * T17: identity re-check (id / target / revision). Runs inside the write
+   * guard immediately before the vault write, and again in the rollback —
+   * a failure there voids the rotation's lease instead of restoring.
+   */
   reverify?: () => Promise<void>;
+  /**
+   * T17: exclusive guard (the account-store cross-process lock) around the
+   * identity re-check and the vault write, so a concurrent remove or repair
+   * cannot interleave between the check and the write.
+   */
+  writeGuard?: (action: () => Promise<void>) => Promise<void>;
 }
 
 export class CredentialRollbackError extends Error {
@@ -33,14 +43,43 @@ export async function rotateCredential(options: CredentialRotationOptions): Prom
   }
 
   const previous = snapshot(options.credentials, options.target);
-  options.credentials.write(options.target, replacement);
 
-  const rollback = (): void => {
-    // T17: before restoring, check the vault still holds our replacement.
-    // If another operation wrote a different value, do NOT overwrite it.
+  // T17: the identity re-check and the vault write form one critical section.
+  // Under the write guard a concurrent remove/repair cannot slip between the
+  // check and the write, so the lease on `previous` cannot be stolen.
+  const writeReplacement = async (): Promise<void> => {
+    if (options.reverify) {
+      await options.reverify();
+    }
+    options.credentials.write(options.target, replacement);
+  };
+  if (options.writeGuard) {
+    await options.writeGuard(writeReplacement);
+  } else {
+    await writeReplacement();
+  }
+
+  const rollback = async (): Promise<void> => {
+    // Ownership rules — only restore a state this rotation still owns.
+    // 1. Identity gate fails → a concurrent remove/replace owns the target;
+    //    preserving the newer state also means never resurrecting a removed
+    //    secret. The original error is rethrown by the caller either way.
+    if (options.reverify) {
+      try {
+        await options.reverify();
+      } catch {
+        return;
+      }
+    }
     const current = snapshot(options.credentials, options.target);
-    if (current.exists && current.value !== replacement) {
-      // Another operation wrote a different value — preserve it.
+    // 2. The secret is gone → a concurrent remove deleted it; keep it deleted.
+    if (!current.exists) {
+      return;
+    }
+    // 3. A different value → a newer successful operation owns the target
+    //    (an equal value from a newer operation is covered by rule 1's
+    //    revision gate, not by value comparison).
+    if (current.value !== replacement) {
       return;
     }
     if (previous.exists) {
@@ -51,21 +90,15 @@ export async function rotateCredential(options: CredentialRotationOptions): Prom
   };
 
   try {
-    // T17: re-verify at the write boundary — the account may have been
-    // removed or its identity changed between the outer recheck and the
-    // actual vault write. A failure here rolls back (nothing to preserve).
-    if (options.reverify) {
-      try {
-        await options.reverify();
-      } catch (cause) {
-        try { rollback(); } catch { throw new CredentialRollbackError(cause); }
-        throw cause;
-      }
-    }
-
     await options.verify();
   } catch (cause) {
-    try { rollback(); } catch { throw new CredentialRollbackError(cause); }
+    try {
+      await rollback();
+    } catch {
+      // The rollback failure may name secret material; surface the fixed
+      // message with the original verification cause (established contract).
+      throw new CredentialRollbackError(cause);
+    }
     throw cause;
   }
 }

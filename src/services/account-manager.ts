@@ -1,14 +1,13 @@
 import { promises as fs } from 'fs';
 import { readFileSync, writeFileSync, mkdirSync } from 'fs';
 import path from 'path';
-import os from 'os';
 import crypto from 'crypto';
 import { ImapAccount } from '../types/index.js';
 import { ENV_CREDENTIAL_SUFFIXES, envVarName } from '../utils/env-credentials.js';
 import { accountForPersistence, assertCredentialTarget } from '../credentials/account-auth.js';
 import type { CredentialBackend } from '../credentials/credential-backend.js';
 import {AsyncLocalStorage} from 'node:async_hooks';
-import {withAccountStoreLock} from '../utils/account-store-lock.js';
+import {withAccountStoreLock, accountStoreDirectory} from '../utils/account-store-lock.js';
 import {validateAccountCandidate, type AccountCandidate} from '../utils/account-candidate.js';
 
 
@@ -75,10 +74,7 @@ export class AccountManager {
     /^IMAP_MCP_ACCOUNT_.+_(?:IMAP|SMTP)_(?:USERNAME|PASSWORD)$/;
 
   constructor(private readonly credentialBackend?: CredentialBackend) {
-    const configuredDir = process.env.IMAP_MCP_CONFIG_DIR?.trim();
-    this.configDir = configuredDir
-      ? path.resolve(configuredDir)
-      : path.join(os.homedir(), '.imap-mcp');
+    this.configDir = accountStoreDirectory();
     this.configPath = path.join(this.configDir, 'accounts.json');
     this.encryptionKey = this.getOrCreateEncryptionKey();
     this.captureEnvOverrides();
