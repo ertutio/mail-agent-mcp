@@ -213,34 +213,31 @@ describe('T17L: repair/remove coordination and rollback ownership', () => {
     expect(backend.writes.map((w) => w.secret)).toEqual(['replacement-B', 'replacement-A', 'replacement-B']);
   });
 
-  it('T17L-EQUAL-VALUE-NEWER-REPAIR: an identical replacement from a newer repair survives A', async () => {
+  it('T17L-EQUAL-VALUE-AFTER-WRITE: B writes the same R after A and succeeds; A fails late and R survives', async () => {
     const created = await enrollAccount();
     const gate = deferred();
-    const guardEntered = deferred();
-    const guardWait = deferred();
     const deps = repairDeps(created.id, gate);
-    deps.withStoreLock = (action) => withAccountStoreLock(dir, async () => {
-      guardEntered.release();
-      await guardWait.promise;
-      await action();
-    });
     const repair = startRepair(created.id, deps);
-    await guardEntered.promise;
+    // A wrote its replacement R and is parked in verification.
+    await vi.waitFor(() => expect(backend.writes).toHaveLength(1));
+    expect(backend.writes[0]).toMatchObject({ target, secret: 'replacement-A' });
 
-    // B writes the SAME replacement string A will write — value comparison
-    // alone cannot attribute ownership; the guarded snapshot order must.
+    // B (another process, same account lock) writes the IDENTICAL value and
+    // succeeds while A is still parked. Value equality cannot attribute
+    // ownership of the rollback right to A.
     await rotateCredential({
       credentials: backend, target, expectedTarget: target,
       replacement: 'replacement-A', verify: async () => undefined,
+      writeGuard: (action) => withAccountStoreLock(dir, action),
     });
 
-    guardWait.release();
-    await vi.waitFor(() => expect(backend.writes).toHaveLength(2));
+    // A fails late: it must NOT restore the dead old credential over B's
+    // successful write.
     gate.release();
     const error = await repair;
     expect(error?.message).toMatch(/repair failed/);
     expect(backend.values.get(target)).toBe('replacement-A');
-    expect(backend.writes.map((w) => w.secret)).toEqual(['replacement-A', 'replacement-A', 'replacement-A']);
+    expect(backend.writes.map((w) => w.secret)).toEqual(['replacement-A', 'replacement-A']);
   });
 
   it('T17L-GMAIL-REMOVE-WINS: the gmail repair path honors the same remove-wins ownership', async () => {

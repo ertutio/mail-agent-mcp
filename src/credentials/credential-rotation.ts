@@ -1,4 +1,8 @@
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { createHash } from 'node:crypto';
 import type { CredentialBackend } from './credential-backend.js';
+import { accountStoreDirectory } from '../utils/account-store-lock.js';
 
 export interface CredentialRotationOptions {
   credentials: CredentialBackend;
@@ -21,6 +25,11 @@ export interface CredentialRotationOptions {
    * repairs.
    */
   writeGuard?: (action: () => Promise<void>) => Promise<void>;
+  /**
+   * T17: directory for the cross-process rotation generation journal.
+   * Defaults to the account store directory; tests inject a temp directory.
+   */
+  generationDir?: string;
 }
 
 export class CredentialRollbackError extends Error {
@@ -45,6 +54,36 @@ interface CredentialSnapshot {
   value?: string;
 }
 
+const GENERATION_FILE = '.credential-rotation-generations.json';
+
+function generationKey(target: string): string {
+  return createHash('sha256').update(target).digest('hex').slice(0, 16);
+}
+
+function readGenerations(dir: string): Record<string, number> {
+  try {
+    const parsed: unknown = JSON.parse(readFileSync(join(dir, GENERATION_FILE), 'utf8'));
+    if (parsed && typeof parsed === 'object' && (parsed as { targets?: unknown }).targets instanceof Object) {
+      return (parsed as { targets: Record<string, number> }).targets;
+    }
+    return {};
+  } catch {
+    // Missing or unreadable journal: generation 0 — a rotation that recorded
+    // a higher generation therefore reads as superseded and skips restoring.
+    return {};
+  }
+}
+
+function bumpGeneration(dir: string, target: string): number {
+  const key = generationKey(target);
+  const targets = readGenerations(dir);
+  const next = (targets[key] ?? 0) + 1;
+  targets[key] = next;
+  mkdirSync(dir, { recursive: true, mode: 0o700 });
+  writeFileSync(join(dir, GENERATION_FILE), JSON.stringify({ v: 1, targets }), { encoding: 'utf8', mode: 0o600 });
+  return next;
+}
+
 export async function rotateCredential(options: CredentialRotationOptions): Promise<void> {
   if (options.target !== options.expectedTarget) {
     throw new Error('Credential target mismatch');
@@ -55,17 +94,22 @@ export async function rotateCredential(options: CredentialRotationOptions): Prom
     throw new Error('Credential replacement is required');
   }
 
+  const generationDir = options.generationDir ?? accountStoreDirectory();
+
   // T17 audit H1: the previous-secret snapshot happens INSIDE the guard, so
   // a newer repair completing while this attempt waits on (or inside) the
   // lock is captured as `previous` instead of being destroyed by this
   // attempt's later rollback.
   let previous: CredentialSnapshot | undefined;
+  let myGeneration: number | undefined;
   const writeReplacement = async (): Promise<void> => {
     if (options.reverify) {
       await options.reverify();
     }
     previous = snapshot(options.credentials, options.target);
     options.credentials.write(options.target, replacement);
+    // T17: recorded inside the same guard, right after the write lands.
+    myGeneration = bumpGeneration(generationDir, options.target);
   };
   if (options.writeGuard) {
     await options.writeGuard(writeReplacement);
@@ -96,12 +140,16 @@ export async function rotateCredential(options: CredentialRotationOptions): Prom
         return;
       }
       // 3. A different value → a newer successful operation owns the target.
-      //    Equal values are covered by lock serialization (audit H3): every
-      //    vault mutation — including this restore — runs under the same
-      //    exclusive guard, so a newer operation can only land before this
-      //    attempt's guarded snapshot or after its guarded restore, never in
-      //    between.
       if (current.value !== replacement) {
+        return;
+      }
+      // 4. T17: value equality is NOT ownership — a newer rotation may have
+      //    written the identical value while this attempt was verifying. The
+      //    generation journal (bumped under the same exclusive guard by every
+      //    rotation mutation) tells the two apart: only the latest generation
+      //    may roll back. Rules 2 and 3 above are unaffected (remove keeps
+      //    secrets deleted; different values are never overwritten).
+      if (myGeneration !== undefined && readGenerations(generationDir)[generationKey(options.target)] !== myGeneration) {
         return;
       }
       if (previous!.exists) {
@@ -109,6 +157,7 @@ export async function rotateCredential(options: CredentialRotationOptions): Prom
       } else if (!options.credentials.delete(options.target)) {
         throw new Error('Credential deletion failed');
       }
+      bumpGeneration(generationDir, options.target);
     };
     // T17 audit H2: the restore mutates the vault, so it runs under the same
     // exclusive guard as the write — a concurrent remove/repair cannot land

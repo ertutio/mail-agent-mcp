@@ -1,4 +1,7 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, beforeAll, afterAll } from 'vitest';
+import { mkdtempSync, rmSync, existsSync, readFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import type { CredentialBackend, SecretHandle } from '../src/credentials/credential-backend.js';
 import { CredentialGateRejection, CredentialRollbackError, rotateCredential } from '../src/credentials/credential-rotation.js';
 
@@ -39,12 +42,17 @@ class FakeBackend implements CredentialBackend {
 }
 
 const target = 'CodexLab:QQMail:user@qq.com:authorization_code';
+// The generation journal must never land in the real account store from tests.
+let generationDir: string;
+beforeAll(() => { generationDir = mkdtempSync(join(tmpdir(), 't17-gen-')); });
+afterAll(() => { rmSync(generationDir, { recursive: true, force: true }); });
 const options = (credentials: CredentialBackend, replacement: string, verify: () => Promise<void>) => ({
   credentials,
   target,
   expectedTarget: target,
   replacement,
   verify,
+  generationDir,
 });
 
 describe('rotateCredential', () => {
@@ -170,11 +178,67 @@ describe('rotateCredential', () => {
           if (gateCalls === 2) throw new Error('accounts.json is busy');
         },
         verify: async () => { throw verification; },
+        generationDir,
       });
     } catch (error) { caught = error; }
     expect(caught).toBeInstanceOf(CredentialRollbackError);
     expect((caught as Error).cause).toBe(verification);
     // The restore was skipped — the inconsistent state is flagged, not silent.
     expect(backend.values.get(target)).toBe('new-code');
+  });
+
+  // T17: value equality is not ownership. A newer rotation writing the
+  // IDENTICAL replacement while this attempt verifies must survive this
+  // attempt's failing rollback.
+  it('keeps the target when a newer rotation wrote the identical value', async () => {
+    const backend = new FakeBackend();
+    backend.values.set(target, 'old-secret');
+    const verification = new Error('verification failed');
+    let parked: (() => void) | undefined;
+    const parkedPromise = new Promise<void>((resolve) => { parked = resolve; });
+    const attemptA = rotateCredential({
+      credentials: backend, target, expectedTarget: target, replacement: 'same-code',
+      verify: async () => { await parkedPromise; throw verification; },
+      generationDir,
+    }).then(() => undefined, (error) => error);
+    // A's write landed; wait for it via the journal.
+    await vi.waitFor(() => expect(backend.writes).toHaveLength(1));
+    // B writes the identical value and succeeds.
+    await rotateCredential({
+      credentials: backend, target, expectedTarget: target, replacement: 'same-code',
+      verify: async () => undefined, generationDir,
+    });
+    parked!();
+    const error = await attemptA;
+    expect(error).toBe(verification);
+    expect(backend.values.get(target)).toBe('same-code');
+    expect(backend.writes.map((w) => w.secret)).toEqual(['same-code', 'same-code']);
+  });
+
+  it('skips the restore conservatively when the generation journal disappears', async () => {
+    const backend = new FakeBackend();
+    backend.values.set(target, 'old-secret');
+    const verification = new Error('verification failed');
+    let parked: (() => void) | undefined;
+    const parkedPromise = new Promise<void>((resolve) => { parked = resolve; });
+    const attemptA = rotateCredential({
+      credentials: backend, target, expectedTarget: target, replacement: 'new-code',
+      verify: async () => {
+        // The journal vanishes after this attempt recorded its generation:
+        // the ownership answer becomes unknowable.
+        rmSync(join(generationDir, '.credential-rotation-generations.json'));
+        parked!();
+        throw verification;
+      },
+      generationDir,
+    }).then(() => undefined, (error) => error);
+    await vi.waitFor(() => expect(backend.writes).toHaveLength(1));
+    parked!();
+    const error = await attemptA;
+    expect(error).toBe(verification);
+    // Unknown ownership keeps the written replacement instead of gambling
+    // on a restore that may clobber a newer operation.
+    expect(backend.values.get(target)).toBe('new-code');
+    expect(backend.writes).toEqual([{ target, secret: 'new-code' }]);
   });
 });
