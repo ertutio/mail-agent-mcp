@@ -972,6 +972,7 @@ export class ImapService {
       date: parsed.date || new Date(),
       from: parsed.from?.text || '',
       to: parsed.to ? (Array.isArray(parsed.to) ? parsed.to.map((t: any) => t.text || '') : [parsed.to.text || '']) : [],
+      cc: parsed.cc ? (Array.isArray(parsed.cc) ? parsed.cc.map((t: any) => t.text || '') : [parsed.cc.text || '']) : undefined,
       subject: parsed.subject || '',
       messageId: parsed.messageId || '',
       inReplyTo: parsed.inReplyTo as string | undefined,

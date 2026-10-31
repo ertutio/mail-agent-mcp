@@ -1169,27 +1169,40 @@ export function emailTools(
       const match = addr.match(/<([^>]+)>/);
       return (match ? match[1] : addr).trim().toLowerCase();
     };
+    const headerValue = (name: string): string | undefined => {
+      const value = (originalEmail.headers as Record<string, string | string[] | undefined> | undefined)?.[name];
+      if (value === undefined) return undefined;
+      const text = (Array.isArray(value) ? value.join(', ') : value).trim();
+      return text.length > 0 ? text : undefined;
+    };
 
-    // Prepare reply. replyAll: include original To recipients but EXCLUDE
-    // our own address (otherwise the SMTP server delivers a copy back to
-    // our INBOX). Use extracted lowercase address for comparison so it works
-    // when the To header includes display names like 'Us <us@example.com>'.
+    // T23 / MAIL-04: replies go to Reply-To when the original advertises one;
+    // reply-all covers the full recipient set (Reply-To + original To +
+    // original Cc) minus our own address, deduplicated by bare address.
+    const replyTarget = headerValue('reply-to') || originalEmail.from;
     const accountEmail = extractEmail(account.email || account.user);
-    const recipients = [originalEmail.from];
+    const recipients = [replyTarget];
+    const ccRecipients: string[] = [];
     if (replyAll) {
-      const seen = new Set<string>([accountEmail, ...recipients.map(extractEmail)]);
-      for (const addr of originalEmail.to) {
+      const seen = new Set<string>([accountEmail, extractEmail(replyTarget)]);
+      for (const addr of originalEmail.to ?? []) {
         const normalized = extractEmail(addr);
-        if (!seen.has(normalized)) {
-          recipients.push(addr);
-          seen.add(normalized);
-        }
+        if (!normalized || seen.has(normalized)) continue;
+        seen.add(normalized);
+        recipients.push(addr);
+      }
+      for (const addr of originalEmail.cc ?? []) {
+        const normalized = extractEmail(addr);
+        if (!normalized || seen.has(normalized)) continue;
+        seen.add(normalized);
+        ccRecipients.push(addr);
       }
     }
 
     const emailComposer = {
       from: account.email || account.user,
       to: recipients,
+      ...(ccRecipients.length > 0 ? { cc: ccRecipients } : {}),
       subject: originalEmail.subject.startsWith('Re: ') ? originalEmail.subject : `Re: ${originalEmail.subject}`,
       text: text ?? body,
       html,
