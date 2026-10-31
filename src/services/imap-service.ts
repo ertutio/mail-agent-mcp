@@ -306,7 +306,13 @@ export class ImapService {
       try {
         await state.client.logout();
       } catch {
-        // Ignore logout errors
+        // T18 review: a refused logout must still end the socket — fall back
+        // to a hard close so the connection never outlives its owner.
+        try {
+          state.client.close();
+        } catch {
+          // The client is already gone.
+        }
       }
       this.connections.delete(accountId);
       this.reconnectAttempts.delete(accountId);
@@ -2038,8 +2044,6 @@ export class ImapService {
         // INBOX might not exist or have different name
       }
 
-      await testClient.logout();
-
       return {
         success: true,
         folders,
@@ -2050,6 +2054,19 @@ export class ImapService {
         success: false,
         error: enrichConnectionError(err, account.host),
       };
+    } finally {
+      // Owner cleanup (T18 / BUG-SEC-A1): the temp client must end even when
+      // LIST or STATUS fails, and cleanup must not mask the first error — a
+      // failed logout falls back to a hard socket close.
+      try {
+        await testClient.logout();
+      } catch {
+        try {
+          testClient.close();
+        } catch {
+          // The client is already gone.
+        }
+      }
     }
   }
 
