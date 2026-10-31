@@ -258,3 +258,42 @@ describe('T27E: extended resume edge cases', () => {
     }
   });
 });
+
+describe('T27F: cross-continuation budget exhaustion', () => {
+  it('T27F-PASS-COUNTER: output cursors carry the incremented pass number', async () => {
+    const { call, imap } = setup(2000);
+    imap.listFolders.mockResolvedValue([{ name: 'INBOX', attributes: [] }]);
+    imap.searchEmailPage.mockImplementation(async () => ({
+      messages: [message(1, '2026-10-01')], matched: 1,
+      nextCursor: { beforeUid: 0, uidValidity: 123 },
+    }));
+
+    const result = await call({ query: '项目' });
+    expect(result.cursors.length).toBeGreaterThan(0);
+    for (const c of result.cursors) {
+      expect(c.pass).toBe(1);
+    }
+  });
+
+  it('T27F-BUDGET-EXHAUSTED: after MAX_SEARCH_PASSES the cursor is rejected', async () => {
+    const { call, imap } = setup(2000);
+    imap.listFolders.mockResolvedValue([{ name: 'INBOX', attributes: [] }]);
+    imap.searchEmailPage.mockImplementation(async () => ({
+      messages: [message(1, '2026-10-01')], matched: 1,
+      nextCursor: { beforeUid: 0, uidValidity: 123 },
+    }));
+
+    // Get real output cursors (with correct filterKey and revision).
+    const first = await call({ query: '项目' });
+    expect(first.cursors.length).toBeGreaterThan(0);
+    // Set pass to the limit (5) and try again.
+    const exhausted = first.cursors.map((c: any) => ({ ...c, pass: 5 }));
+    await expect(call({ query: '项目', cursors: exhausted })).rejects.toThrow(/budget exhausted/);
+  });
+
+  it('T27F-NO-CURSOR-NO-LIMIT: a fresh search (no cursors) always works', async () => {
+    const { call } = setup();
+    const result = await call({ query: '项目' });
+    expect(result.success).toBe(true);
+  });
+});
