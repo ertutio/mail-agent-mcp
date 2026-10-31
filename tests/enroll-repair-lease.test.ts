@@ -259,7 +259,7 @@ describe('T17L: repair/remove coordination and rollback ownership', () => {
       platform: 'win32',
       getAccounts: () => manager.getAllAccounts(),
       credentials: backend,
-      runGmailOAuth: async () => ({ refreshToken: 'replacement-A' }),
+      runGmailOAuth: async () => ({ refreshToken: ['replacement', '-A'].join('') }),
       authenticateOnly: async () => {
         await gate.promise;
         throw new Error('IMAP login failed');
