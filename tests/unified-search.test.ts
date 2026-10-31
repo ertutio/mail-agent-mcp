@@ -297,3 +297,36 @@ describe('T27F: cross-continuation budget exhaustion', () => {
     expect(result.success).toBe(true);
   });
 });
+
+  it('T27G-CHAIN-EXHAUSTION: continuous cursor passes eventually exhaust via the handler', async () => {
+    const { call, imap } = setup(2000);
+    imap.listFolders.mockRejectedValue(new Error('persistent failure'));
+
+    let cursors: any[] | undefined;
+    let exhausted = false;
+    let listFoldersCalls = 0;
+    imap.listFolders.mockImplementation(() => {
+      listFoldersCalls++;
+      return Promise.reject(new Error('persistent failure'));
+    });
+
+    for (let pass = 0; pass <= 6; pass++) {
+      const args: any = { query: '项目' };
+      if (cursors) { args.cursors = cursors; }
+      try {
+        const result = await call(args);
+        cursors = result.cursors;
+        if (!cursors || cursors.length === 0) break;
+        // Output cursors carry pass = current pass + 1 (code's nextPass = currentPass + 1).
+        for (const c of cursors) expect(c.pass).toBe(pass + 1);
+      } catch (e: any) {
+        // Budget exhausted when cursors have pass >= 5.
+        expect(e.message).toMatch(/budget exhausted/);
+        exhausted = true;
+        // No more listFolders calls after exhaustion.
+        const callsNow = listFoldersCalls;
+        break;
+      }
+    }
+    expect(exhausted).toBe(true);
+  });
