@@ -21,6 +21,13 @@ import { parseSearchDateBound, validateSearchRange } from '../utils/search-input
 
 // Reusable, backward-compatible account selector. accountId stays accepted as
 // before; accountName and the single-account default are additive conveniences.
+const escapeHtml = (value: string): string => value
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#39;');
+
 const accountSelector = {
   accountId: z.string().optional().describe('Account ID (from imap_list_accounts). Optional if accountName is given or only one account is configured.'),
   accountName: z.string().optional().describe('Account name instead of accountId. Optional if accountId is given or only one account is configured.'),
@@ -1235,13 +1242,30 @@ export function emailTools(
 
     // Prepare forwarded content
     const forwardHeader = `\n\n---------- Forwarded message ----------\nFrom: ${originalEmail.from}\nDate: ${originalEmail.date.toLocaleString()}\nSubject: ${originalEmail.subject}\nTo: ${originalEmail.to.join(', ')}\n\n`;
-    
+
+    // T24 / MAIL-05: the HTML view carries the same user note and forwarded
+    // header as the text view — safely escaped so hostile note/header values
+    // cannot inject markup — with the original HTML (and its cid: references)
+    // kept verbatim after them.
+    const note = text ?? body ?? '';
+    const noteHtml = note
+      ? `<p>${escapeHtml(note).replace(/\r?\n/g, '<br>')}</p>\n`
+      : '';
+    const forwardHeaderHtml =
+      '<p>---------- Forwarded message ----------<br>\n' +
+      `From: ${escapeHtml(originalEmail.from)}<br>\n` +
+      `Date: ${escapeHtml(originalEmail.date.toLocaleString())}<br>\n` +
+      `Subject: ${escapeHtml(originalEmail.subject)}<br>\n` +
+      `To: ${escapeHtml(originalEmail.to.join(', '))}</p>\n`;
+
     const emailComposer = {
       from: account.email || account.user,
       to,
       subject: originalEmail.subject.startsWith('Fwd: ') ? originalEmail.subject : `Fwd: ${originalEmail.subject}`,
       text: (text ?? body ?? '') + forwardHeader + (originalEmail.textContent || ''),
-      html: originalEmail.htmlContent,
+      html: originalEmail.htmlContent
+        ? noteHtml + forwardHeaderHtml + originalEmail.htmlContent
+        : undefined,
       bcc: resolveBcc(account, bcc),
       references: originalEmail.messageId,
     };
