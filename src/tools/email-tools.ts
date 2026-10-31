@@ -501,13 +501,26 @@ export function emailTools(
       folder: z.string().default('INBOX').describe('Folder name'),
       uid: z.coerce.number().describe('Email UID'),
       uidValidity: z.coerce.number().int().positive().optional().describe('UIDVALIDITY from the email listing — the download is rejected if the mailbox UIDVALIDITY has changed'),
+      partIndex: z.coerce.number().int().min(0).optional().describe('Zero-based index for disambiguating multiple same-name attachments (from the email listing)'),
       filename: z.string().describe('Attachment filename or contentId'),
       savePath: z.string().optional().describe('Optional root-relative path, or absolute path already inside the configured download directory. Outside paths are rejected.'),
       extractText: z.boolean().default(true).describe('For PDFs, extract and return text content inline'),
     }
-  }, async ({ accountId: rawAccountId, accountName, folder, uid, uidValidity, filename, savePath, extractText }) => {
+  }, async ({ accountId: rawAccountId, accountName, folder, uid, uidValidity, partIndex, filename, savePath, extractText }) => {
     const accountId = accountManager.resolveAccountId(rawAccountId, accountName);
-    const { content, contentType, filename: resolvedFilename, totalMatches } = await imapService.getAttachmentContent(accountId, folder, uid, filename, uidValidity);
+    // T25 review: when multiple same-name attachments exist and no partIndex
+    // is given, the ambiguity is surfaced instead of silently returning the
+    // first match.
+    const { content, contentType, filename: resolvedFilename, totalMatches } =
+      await imapService.getAttachmentContent(accountId, folder, uid, filename, uidValidity, partIndex);
+    if (totalMatches !== undefined && totalMatches > 1 && partIndex === undefined) {
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify({
+          error: `Multiple attachments match "${filename}" (${totalMatches} total); pass partIndex (0-${totalMatches - 1}) to select one`,
+          totalMatches,
+        }, null, 2) }]
+      };
+    }
 
     const isImage = contentType.startsWith('image/');
     const isPdf = contentType === 'application/pdf' || resolvedFilename.toLowerCase().endsWith('.pdf');
