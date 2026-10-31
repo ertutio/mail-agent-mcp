@@ -7,6 +7,7 @@ import { resolveMailProxy } from '../utils/mail-proxy.js';
 import {materializeBoundedAttachments,MAX_BODY_CHARS} from '../utils/mail-resource-limits.js';
 import { composerRecipients, mailboxAddresses, deliveryReceipt, normalizeAddressList } from '../utils/mail-compose.js';
 import { SafeSendPreflightError } from './safe-send-service.js';
+import { accountRevision } from '../utils/account-revision.js';
 
 /**
  * Per-recipient acceptance contract for a submitted message (T21 / MAIL-10).
@@ -30,6 +31,8 @@ export interface SmtpSendResult {
 
 export class SmtpService {
   private transporters: Map<string, Set<Transporter>> = new Map();
+  // T20: the account revision each transporter Set was built with.
+  private transporterRevisions: Map<string, string> = new Map();
 
   constructor(private readonly authResolver: AccountAuthResolver = new AccountAuthResolver()) {}
 
@@ -39,6 +42,19 @@ export class SmtpService {
     // See ImapService.connect: name the missing variable instead of letting the
     // provider reject a blank credential with a generic auth error.
     if (!account.auth) assertCredentialsResolved(account, 'smtp');
+
+    // T20: close stale transporters when the account identity changed —
+    // they hold old auth and connections that no longer match the record.
+    const storedRev = this.transporterRevisions.get(account.id);
+    const currentRev = accountRevision(account);
+    if (storedRev !== undefined && storedRev !== currentRev) {
+      const stale = this.transporters.get(account.id);
+      if (stale) {
+        for (const t of stale) { try { t.close(); } catch { /* already gone */ } }
+        this.transporters.delete(account.id);
+      }
+    }
+    this.transporterRevisions.set(account.id, currentRev);
 
     const smtpConfig = account.smtp || this.getDefaultSmtpConfig(account);
     const { secure, requireTLS } = this.resolveTlsMode(smtpConfig.port, smtpConfig.secure);
