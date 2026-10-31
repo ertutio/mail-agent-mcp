@@ -126,7 +126,7 @@ describe('safe-send MCP tools', () => {
     }));
     expect(JSON.stringify(preview)).not.toContain('UNTRUSTED');
     expect(imapService.getEmailContent).toHaveBeenCalledWith('acct-1', 'Archive', 42, { bodyFormat: 'html' });
-    expect(imapService.getAttachmentContent).toHaveBeenCalledWith('acct-1', 'Archive', 42, 'original.txt');
+    expect(imapService.getAttachmentContent).toHaveBeenCalledWith('acct-1', 'Archive', 42, 'original.txt', undefined, 0);
 
     originalAttachmentBuffer.fill(0);
     original.subject = 'mutated after preview';
@@ -142,6 +142,41 @@ describe('safe-send MCP tools', () => {
     expect(composer.references).toBe('<original@example.com>');
     expect(composer.attachments[0].content.toString()).toBe('original attachment');
     expect(smtpService.sendEmail.mock.calls[0][2].attachments[0].content.every((byte: number) => byte === 0)).toBe(true);
+  });
+
+  it('forwards same-name attachments by occurrence order instead of the first match twice', async () => {
+    const { handlers, imapService, sentSnapshots, original } = harness();
+    const versions = [Buffer.from('quarterly v1'), Buffer.from('quarterly v2')];
+    original.attachments = [
+      { filename: 'report.pdf', contentType: 'application/pdf', size: versions[0]!.length },
+      { filename: 'report.pdf', contentType: 'application/pdf', size: versions[1]!.length },
+    ];
+    // Model the real service: partIndex selects within the same-name matches;
+    // without it only the first match is ever returned.
+    imapService.getAttachmentContent.mockImplementation(async (
+      _accountId: string, _folder: string, _uid: number, filename: string, _uidValidity: number | undefined, partIndex: number | undefined,
+    ) => ({ filename, contentType: 'application/pdf', content: versions[partIndex ?? 0]! }));
+
+    await handlers.get('imap_preview_forward_email')!({ accountId: 'acct-1', folder: 'INBOX', uid: 42, to: ['you@example.com'], includeAttachments: true });
+    expect(imapService.getAttachmentContent).toHaveBeenNthCalledWith(1, 'acct-1', 'INBOX', 42, 'report.pdf', undefined, 0);
+    expect(imapService.getAttachmentContent).toHaveBeenNthCalledWith(2, 'acct-1', 'INBOX', 42, 'report.pdf', undefined, 1);
+    await handlers.get('imap_confirm_send')!({ draftId: 'draft-1', confirmed: true });
+    expect(sentSnapshots[0].composer.attachments.map((a: any) => a.content.toString())).toEqual(['quarterly v1', 'quarterly v2']);
+  });
+
+  it('keeps inline CID attachments inline and keys the lookup by the contentId', async () => {
+    const { handlers, imapService, sentSnapshots, original } = harness();
+    const logo = Buffer.from('logo bytes');
+    original.attachments = [{ filename: 'logo.png', contentType: 'image/png', size: logo.length, contentId: '<img-1@example.com>' }];
+    imapService.getAttachmentContent.mockImplementation(async (
+      _accountId: string, _folder: string, _uid: number, filename: string, _uidValidity: number | undefined, partIndex: number | undefined,
+    ) => ({ filename, contentType: 'image/png', content: logo }));
+
+    await handlers.get('imap_preview_forward_email')!({ accountId: 'acct-1', folder: 'INBOX', uid: 42, to: ['you@example.com'], includeAttachments: true });
+    // The contentId (kept verbatim, angle brackets included) keys the lookup.
+    expect(imapService.getAttachmentContent).toHaveBeenCalledWith('acct-1', 'INBOX', 42, '<img-1@example.com>', undefined, 0);
+    await handlers.get('imap_confirm_send')!({ draftId: 'draft-1', confirmed: true });
+    expect(sentSnapshots[0].composer.attachments[0]).toMatchObject({ contentDisposition: 'inline', cid: '<img-1@example.com>' });
   });
 
   it('does not fetch or attach originals when includeAttachments is false', async () => {

@@ -46,12 +46,21 @@ async function materializeOriginalAttachments(
   uid: number,
   attachments: readonly Attachment[],
 ): Promise<EmailAttachment[]> {
+  // T25: same-name attachments disambiguate by occurrence order — the k-th
+  // entry keyed by contentId/filename must fetch the k-th match, not
+  // silently the first (the forward used to attach one file twice).
+  const seen = new Map<string, number>();
   return Promise.all(attachments.map(async (attachment) => {
+    const key = attachment.contentId ?? attachment.filename;
+    const partIndex = seen.get(key) ?? 0;
+    seen.set(key, partIndex + 1);
     const downloaded = await imapService.getAttachmentContent(
       accountId,
       folder,
       uid,
-      attachment.contentId ?? attachment.filename,
+      key,
+      undefined,
+      partIndex,
     );
     return {
       filename: downloaded.filename,
