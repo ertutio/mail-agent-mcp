@@ -12,8 +12,10 @@
 | 已验候选 / CI | `1bfc513545eebb934120af04e96f96cb1ad13ba7`；[run 41177399857](https://github.com/ertutio/mail-agent-mcp/actions/runs/41177399857) 的 Ubuntu Node22/24 所需步骤全通过；合并树与候选树相同。 |
 | 本地证据 | 260 suites，875 PASS、0 FAIL、1 Windows 下 POSIX owner-permission 平台 skip；coverage statements 83.21%、branches 74.69%、functions 85.47%、lines 86.15%。合成 junction 测试使用当时获准环境完成，不能据此自动提升今晚权限。build/lint/secrets/diff/pack 与 high 阈值两类 audit 通过；生产 5 / 全量 10 moderate 受影响节点仍保留，不称零漏洞。 |
 | 已关闭的旧队列 | 已审 24 个来源 PR 全部关闭，审计 head 均为 main 祖先；13 显示 merged、11 通过整合 PR 的关闭引用关闭，不能把后者写成 GitHub 逐 PR merged。不重做旧“14 项待合并”或 #29–#36。 |
-| 本轮已交付边界 | 上轮全部边界保持；本轮按第四轮评审补齐四项缺口：T27 跨续页 pass 计数预算（MAX_SEARCH_PASSES=5，真实 handler 耗尽证据）；T25 转发链按出现序传递 partIndex，同名附件不再两份同字节，CID 原样作查找键；T17 rotation rollback 加 CAS 检查，不再覆盖并发写入的新值，写入边界 reverify 覆盖 repair 链路；T20 T20E 生命周期证据（在途发送不因旧 transporter 关闭损坏结果、并发各自持有 transport、部分拒绝回执完整不重发）。 |
-| 今晚 next_action | 四个 PR（#39/#40/#41/#42）head 均已推送且 workflow_dispatch CI（Node22/24）全绿；等待维护者按 comment 逐项重验合并。合并后按保留门控推进 T35 稳定集成；T33/T34/T36 维持人工门控。 |
+| ,n�عL | ,�n:�h��vϰ
+��ˡ�T25 l�� revision+UIDVALIDITY+per-fetch њ fail-closeda06f181	T17 �g/�e/��h store lock 2L + GateRejection Q�b7bfb6c	T20 �!��` transportverify ;S�U���T20R � createTransporter �n36226eb		/ head CI �coverage e �����Yh�c� PR comment |
+| �Z next_action | 	* PR#40/#41/#42	head G+ round-5 ��ޔ� CII���y͌vT27PR #39		
+n�n��(��G�'2�v T35 3��T33/T34/T36 ���� |
 | 夜间交付状态 | 候选保持 `review_pending`，独立审计覆盖与运行结果齐全后供次日复核；不自动合并、部署、发布或真实邮箱验证。 |
 
 ## 今晚就绪队列
