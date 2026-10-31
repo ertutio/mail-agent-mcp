@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { CredentialBackend, SecretHandle } from '../src/credentials/credential-backend.js';
-import { CredentialRollbackError, rotateCredential } from '../src/credentials/credential-rotation.js';
+import { CredentialGateRejection, CredentialRollbackError, rotateCredential } from '../src/credentials/credential-rotation.js';
 
 class FakeHandle implements SecretHandle {
   disposed = false;
@@ -134,5 +134,47 @@ describe('rotateCredential', () => {
     expect((caught as Error).message).toBe('Credential verification failed and rollback failed');
     expect((caught as Error).message).not.toMatch(/old-secret-value|new-secret-value/);
     expect((caught as Error).cause).toBe(verification);
+  });
+
+  // T17 audit H4: an ownership rejection and an unexpected gate failure are
+  // different answers — only the rejection may silently skip the restore.
+  it('skips the restore when the rollback gate rejects ownership', async () => {
+    const backend = new FakeBackend();
+    backend.values.set(target, 'old-secret');
+    let gateCalls = 0;
+    const verification = new Error('verification failed');
+    await expect(rotateCredential({
+      credentials: backend, target, expectedTarget: target, replacement: 'new-code',
+      reverify: async () => {
+        gateCalls += 1;
+        if (gateCalls === 2) throw new CredentialGateRejection('account was removed during repair; rolling back');
+      },
+      verify: async () => { throw verification; },
+    })).rejects.toBe(verification);
+    // The newer operation owns the target: no restore write happened.
+    expect(backend.values.get(target)).toBe('new-code');
+    expect(backend.writes).toEqual([{ target, secret: 'new-code' }]);
+  });
+
+  it('fails the rollback when the gate errors instead of rejecting ownership', async () => {
+    const backend = new FakeBackend();
+    backend.values.set(target, 'old-secret');
+    let gateCalls = 0;
+    const verification = new Error('verification failed');
+    let caught: unknown;
+    try {
+      await rotateCredential({
+        credentials: backend, target, expectedTarget: target, replacement: 'new-code',
+        reverify: async () => {
+          gateCalls += 1;
+          if (gateCalls === 2) throw new Error('accounts.json is busy');
+        },
+        verify: async () => { throw verification; },
+      });
+    } catch (error) { caught = error; }
+    expect(caught).toBeInstanceOf(CredentialRollbackError);
+    expect((caught as Error).cause).toBe(verification);
+    // The restore was skipped — the inconsistent state is flagged, not silent.
+    expect(backend.values.get(target)).toBe('new-code');
   });
 });

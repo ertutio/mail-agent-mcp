@@ -7,6 +7,7 @@ import { AccountEnrollmentService } from './credentials/account-enrollment.js';
 import type { CredentialBackend } from './credentials/credential-backend.js';
 import { credentialTargetsForAccount, gmailClientSecretTargetsForAccount } from './credentials/credential-backend.js';
 import { CredentialRollbackError, rotateCredential, type CredentialRotationOptions } from './credentials/credential-rotation.js';
+import { CredentialGateRejection } from './credentials/credential-rotation.js';
 import { runGmailOAuthLoopback } from './credentials/gmail-oauth-loopback.js';
 import { createGmailAccessTokenExchange } from './credentials/gmail-token-exchange.js';
 import { WindowsCredentialBackend } from './credentials/windows-credential-backend.js';
@@ -225,10 +226,10 @@ export async function runEnrollmentCli(
                 a.id === account.id && a.auth?.credentialTarget === selectedTarget,
             );
             if (!stillThere) {
-              throw new Error('QQ account was removed during repair; rolling back');
+              throw new CredentialGateRejection('QQ account was removed during repair; rolling back');
             }
             if (accountRevision(stillThere) !== expectedRevision) {
-              throw new Error('QQ account identity changed during repair; rolling back');
+              throw new CredentialGateRejection('QQ account identity changed during repair; rolling back');
             }
           },
         });
@@ -342,10 +343,10 @@ export async function runEnrollmentCli(
                 a.id === account.id && a.auth?.credentialTarget === selectedTarget,
             );
             if (!stillThere) {
-              throw new Error('Gmail account was removed during repair; rolling back');
+              throw new CredentialGateRejection('Gmail account was removed during repair; rolling back');
             }
             if (accountRevision(stillThere) !== expectedRevision) {
-              throw new Error('Gmail account identity changed during repair; rolling back');
+              throw new CredentialGateRejection('Gmail account identity changed during repair; rolling back');
             }
           },
         });

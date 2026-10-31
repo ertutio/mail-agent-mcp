@@ -182,6 +182,108 @@ describe('T17L: repair/remove coordination and rollback ownership', () => {
     expect(existsSync(join(dir, 'accounts.json'))).toBe(true);
   });
 
+  it('T17L-NEWER-REPAIR-BEFORE-GUARD: a repair completing while A waits on the lock is captured, not destroyed', async () => {
+    const created = await enrollAccount();
+    const gate = deferred();
+    const guardEntered = deferred();
+    const guardWait = deferred();
+    const deps = repairDeps(created.id, gate);
+    deps.withStoreLock = (action) => withAccountStoreLock(dir, async () => {
+      guardEntered.release();
+      await guardWait.promise;
+      await action();
+    });
+    const repair = startRepair(created.id, deps);
+    await guardEntered.promise;
+
+    // B completes its own rotation here — the audit's H1 window: B lands
+    // after A captured its view of the world but before A's guarded write.
+    await rotateCredential({
+      credentials: backend, target, expectedTarget: target,
+      replacement: 'replacement-B', verify: async () => undefined,
+    });
+
+    guardWait.release();
+    await vi.waitFor(() => expect(backend.writes.map((w) => w.secret)).toContain('replacement-A'));
+    gate.release();
+    const error = await repair;
+    expect(error?.message).toMatch(/repair failed/);
+    // A's guarded snapshot saw B's value, so A's rollback restores B.
+    expect(backend.values.get(target)).toBe('replacement-B');
+    expect(backend.writes.map((w) => w.secret)).toEqual(['replacement-B', 'replacement-A', 'replacement-B']);
+  });
+
+  it('T17L-EQUAL-VALUE-NEWER-REPAIR: an identical replacement from a newer repair survives A', async () => {
+    const created = await enrollAccount();
+    const gate = deferred();
+    const guardEntered = deferred();
+    const guardWait = deferred();
+    const deps = repairDeps(created.id, gate);
+    deps.withStoreLock = (action) => withAccountStoreLock(dir, async () => {
+      guardEntered.release();
+      await guardWait.promise;
+      await action();
+    });
+    const repair = startRepair(created.id, deps);
+    await guardEntered.promise;
+
+    // B writes the SAME replacement string A will write — value comparison
+    // alone cannot attribute ownership; the guarded snapshot order must.
+    await rotateCredential({
+      credentials: backend, target, expectedTarget: target,
+      replacement: 'replacement-A', verify: async () => undefined,
+    });
+
+    guardWait.release();
+    await vi.waitFor(() => expect(backend.writes).toHaveLength(2));
+    gate.release();
+    const error = await repair;
+    expect(error?.message).toMatch(/repair failed/);
+    expect(backend.values.get(target)).toBe('replacement-A');
+    expect(backend.writes.map((w) => w.secret)).toEqual(['replacement-A', 'replacement-A', 'replacement-A']);
+  });
+
+  it('T17L-GMAIL-REMOVE-WINS: the gmail repair path honors the same remove-wins ownership', async () => {
+    const gmailTarget = credentialTarget('gmail', 'owner@gmail.com');
+    const created = await manager.addAccount({
+      name: 'Gmail', host: 'imap.gmail.com', port: 993,
+      user: 'owner@gmail.com', password: '', tls: true,
+      auth: { kind: 'oauth2', provider: 'gmail', credentialTarget: gmailTarget, clientId: 'synth-client-id.apps.googleusercontent.com' },
+    } as never);
+    backend.values.set(gmailTarget, 'old-refresh-token');
+    backend.writes.length = 0;
+    backend.deletes.length = 0;
+
+    const gate = deferred();
+    const deps: EnrollmentCliDependencies = {
+      platform: 'win32',
+      getAccounts: () => manager.getAllAccounts(),
+      credentials: backend,
+      runGmailOAuth: async () => ({ refreshToken: 'replacement-A' }),
+      authenticateOnly: async () => {
+        await gate.promise;
+        throw new Error('IMAP login failed');
+      },
+      withStoreLock: (action) => withAccountStoreLock(dir, action),
+      writeOutput: () => {},
+    };
+    const repair = runEnrollmentCli(['gmail-repair', created.id], deps).then(
+      () => undefined,
+      (error) => error instanceof Error ? error : new Error(String(error)),
+    );
+
+    await vi.waitFor(() => expect(backend.writes).toHaveLength(1));
+    await manager.removeAccount(created.id);
+    expect(backend.values.has(gmailTarget)).toBe(false);
+
+    gate.release();
+    const error = await repair;
+    expect(error?.message).toMatch(/repair failed/);
+    expect(backend.values.has(gmailTarget)).toBe(false);
+    expect(backend.writes).toHaveLength(1);
+    expect(backend.deletes).toEqual([{ target: gmailTarget, op: expect.any(Number) }]);
+  });
+
   it('T17L-LOCK-EXCLUSIVE: the removal waits for the guarded write and cannot interleave', async () => {
     const created = await enrollAccount();
     const gate = deferred();
