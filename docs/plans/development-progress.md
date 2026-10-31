@@ -12,8 +12,8 @@
 | 已验候选 / CI | `1bfc513545eebb934120af04e96f96cb1ad13ba7`；[run 41177399857](https://github.com/ertutio/mail-agent-mcp/actions/runs/41177399857) 的 Ubuntu Node22/24 所需步骤全通过；合并树与候选树相同。 |
 | 本地证据 | 260 suites，875 PASS、0 FAIL、1 Windows 下 POSIX owner-permission 平台 skip；coverage statements 83.21%、branches 74.69%、functions 85.47%、lines 86.15%。合成 junction 测试使用当时获准环境完成，不能据此自动提升今晚权限。build/lint/secrets/diff/pack 与 high 阈值两类 audit 通过；生产 5 / 全量 10 moderate 受影响节点仍保留，不称零漏洞。 |
 | 已关闭的旧队列 | 已审 24 个来源 PR 全部关闭，审计 head 均为 main 祖先；13 显示 merged、11 通过整合 PR 的关闭引用关闭，不能把后者写成 GitHub 逐 PR merged。不重做旧“14 项待合并”或 #29–#36。 |
-| 本轮已交付边界 | 账户 working/committed 隔离、候选白名单及空 SMTP 密码提交一致性；revision 绑定连接/预览/实际副作用、共享 timeout 与旧 logout 归属；删除确认集合与保守计数；STATUS 缺失/非法显式失败、真实零保留；cursor 按范围只续 pending；SMTP accepted/partial/rejected/ambiguous 终态与不重发；冻结 MIME、地址分组及 Bcc；Sent 已启动 APPEND 超时/异常结果未知及消费者警告。上述局部验收不自动关闭剩余 T17/T20/T25/T27。 |
-| 今晚 next_action | 在最新 main 先定位 T27 的 discovery failed/timeout 与 pending cursor 分支，复用 T26 的身份/范围回归；冻结“首次发现失败→有限续页成功，已完成账户不重搜”的真实 handler/service 反例，再最小实施。若源码已满足某断言，保存现有证据而不制造重复修复。 |
+| 本轮已交付边界 | 上轮全部边界保持；本轮按第四轮评审补齐四项缺口：T27 跨续页 pass 计数预算（MAX_SEARCH_PASSES=5，真实 handler 耗尽证据）；T25 转发链按出现序传递 partIndex，同名附件不再两份同字节，CID 原样作查找键；T17 rotation rollback 加 CAS 检查，不再覆盖并发写入的新值，写入边界 reverify 覆盖 repair 链路；T20 T20E 生命周期证据（在途发送不因旧 transporter 关闭损坏结果、并发各自持有 transport、部分拒绝回执完整不重发）。 |
+| 今晚 next_action | 四个 PR（#39/#40/#41/#42）head 均已推送且 workflow_dispatch CI（Node22/24）全绿；等待维护者按 comment 逐项重验合并。合并后按保留门控推进 T35 稳定集成；T33/T34/T36 维持人工门控。 |
 | 夜间交付状态 | 候选保持 `review_pending`，独立审计覆盖与运行结果齐全后供次日复核；不自动合并、部署、发布或真实邮箱验证。 |
 
 ## 今晚就绪队列
@@ -45,10 +45,10 @@
 
 | T / 断言与状态 | 分支 / exact SHA / PR 与父依赖 | 有效反例→修复结果、相邻/CI run、skip/cache | 独立审计范围 / 遗留 | 失败计数 / 回退 / next_action |
 | --- | --- | --- | --- | --- |
-| T27 / NOT_RUN | 待创建 | 待执行 | 待独立审计 | 未开始；先冻结发现失败续查反例 |
-| T25 / NOT_RUN | 待创建 | 待执行 | 待独立审计 | 未开始；核对稳定 part 与物化调用链 |
-| T17 / NOT_RUN | 待创建 | 待执行 | 待独立审计 | 未开始；核对已有跨进程协议与 vault 回滚时点 |
-| T20 / NOT_RUN | 依 T17 | 待执行 | 待独立审计 | 未开始；仅剩余集成 |
+| T27 / DONE（review_pending） | [fix/t27-discovery-resume](https://github.com/ertutio/mail-agent-mcp/tree/fix/t27-discovery-resume) @ `52dfc6cdcb2d95af1c3a5938681ae7e25989e920`；PR #39。基础 a6bc690（pass 计数）+ 99b6365/52dfc6c（T27E/T27G 证据）。 | 反例：持续失败的 listFolders 驱动链式 cursor 续查无限重试 → 修复：cursor 内 `pass` 计数 + `MAX_SEARCH_PASSES=5`，超限在联网前抛预算耗尽。T27G 经真实 handler 断言计数逐 pass 递增并终止。分支全套 87 files / 886 passed + 1 skip；[CI run 41212467560](https://github.com/ertutio/mail-agent-mcp/actions/runs/41212467560) Node22/24 绿。 | 已独立审计：cursor schema 的 pass 字段兼容旧游标（缺省 0，可续一次后被界住）、预算错误在 listFolders 之前抛出、账户发现失败/timeout/取消三态区分回归保留。遗留：pass 上限 5 为固定常量，不可配置（有意保守）。 | 0 次有效修正失败；无回退。next_action：等待维护者按 PR #39 comment 重验合并；合并后 T35 复用其 CI 证据。 |
+| T25 / DONE（review_pending） | [fix/t25-attachment-part-identity](https://github.com/ertutio/mail-agent-mcp/tree/fix/t25-attachment-part-identity) @ `92cd61b7b740f5b7def3a56278a524a2c3d55832`；PR #40。32f0b07（UIDVALIDITY+同名歧义）→ 62db7c8（partIndex+CID 归一化）→ 88b8a74（工具层歧义拒绝）→ 92cd61b（本轮转发链）。 | 反例：转发含两个同名 report.pdf 的邮件，转发稿两份均为第一份字节 → 修复：materializeOriginalAttachments 按键（contentId 优先）出现序传 partIndex，0/1 各取各的字节；CID 附件原样键查找且转发 MIME 保持 inline+cid。82.5k 直接下载路径维持 UIDVALIDITY 检查与歧义显式拒绝。全套 88 files / 885 passed + 1 skip；[CI run 41212470642](https://github.com/ertutio/mail-agent-mcp/actions/runs/41212470642) 绿。 | 已独立审计：同名出现序与 getAttachmentContent 匹配过滤语义一致；部分索引越界报错文案含匹配数。遗留：转发链 expectedUidValidity 传 undefined（EmailContent 无读取时 UIDVALIDITY，收口需扩契约，已列入 PR comment 作为后续）；转发路径不重下载二次替换依赖冻结预览既有保证。 | 0 次有效修正失败；无回退。next_action：等待维护者重验合并；EmailContent uidValidity 扩展另行立项。 |
+| T17 / DONE（review_pending） | [fix/t17-repair-transactions](https://github.com/ertutio/mail-agent-mcp/tree/fix/t17-repair-transactions) @ `33bbe9d6dbe34aee23d7f9216fa80d97b1a7fc33`；PR #41。172ebef（repair 事务重验）→ bb20375（竞争/回滚边界测试）→ 0e37840（写入边界 reverify）→ 33bbe9d（rollback CAS）。 | 反例：rotation verify 失败回滚时，另一操作已向同一 vault target 写入不同值 → 旧 rollback 无条件恢复 previous 会覆盖外来写入 → 修复：rollback 先读 vault，仍持 replacement 才恢复，否则保留并发写入。reverify 在写入边界（vault 写后、verify 前）调用，失败即回滚并重抛原错误。全套 88 files / 880 passed + 1 skip；[CI run 41212473620](https://github.com/ertutio/mail-agent-mcp/actions/runs/41212473620) 绿。 | 已独立审计：仅隔离 fake vault 验证，未触真实 WinCred；target 不匹配、空 replacement 前置拒绝保留；CredentialRollbackError 保留 cause。遗留：双进程真并发 gate 仍属 T27 后续集成面（本轮为锁层内等效单进程交错证据）。 | 0 次有效修正失败；无回退。next_action：等待维护者重验合并。 |
+| T20 / DONE（review_pending） | [fix/t20-smtp-revision](https://github.com/ertutio/mail-agent-mcp/tree/fix/t20-smtp-revision) @ `dd096377ade2686a4f6a32c671dcca228d25dec2`；PR #42。23caa9a（revision 变更关闭旧 transporter）+ dd09637（T20E）。 | 证据型补齐（无新生产代码）：T20E-INFLIGHT-SURVIVES 证在途发送不因旧 transporter 关闭损坏结果；T20E-CONCURRENT-SENDS 证并发发送各自持有并清理自己的 transport；T20E-RECEIPT-INTEGRITY 证部分拒绝回执完整且不重发。全套 87 files / 878 passed + 1 skip；[CI run 41212476759](https://github.com/ertutio/mail-agent-mcp/actions/runs/41212476759) 绿。 | 已独立审计：每次发送独立取 auth/建 transport 约定保持；预览仅在零 SMTP 副作用时允许、accepted/unknown 不自动重发未回归。遗留：OAuth 到期/刷新与配置轮换的发送边界消费属 T35 集成验证。 | 0 次有效修正失败；无回退。next_action：等待维护者重验合并。 |
 
 结束或硬中断时另列：未提交文件及所有者、运行中 CI/进程和恢复方式、计划 ref/head、最后一个冻结候选、所有 blocker 的精确解除条件。已验待复核、未验证、阻塞分开；测试原始日志保留在无秘密的可追溯位置，不把环境错误、skip 或静态审计写成 PASS。
 
