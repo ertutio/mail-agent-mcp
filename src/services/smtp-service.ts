@@ -43,18 +43,11 @@ export class SmtpService {
     // provider reject a blank credential with a generic auth error.
     if (!account.auth) assertCredentialsResolved(account, 'smtp');
 
-    // T20: close stale transporters when the account identity changed —
-    // they hold old auth and connections that no longer match the record.
-    const storedRev = this.transporterRevisions.get(account.id);
-    const currentRev = accountRevision(account);
-    if (storedRev !== undefined && storedRev !== currentRev) {
-      const stale = this.transporters.get(account.id);
-      if (stale) {
-        for (const t of stale) { try { t.close(); } catch { /* already gone */ } }
-        this.transporters.delete(account.id);
-      }
-    }
-    this.transporterRevisions.set(account.id, currentRev);
+    // T20: every send owns and releases its own transporter. A revision
+    // change never closes another in-flight attempt transport - the
+    // attempt post-verify re-check below is what stops stale auth.
+    const startRev = accountRevision(account);
+    this.transporterRevisions.set(account.id, startRev);
 
     const smtpConfig = account.smtp || this.getDefaultSmtpConfig(account);
     const { secure, requireTLS } = this.resolveTlsMode(smtpConfig.port, smtpConfig.secure);
@@ -75,6 +68,15 @@ export class SmtpService {
     // Verify connection
     try { await transporter.verify(); }
     catch (error) { transporter.close(); throw error; }
+
+    // T20: the auth resolution and verify awaited above - re-verify the
+    // identity before registering. A newer attempt recorded a different
+    // revision in the meantime, so this attempt is stale: it must not join
+    // the newer attempt set or proceed to submit with old auth.
+    if (this.transporterRevisions.get(account.id) !== startRev) {
+      transporter.close();
+      throw new SafeSendPreflightError('SMTP account changed while preparing the send; create a new preview before sending');
+    }
     const active = this.transporters.get(account.id) ?? new Set<Transporter>();
     active.add(transporter);
     this.transporters.set(account.id, active);

@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import nodemailer from 'nodemailer';
 import { SmtpService } from '../src/services/smtp-service.js';
+import { SafeSendPreflightError } from '../src/services/safe-send-service.js';
 import type { ImapAccount } from '../src/types/index.js';
 
 // T21 / MAIL-10: the send result must expose per-recipient acceptance —
@@ -124,73 +126,138 @@ describe('T21: SMTP acceptance receipts', () => {
     expect(result.rawMessage).toBeInstanceOf(Buffer);
   });
 
-  // T20 review: closing old transporters must not break in-flight sends,
-  // concurrent sends must be controlled, and the frozen raw/receipt
-  // contracts must hold.
-  describe('T20E: transporter lifecycle and send concurrency', () => {
-    it('T20E-INFLIGHT-SURVIVES: a transporter close during an in-flight send does not corrupt the result', async () => {
-      // The real nodemailer streamTransport is used; the close happens after
-      // sendMail resolves (in the finally block), so the send completes.
-      const nodemailer = await import('nodemailer');
-      const transport = nodemailer.createTransport({ streamTransport: true, buffer: true, newline: 'crlf' } as any);
-      const realSendMail = transport.sendMail.bind(transport);
-      let sendResolved = false;
-      vi.spyOn(service as any, 'createTransporter').mockResolvedValue({
-        sendMail: async (opts: any) => {
-          const info = await realSendMail(opts);
-          sendResolved = true;
-          return { messageId: messageIdOf(String(info.message)) };
-        },
-        close: vi.fn(),
-      });
+  // T20 round-2: the REAL createTransporter is exercised end to end — only
+  // the underlying transport (nodemailer.createTransport) and the credential
+  // resolution are controlled. Proves per-send transport ownership, the
+  // post-verify identity re-check, and failure cleanup with explicit
+  // results and call counts (never a swallowed unknown as success evidence).
+  describe('T20R: transporter lifecycle through the real createTransporter', () => {
+    interface Deferred { promise: Promise<void>; release: (error?: Error) => void }
+    const deferred = (): Deferred => {
+      let release!: (error?: Error) => void;
+      const promise = new Promise<void>((resolve, reject) => { release = (error) => error ? reject(error) : resolve(); });
+      return { promise, release };
+    };
 
-      const result = await service.sendEmail(account.id, account, composer as any);
-      expect(sendResolved).toBe(true);
-      // streamTransport has no per-recipient data: sent is undefined (unknown).
-      expect(result.sent).toBeUndefined();
-      expect(result.unknownRecipients).toBeDefined();
-      expect(result.rawMessage).toBeDefined();
-    });
+    const ACCEPTED = ['a@synth.test', 'b@synth.test', 'hidden@synth.test'];
+    const REV_B_ACCOUNT: ImapAccount = { ...account, host: 'other.smtp.synth.test' };
 
-    it('T20E-CONCURRENT-SENDS: two concurrent sends each get their own transport', async () => {
-      const transporters: any[] = [];
-      vi.spyOn(service as any, 'createTransporter').mockImplementation(async () => {
+    const setup = (options: { gateAuthAttempt?: number; gateSendAttempt?: number } = {}) => {
+      service = new SmtpService();
+      const made: Array<{ verify: ReturnType<typeof vi.fn>; sendMail: ReturnType<typeof vi.fn>; close: ReturnType<typeof vi.fn> }> = [];
+      let authAttempts = 0;
+      let sendAttempts = 0;
+      const authGate = deferred();
+      const sendGate = deferred();
+      (service as any).authResolver = {
+        resolve: vi.fn(async () => {
+          authAttempts += 1;
+          if (options.gateAuthAttempt === authAttempts) await authGate.promise;
+          return { kind: 'password' as const, user: 'sender@synth.test', password: SYNTHETIC_PASSWORD };
+        }),
+      };
+      vi.spyOn(nodemailer, 'createTransport').mockImplementation(() => {
         const t = {
-          sendMail: vi.fn(async (opts: any) => ({ messageId: messageIdOf(String(opts.raw ?? '')) || '<gen@synth.test>' })),
+          verify: vi.fn(async () => undefined),
+          sendMail: vi.fn(async () => {
+            sendAttempts += 1;
+            if (options.gateSendAttempt === sendAttempts) await sendGate.promise;
+            return { messageId: '<m@synth.test>', accepted: [...ACCEPTED], rejected: [], response: '250 OK' };
+          }),
           close: vi.fn(),
         };
-        transporters.push(t);
-        return t;
+        made.push(t);
+        return t as any;
       });
+      return { made, authGate, sendGate, authAttempts: () => authAttempts };
+    };
 
-      const [r1, r2] = await Promise.all([
-        service.sendEmail(account.id, account, composer as any),
-        service.sendEmail(account.id, account, composer as any),
-      ]);
-      expect(r1.messageId).toBeDefined();
-      expect(r2.messageId).toBeDefined();
-      expect(transporters).toHaveLength(2);
+    afterEach(() => { vi.restoreAllMocks(); });
+
+    it('T20R-INFLIGHT-NOT-CLOSED: a revision change while A is in flight does not close A and both sends land', async () => {
+      const { made, sendGate } = setup({ gateSendAttempt: 1 });
+
+      const sendA = service.sendEmail(account.id, account, composer as any);
+      await vi.waitFor(() => expect(made.length).toBe(1));
+      // A owns its transport and is submitting.
+      const sendB = service.sendEmail(account.id, REV_B_ACCOUNT, composer as any);
+      const resultB = await sendB;
+
+      // B's revision change must not close A's in-flight transporter.
+      expect(made[0]!.close).not.toHaveBeenCalled();
+      expect(resultB.sent).toBe(true);
+      expect(resultB.receipt.accepted).toEqual(ACCEPTED);
+
+      sendGate.release();
+      const resultA = await sendA;
+      // A lands with its own explicit receipt — not a swallowed unknown.
+      expect(resultA.sent).toBe(true);
+      expect(resultA.receipt.accepted).toEqual(ACCEPTED);
+      expect(made[0]!.sendMail).toHaveBeenCalledTimes(1);
+      expect(made[1]!.sendMail).toHaveBeenCalledTimes(1);
+      // Each owner released its own transport exactly once.
+      expect(made[0]!.close).toHaveBeenCalledTimes(1);
+      expect(made[1]!.close).toHaveBeenCalledTimes(1);
     });
 
-    it('T20E-RECEIPT-INTEGRITY: partial rejection still reports receipts without resending', async () => {
-      let sendCount = 0;
-      vi.spyOn(service as any, 'createTransporter').mockResolvedValue({
-        sendMail: vi.fn(async () => {
-          sendCount++;
-          return {
-            messageId: '<m@synth.test>',
-            accepted: ['a@synth.test', 'hidden@synth.test'],
-            rejected: ['b@synth.test'],
-            response: '250/550',
-          };
-        }),
-        close: vi.fn(),
-      });
+    it('T20R-STALE-AUTH-ABORTS: an auth delayed behind a revision change re-checks and never submits', async () => {
+      const { made, authGate } = setup({ gateAuthAttempt: 1 });
 
-      const result = await service.sendEmail(account.id, account, composer as any);
-      expect(sendCount).toBe(1); // no auto-resend
-      expect(result.sent).toBe(false);
-      expect(result.rejected).toEqual(['b@synth.test']);
+      const sendA = service.sendEmail(account.id, account, composer as any);
+      // A's transporter is created only after its auth resolves, so while the
+      // auth is parked nothing is registered for A.
+
+      // B (new revision) starts and completes while A's auth is still parked.
+      const resultB = await service.sendEmail(account.id, REV_B_ACCOUNT, composer as any);
+      expect(resultB.sent).toBe(true);
+      expect(made.length).toBe(1); // only B's transporter exists so far
+
+      authGate.release();
+      // A's auth lands late: the post-verify re-check aborts the stale
+      // attempt instead of registering it into B's collection.
+      await expect(sendA).rejects.toBeInstanceOf(SafeSendPreflightError);
+      expect(made.length).toBe(2); // A's transporter was built, then closed
+      expect(made[1]!.sendMail).not.toHaveBeenCalled();
+      expect(made[1]!.close).toHaveBeenCalledTimes(1);
+      // B released its own transport; nothing lingers registered.
+      expect((service as any).transporters.size).toBe(0);
+      expect(made[0]!.close).toHaveBeenCalledTimes(1);
+    });
+
+    it('T20R-CONCURRENT-SAME-REV: two same-revision sends each own a transport and both land', async () => {
+      const { made, sendGate } = setup({ gateSendAttempt: 1 });
+
+      const sendA = service.sendEmail(account.id, account, composer as any);
+      const sendB = service.sendEmail(account.id, account, composer as any);
+      await vi.waitFor(() => expect(made.length).toBe(2));
+      sendGate.release();
+      const [resultA, resultB] = await Promise.all([sendA, sendB]);
+
+      expect(resultA.sent).toBe(true);
+      expect(resultB.sent).toBe(true);
+      expect(made[0]!.sendMail).toHaveBeenCalledTimes(1);
+      expect(made[1]!.sendMail).toHaveBeenCalledTimes(1);
+      expect(made[0]!.close).toHaveBeenCalledTimes(1);
+      expect(made[1]!.close).toHaveBeenCalledTimes(1);
+      expect((service as any).transporters.size).toBe(0);
+    });
+
+    it('T20R-VERIFY-FAIL-CLEANUP: a failed verify closes its own transport and registers nothing', async () => {
+      service = new SmtpService();
+      (service as any).authResolver = {
+        resolve: vi.fn(async () => ({ kind: 'password' as const, user: 'sender@synth.test', password: SYNTHETIC_PASSWORD })),
+      };
+      const t = {
+        verify: vi.fn(async () => { throw new Error('connection refused'); }),
+        sendMail: vi.fn(async () => ({ messageId: '<m@synth.test>', accepted: [...ACCEPTED], rejected: [], response: '250 OK' })),
+        close: vi.fn(),
+      };
+      vi.spyOn(nodemailer, 'createTransport').mockImplementation(() => t as any);
+
+      await expect(service.sendEmail(account.id, account, composer as any)).rejects.toBeInstanceOf(SafeSendPreflightError);
+      expect(t.close).toHaveBeenCalledTimes(1);
+      expect(t.sendMail).not.toHaveBeenCalled();
+      expect((service as any).transporters.size).toBe(0);
     });
   });
 });
