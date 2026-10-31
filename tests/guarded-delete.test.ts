@@ -8,7 +8,7 @@ describe('frozen deletion and batch validation',()=>{
   const parse=(r:any)=>JSON.parse(r.content[0].text);
   beforeEach(()=>{
     now=0; handlers=new Map();
-    imap={searchEmails:vi.fn(async()=>[{uid:7,from:'sender@example.test',subject:'fixture'}]),bulkDelete:vi.fn(async()=>({deleted:1,failed:0,errors:[]})),deleteEmail:vi.fn(),getFolderStatus:vi.fn(async()=>({uidValidity:123})),resolveTrashFolder:vi.fn(async()=>'Trash')};
+    imap={searchEmails:vi.fn(async()=>[{uid:7,from:'sender@example.test',subject:'fixture'}]),bulkDelete:vi.fn(async()=>({deleted:1,failed:0,errors:[]})),deleteEmail:vi.fn(),getFolderStatus:vi.fn(async()=>({uidValidity:123})),resolveTrashFolder:vi.fn(async()=>'Trash'),getAccountRevision:vi.fn(async()=>'synthetic-rev-0')};
     const server={registerTool:(n:string,_c:any,h:any)=>handlers.set(n,h)};
     const guarded=guardedDeletion(server as any,imap,()=>now);
     emailTools(guarded.server,guarded.imap,{resolveAccountId:()=> 'synthetic'} as any,{} as any);
