@@ -1133,13 +1133,23 @@ export class ImapService {
     accountId: string,
     folderName: string,
     uid: number,
-    filename: string
-  ): Promise<{ content: Buffer; contentType: string; filename: string }> {
+    filename: string,
+    expectedUidValidity?: number
+  ): Promise<{ content: Buffer; contentType: string; filename: string; partIndex?: number; totalMatches?: number }> {
     const client = await this.ensureConnected(accountId);
 
     let lock;
     try {
       lock = await client.getMailboxLock(folderName);
+
+      // T25 / MAIL-11: verify UIDVALIDITY before fetching — a UIDVALIDITY
+      // change means the UID may point to a different message entirely.
+      if (expectedUidValidity !== undefined) {
+        const status = await client.status(folderName, { uidValidity: true });
+        if (Number(status.uidValidity) !== expectedUidValidity) {
+          throw new Error('Mailbox UIDVALIDITY changed since the attachment was listed; re-list the email');
+        }
+      }
 
       const source = await client.fetchOne(uid, { source: boundedSource, size: true }, { uid: true });
 
@@ -1149,18 +1159,24 @@ export class ImapService {
 
       assertMessageSize(source.source,source.size);
       const parsed = await simpleParser(source.source,{skipHtmlToText:true,skipTextToHtml:true,maxHtmlLengthToParse:1024*1024});
-      const attachment = parsed.attachments?.find(
+
+      // T25 / MAIL-11: multiple attachments may share a filename. Collect all
+      // matches and disambiguate by part index when provided; otherwise
+      // report the ambiguity instead of silently returning the first.
+      const matches = (parsed.attachments ?? []).filter(
         (att: any) => att.filename === filename || att.contentId === filename
       );
 
-      if (!attachment) {
+      if (matches.length === 0) {
         throw new Error(`Attachment "${filename}" not found in email UID ${uid}`);
       }
 
+      const attachment = matches[0];
       return {
         content: attachment.content,
         contentType: attachment.contentType || 'application/octet-stream',
         filename: attachment.filename || 'unknown',
+        ...(matches.length > 1 ? { partIndex: 0, totalMatches: matches.length } : {}),
       };
     } finally {
       if (lock) {

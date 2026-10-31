@@ -500,13 +500,14 @@ export function emailTools(
       ...accountSelector,
       folder: z.string().default('INBOX').describe('Folder name'),
       uid: z.coerce.number().describe('Email UID'),
+      uidValidity: z.coerce.number().int().positive().optional().describe('UIDVALIDITY from the email listing — the download is rejected if the mailbox UIDVALIDITY has changed'),
       filename: z.string().describe('Attachment filename or contentId'),
       savePath: z.string().optional().describe('Optional root-relative path, or absolute path already inside the configured download directory. Outside paths are rejected.'),
       extractText: z.boolean().default(true).describe('For PDFs, extract and return text content inline'),
     }
-  }, async ({ accountId: rawAccountId, accountName, folder, uid, filename, savePath, extractText }) => {
+  }, async ({ accountId: rawAccountId, accountName, folder, uid, uidValidity, filename, savePath, extractText }) => {
     const accountId = accountManager.resolveAccountId(rawAccountId, accountName);
-    const { content, contentType, filename: resolvedFilename } = await imapService.getAttachmentContent(accountId, folder, uid, filename);
+    const { content, contentType, filename: resolvedFilename, totalMatches } = await imapService.getAttachmentContent(accountId, folder, uid, filename, uidValidity);
 
     const isImage = contentType.startsWith('image/');
     const isPdf = contentType === 'application/pdf' || resolvedFilename.toLowerCase().endsWith('.pdf');
