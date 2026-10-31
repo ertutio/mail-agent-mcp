@@ -188,6 +188,8 @@ export class ImapService {
   private connectionRevisions: Map<string, string> = new Map();
   // T14: in-flight connect promises — concurrent callers share the same dial.
   private connectPromises: Map<string, Promise<void>> = new Map();
+  // T15: accounts whose in-flight connect was aborted (abortConnection).
+  private abortedConnects: Set<string> = new Set();
   private maxReconnectAttempts = 3;
   private accountManager?: AccountManager;
 
@@ -236,6 +238,10 @@ export class ImapService {
     // credential and getting back an indistinguishable "AUTHENTICATE failed".
     if (!account.auth) assertCredentialsResolved(account, 'imap');
     const resolvedAuth = await this.authResolver.resolve(account, 'imap');
+    // T15: re-verify after the auth await — abortConnection may have fired.
+    if (this.abortedConnects.has(account.id)) {
+      throw new Error('IMAP connection attempt was aborted');
+    }
     const proxy = resolveMailProxy(process.env, account.host, account.auth?.provider);
 
     const client = new ImapFlow({ maxLiteralSize: MAX_MESSAGE_BYTES + 1,
@@ -312,6 +318,7 @@ export class ImapService {
    * deadline. Unlike disconnect(), this does not wait for a graceful LOGOUT.
    */
   abortConnection(accountId: string): void {
+    this.abortedConnects.add(accountId);
     const state = this.connections.get(accountId);
     const pending = this.pendingConnections.get(accountId);
     this.connections.delete(accountId);
@@ -343,6 +350,9 @@ export class ImapService {
       const currentRev = accountRevision(configuredAccount);
       if (storedRev !== undefined && storedRev !== currentRev) {
         this.abortConnection(accountId);
+        // T12: revision invalidation is not an abort — clear the flag so
+        // connectInner reconnects instead of throwing.
+        this.abortedConnects.delete(accountId);
         state = undefined;
       }
     }
