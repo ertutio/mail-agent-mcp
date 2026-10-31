@@ -9,10 +9,31 @@
 | 总任务状态 | `in_progress`：PR #26 已合并；14 项待修，夜间续接入口见下文，历史 review_pending 回执保留为当时记录 |
 | 代码基线 | 已合并远端 `main@0560ade2202f6fb49f23ee20b149d4b16ef075a7`；[PR #26](https://github.com/ertutio/mail-agent-mcp/pull/26) MERGED，9 项通过范围已集成 |
 | 原计划来源 | [PR #3](https://github.com/ertutio/mail-agent-mcp/pull/3)，head `eee1daf88b52d4969f96c117dc93219b6dd5c7f3`，2026-10-17；计划未合并不等于其中修复已实现 |
-| 当前检查点 / 子项 | `T35 PASS（已合并选定范围）`：高危依赖、本地门禁及 Node22/24 CI 通过；14 项待修，不代表完整 T01–T37 完成。 |
-| next_action | 核实远端 main 和工作区后，从 T07（#12）实际修复候选 schema 与规范化持久化；按夜间续接表继续 T08→T09 和其他 ready 项，不因 PR 等待停止。 |
-| 本子项通过条件 | 本轮选定候选 build、coverage、lint、diff、secrets、生产/全量 high audit、pack 及准确 head 的 Node22/24 CI 全过；14 个暂缓 PR 不扩入。后续 T07 需验证写前校验与归一化持久结果，T08/T09 按其原解除条件。 |
-| 全局阻塞 | 本轮高危 audit 已解除，剩余 prod 5 / full 8 moderate；14 个功能 PR 暂缓及其重验条件保留。T33 本次所需范围外维护、T34/T36 门控保留；真实服务商、WinCred、部署和发布不由本轮代码验收替代。 |
+| 当前检查点 / 子项 | `2026-10-31 补修轮完成 + T21/T10/T11/T12 新增`：14 个暂缓 PR 全部 rebase 至 main@0e3c47b 并按夜间续接表补修（force-with-lease 推回原分支），另交付 T21（[PR #29](https://github.com/ertutio/mail-agent-mcp/pull/29)）、T10（[PR #30](https://github.com/ertutio/mail-agent-mcp/pull/30)）、T11（[PR #31](https://github.com/ertutio/mail-agent-mcp/pull/31)）、T12 连接失效重连（[PR #32](https://github.com/ertutio/mail-agent-mcp/pull/32)）、T13 预览 revision 绑定（[PR #33](https://github.com/ertutio/mail-agent-mcp/pull/33)）、T14 连接 single-flight（[PR #34](https://github.com/ertutio/mail-agent-mcp/pull/34)）、T15 取消信号（[PR #35](https://github.com/ertutio/mail-agent-mcp/pull/35)）、T26 游标账户绑定（[PR #36](https://github.com/ertutio/mail-agent-mcp/pull/36)）。等待重验合并。不代表完整 T01–T37 完成。 |
+| next_action | 按夜间续接表原顺序重验合并 14 项及新增 #29–#36；合并后跑 T35 稳定集成。继续就绪项：T27（发现失败续查）依赖 #36/T26 合并；T25/T17/T20 依赖 #31/T11 合并后实施。 |
+| 本子项通过条件 | 各 PR 补修后全量本地门禁通过（本轮记录：每分支 697–720 passed/1 skipped）；合并顺序遵守父链；CI Node22/24 全门禁以合并时准确 head 为准。 |
+| 全局阻塞 | 剩余 prod 5 / full 8 moderate 依赖公告未扩修；T33 扩展维护、T34/T36 门控保留；真实服务商、WinCred、部署和发布不由本轮代码验收替代。 |
+
+## 2026-10-31 补修轮（14 个暂缓 PR 全部处理）
+
+全部 14 个暂缓 PR 已 rebase 至 main@0e3c47b（含 T02/T03/T04/T06/T30/T31/T32 集成与依赖修复），按夜间续接表逐项补修并 force-with-lease 推回原分支；每项均含针对评审条件的新反例（先 FAIL 后 PASS）与全量本地门禁。每分支全量 697–720 passed / 1 skipped（claude-config 单次 Windows 临时目录 flake 隔离重跑通过，历史已记录）。
+
+| 顺序 / PR / T | 补修内容 / 新增用例 |
+| --- | --- |
+| #12 / T07 | SMTP 子候选同契约（null 拒绝、secure 默认 true、port 465/587 派生）；name/host/user/email/sentFolder 修剪进持久化与返回值；返回值改为「解密后的落盘记录」；存储密文不再按明文预算重校验（T07R 6 例） |
+| #13 / T08 | rebase 到补修后父链；T08R-LEGAL-NORMALIZED：未修剪合法候选经真实 HTTP 落盘为规范化值（6 例） |
+| #24 / T09 | rebase 到补修后父链；契约不变（ENOENT 清空/损坏拒读显式失败/不复活），T09 5 例在新链重跑通过 |
+| #5 / T01 | STATUS 与旗标快照改到同一锁内（getFolderStatusSnapshot），folder_status 不再混两时点；T01R-CONSISTENT-SNAPSHOT（交错中 UIDVALIDITY/计数/flags 突变后全字段一致）+ T01R-READ-FAIL-RELEASES-LOCK；mock 补 capabilities 兼容已合并 T03/T04 门禁 |
+| #9 / T05 | 非 Trash 单条 MOVE false/undefined 拒绝（回归钉住）；分块部分 uidMap 只计确认 UIDs（T05R 4 例）；分块 fixture 修正 |
+| #10 / T37 | addressDomain 取最后一个尖括号 token——显示名 decoy（`"Bob <decoy@…>" <real@…>`）不再误选（T37R-DECOY-DISPLAY-NAME） |
+| #17 / T28 | 空串作为已提供日期被三入口网络前拒绝（`!== undefined` 语义，T28R 2 例）；与已合并 T06 的 import 冲突解决 |
+| #16 / T18 | disconnect 的 logout 失败回退硬 close；T18R-DOUBLE-FAIL-CLOSE（LIST+logout 双失败仍硬关、首错保留）+ T18R-DISCONNECT-CLOSE；mock 绑定 close |
+| #21 / T29 | 连接/认证失败不再中止整个 sweep：该 folder 记 unknown、已取得计数保留（T29R-CONNECTION-FAIL-KEEPS-COUNTS）；ensureConnected 移入逐 folder catch |
+| #22 / T22 | T22R-REAL-STREAM：真实 nodemailer streamTransport（无网络）验证冻结 raw 逐字节提交（LF 改写归一化后）、Message-ID 一致、envelope 全覆盖、raw 无 Bcc |
+| #25 / T23 | T23R-REAL-MIME：真实 mailparser 解析合成 MIME（Reply-To+2To+2Cc）后 reply-all 展开正确、排自身、去重、线程头保持 |
+| #23 / T24 | T24R-REAL-HTML-ONLY：真实 mailparser HTML-only MIME 双视图均含附言/头/原正文，cid 保留；mock 建模服务侧 html→markdown 文本转换 |
+| #14 / T16 | T16R-NETEASE-FAIL-ROLLBACK + T16R-GMAIL-FAIL-ROLLBACK：两入口验证失败同样 vault 回滚、零持久、不报 enrolled；gmail enroll 路径补 runGmailOAuth 注入缝 |
+| #15 / T19 | T19R-REFRESH-BODY-DEADLINE：refresh 路径 drip body 滴流同样受总 deadline 约束（AbortError 映射为 timed out，不再伪装 invalid JSON） |
 
 ## 2026-10-30 夜间续接
 
