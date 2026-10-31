@@ -1474,6 +1474,49 @@ describe('ImapService', () => {
   // T05 review: a non-Trash single MOVE that settles false/undefined must
   // not report completion, and a chunked MOVE whose UIDPLUS uidMap covers
   // only part of the chunk counts only the confirmed UIDs.
+
+
+  // T25 / MAIL-11: UIDVALIDITY check prevents stale part定位.
+  describe('T25R: attachment part identity', () => {
+    it('T25R-UIDVALIDITY-CHECK: a UIDVALIDITY change rejects the download', async () => {
+      await imapService.connect(mockAccount);
+      mockInstance.statusMock.mockResolvedValue({ uidValidity: 999n });
+
+      await expect(
+        imapService.getAttachmentContent(mockAccount.id, 'INBOX', 7, 'file.pdf', 111)
+      ).rejects.toThrow(/UIDVALIDITY changed/);
+    });
+
+    it('T25R-UIDVALIDITY-MATCH: a matching UIDVALIDITY proceeds past the check', async () => {
+      await imapService.connect(mockAccount);
+      mockInstance.statusMock.mockResolvedValue({ uidValidity: 111n });
+      mockInstance.fetchOneMock.mockResolvedValue({
+        source: Buffer.from('From: a@b.test\r\nSubject: t\r\n\r\nbody'),
+        size: 42,
+      });
+
+      // UIDVALIDITY check passes; the failure is about the attachment not
+      // being found in the parsed content (the real simpleParser will parse
+      // the synthetic source). The point is: the error is NOT about
+      // UIDVALIDITY.
+      await expect(
+        imapService.getAttachmentContent(mockAccount.id, 'INBOX', 7, 'file.pdf', 111)
+      ).rejects.toThrow(/not found/i);
+      // Confirm the status was actually checked (not skipped).
+      expect(mockInstance.statusMock).toHaveBeenCalledWith('INBOX', { uidValidity: true });
+    });
+
+    it('T25R-NO-CHECK-WHEN-ABSENT: no uidValidity param means no STATUS pre-check', async () => {
+      await imapService.connect(mockAccount);
+      mockInstance.fetchOneMock.mockResolvedValue(null);
+
+      await expect(
+        imapService.getAttachmentContent(mockAccount.id, 'INBOX', 7, 'file.pdf')
+      ).rejects.toThrow(/not found/i);
+      expect(mockInstance.statusMock).not.toHaveBeenCalledWith('INBOX', { uidValidity: true });
+    });
+  });
+
   describe('T05R: move completion honesty', () => {
     it('T05R-MOVE-SINGLE-FALSE: a false single-uid move result is refused', async () => {
       await imapService.connect(mockAccount);

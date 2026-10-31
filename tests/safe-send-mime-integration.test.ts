@@ -39,8 +39,12 @@ async function harness() {
   vi.spyOn(smtp, 'sendEmail').mockImplementation(async (...args) => { returned = await actualSend(...args); return returned; });
   const handlers = new Map<string, Function>();
   const account = { id: 'mime-fixture', name: 'Synthetic', host: 'imap.example.test', port: 993, tls: true, user: 'me@example.test', password: '', defaultBcc: ['audit@example.test'] };
+  // Mirror the real AccountManager shape: getAccount is synchronous, and the
+  // ImapService learns the manager so getAccountRevision resolves revisions.
+  const manager = { resolveAccountId: () => account.id, getAccount: () => account } as any;
+  imap.setAccountManager(manager);
   safeSendTools({ registerTool: (name: string, _schema: unknown, handler: Function) => handlers.set(name, handler) } as any,
-    imap, { resolveAccountId: () => account.id, getAccount: async () => account } as any, smtp);
+    imap, manager, smtp);
   const call = async (name: string, input: unknown) => JSON.parse((await handlers.get(name)!(input)).content[0].text);
   return { imap, call, copies, snapshot: () => ({ submitted, streamed, returned }) };
 }

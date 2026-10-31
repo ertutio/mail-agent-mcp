@@ -39,19 +39,40 @@ async function materializeAttachments(inputs?: AttachmentInput[]): Promise<Email
   return materializeBoundedAttachments(prepared);
 }
 
+interface ForwardReadBinding {
+  accountRevision: string;
+  uidValidity?: number;
+}
+
 async function materializeOriginalAttachments(
   imapService: ImapService,
   accountId: string,
   folder: string,
   uid: number,
   attachments: readonly Attachment[],
+  binding: ForwardReadBinding,
 ): Promise<EmailAttachment[]> {
+  // T25: the original-email read and every attachment read bind to one
+  // account identity — a revision change since the email was read rejects
+  // at the read boundary instead of freezing another message's parts.
+  if (imapService.getAccountRevision(accountId) !== binding.accountRevision) {
+    throw new Error('Account identity changed while reading the original email; re-run the forward preview');
+  }
+  // Same-name attachments disambiguate by occurrence order — the k-th
+  // entry keyed by contentId/filename must fetch the k-th match, not
+  // silently the first (the forward used to attach one file twice).
+  const seen = new Map<string, number>();
   return Promise.all(attachments.map(async (attachment) => {
+    const key = attachment.contentId ?? attachment.filename;
+    const partIndex = seen.get(key) ?? 0;
+    seen.set(key, partIndex + 1);
     const downloaded = await imapService.getAttachmentContent(
       accountId,
       folder,
       uid,
-      attachment.contentId ?? attachment.filename,
+      key,
+      binding.uidValidity,
+      partIndex,
     );
     return {
       filename: downloaded.filename,
@@ -228,7 +249,10 @@ export function safeSendTools(server: McpServer, imapService: ImapService, accou
       bcc: mergeBcc(account.defaultBcc, bcc),
       references: originalEmail.messageId,
       attachments: includeAttachments
-        ? await materializeOriginalAttachments(imapService, accountId, folder, uid, originalEmail.attachments)
+        ? await materializeOriginalAttachments(imapService, accountId, folder, uid, originalEmail.attachments, {
+            accountRevision: revision,
+            uidValidity: originalEmail.uidValidity,
+          })
         : undefined,
     };
     return previewResponse(safeSend.preview({ accountId, accountRevision: revision, composer }));
