@@ -4,6 +4,7 @@ import type { AccountManager } from '../services/account-manager.js';
 import type { EmailMessage, SearchCriteria } from '../types/index.js';
 import { selectSearchFolders } from '../utils/search-folders.js';
 import { accountRevision } from '../utils/account-revision.js';
+import { parseSearchDateBound } from '../utils/search-input.js';
 import { z } from 'zod';
 import {createHash} from 'node:crypto';
 
@@ -23,13 +24,8 @@ interface AccountOutcome {
   foldersPending:PendingFolder[];
 }
 
-function dateOnly(value: string): Date {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new Error('Dates must use YYYY-MM-DD');
-  const [year, month, day] = value.split('-').map(Number) as [number, number, number];
-  const date = new Date(year, month - 1, day);
-  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) throw new Error('Invalid calendar date');
-  return date;
-}
+// Date bounds are parsed and validated by the shared search-input rules
+// (T28 / SA-05) — identical semantics on the plain and unified entries.
 
 export function unifiedSearchTools(server: McpServer, imap: ImapService, manager: AccountManager, runtime: RuntimeOptions = {}): void {
   server.registerTool('imap_search_all_accounts', {
@@ -78,8 +74,8 @@ export function unifiedSearchTools(server: McpServer, imap: ImapService, manager
     if (args.from) criteria.from = args.from;
     if (args.to) criteria.to = args.to;
     if (args.subject) criteria.subject = args.subject;
-    if (args.since) criteria.since = dateOnly(args.since);
-    if (args.before) criteria.before = dateOnly(args.before);
+    if (args.since !== undefined) criteria.since = parseSearchDateBound(args.since);
+    if (args.before !== undefined) criteria.before = parseSearchDateBound(args.before);
     if (criteria.since && criteria.before && criteria.since >= criteria.before) throw new Error('since must precede before');
     if (args.seen !== undefined) criteria.seen = args.seen;
     if (args.flagged !== undefined) criteria.flagged = args.flagged;
