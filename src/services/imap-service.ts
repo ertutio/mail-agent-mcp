@@ -896,6 +896,9 @@ export class ImapService {
     try {
       lock = await client.getMailboxLock(folderName);
 
+      // T25: capture the mailbox UIDVALIDITY under the same lock that read the
+      // message so callers can bind later reads (forward attachments) to it.
+      const uidValidity = client.mailbox?.uidValidity !== undefined ? Number(client.mailbox.uidValidity) : undefined;
       const source = await client.fetchOne(uid, { source: boundedSource, size: true, flags: true }, { uid: true });
 
       if (!source || !source.source) {
@@ -903,7 +906,8 @@ export class ImapService {
       }
 
       assertMessageSize(source.source,source.size);
-      return await this.buildEmailContentFromSource(uid, source.source, source.flags, options);
+      const rendered = await this.buildEmailContentFromSource(uid, source.source, source.flags, options);
+      return uidValidity !== undefined ? { ...rendered, uidValidity } : rendered;
     } finally {
       if (lock) {
         lock.release();
