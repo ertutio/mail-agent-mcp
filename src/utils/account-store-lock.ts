@@ -1,5 +1,14 @@
 import {promises as fs} from 'fs';
-import {join} from 'node:path';
+import {homedir} from 'node:os';
+import {join, resolve} from 'node:path';
+
+/** Single source of truth for the account-store directory: shared by the
+ * AccountManager and out-of-band credential writers that take the
+ * cross-process lock (T17). */
+export function accountStoreDirectory():string{
+  const configured=process.env.IMAP_MCP_CONFIG_DIR?.trim();
+  return configured?resolve(configured):join(homedir(),'.imap-mcp');
+}
 
 export async function withAccountStoreLock<T>(directory:string,action:()=>Promise<T>):Promise<T>{
   await fs.mkdir(directory,{recursive:true,mode:0o700});
