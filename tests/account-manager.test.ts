@@ -1079,5 +1079,84 @@ describe('T07: account candidate schema', () => {
       const stored = JSON.parse(String(vi.mocked(fs.writeFile).mock.calls.at(-1)![1]));
       expect(stored[0].name).toBe('T07R H');
     });
+
+  });
+  // T09 / SA-07: a failed store load must never leave stale in-memory
+  // accounts behind. ENOENT means an empty store; a corrupt or unreadable
+  // store is explicitly refused (reads fail loud, writes refuse to overwrite
+  // the broken file), and a deleted store never revives old records.
+  describe('T09: store load failure semantics', () => {
+    const storedJson = (value: unknown) => JSON.stringify(value);
+
+    it('T09-ENOENT-CLEARS: deleting the store empties the visible accounts', async () => {
+      const manager = new AccountManager();
+      await manager.addAccount({
+        name: 'T09 A', host: 'imap.synth.test', port: 993,
+        user: 'a@synth.test', password: ['t09-', 'pw'].join(''), tls: true,
+      });
+      // Simulate the file disappearing (mocked fs: next read misses).
+      vi.mocked(readFileSync).mockImplementation((file: any) => {
+        if (String(file).endsWith('.key')) return mockEncryptionKey;
+        throw Object.assign(new Error('missing'), { code: 'ENOENT' });
+      });
+      expect(manager.getAccount('anything')).toBeUndefined();
+      expect(() => manager.resolveAccountId()).toThrow(/No accounts configured/);
+    });
+
+    it('T09-CORRUPT-READS-REJECT: a corrupt store fails reads loudly', async () => {
+      vi.mocked(readFileSync).mockImplementation((file: any) => {
+        if (String(file).endsWith('.key')) return mockEncryptionKey;
+        if (String(file).endsWith('accounts.json')) return '{ not json';
+        throw Object.assign(new Error('missing'), { code: 'ENOENT' });
+      });
+      const m = new AccountManager();
+      expect(() => m.getAllAccounts()).toThrow(/unreadable or invalid/);
+      expect(() => m.getAccount('x')).toThrow(/unreadable or invalid/);
+    });
+
+    it('T09-WRITE-REFUSES: addAccount on a corrupt store keeps the bytes', async () => {
+      vi.mocked(readFileSync).mockImplementation((file: any) => {
+        if (String(file).endsWith('.key')) return mockEncryptionKey;
+        if (String(file).endsWith('accounts.json')) return '{ not json';
+        throw Object.assign(new Error('missing'), { code: 'ENOENT' });
+      });
+      vi.mocked(writeFileSync).mockClear();
+      vi.mocked(fs.writeFile).mockClear();
+      const m = new AccountManager();
+      await expect(m.addAccount({
+        name: 'T09 B', host: 'imap.synth.test', port: 993,
+        user: 'b@synth.test', password: ['t09-', 'pw2'].join(''), tls: true,
+      })).rejects.toThrow(/unreadable or invalid/);
+      expect(vi.mocked(fs.writeFile)).not.toHaveBeenCalled();
+    });
+
+    it('T09-DELETE-NO-REVIVE: adding after deletion starts a fresh store', async () => {
+      const manager = new AccountManager();
+      await manager.addAccount({
+        name: 'T09 Old', host: 'imap.synth.test', port: 993,
+        user: 'old@synth.test', password: ['t09-', 'old'].join(''), tls: true,
+      });
+      vi.mocked(readFileSync).mockImplementation((file: any) => {
+        if (String(file).endsWith('.key')) return mockEncryptionKey;
+        throw Object.assign(new Error('missing'), { code: 'ENOENT' });
+      });
+      await manager.addAccount({
+        name: 'T09 New', host: 'imap.synth.test', port: 993,
+        user: 'new@synth.test', password: ['t09-', 'new'].join(''), tls: true,
+      });
+      const lastWrite = String(vi.mocked(fs.writeFile).mock.calls.at(-1)![1]);
+      expect(lastWrite).not.toContain('T09 Old');
+      expect(lastWrite).toContain('T09 New');
+    });
+
+    it('T09-NON-ARRAY-REJECT: a non-array store is refused like corrupt data', async () => {
+      vi.mocked(readFileSync).mockImplementation((file: any) => {
+        if (String(file).endsWith('.key')) return mockEncryptionKey;
+        if (String(file).endsWith('accounts.json')) return storedJson({ not: 'an array' });
+        throw Object.assign(new Error('missing'), { code: 'ENOENT' });
+      });
+      const m = new AccountManager();
+      expect(() => m.getAllAccounts()).toThrow(/unreadable or invalid/);
+    });
   });
 });
