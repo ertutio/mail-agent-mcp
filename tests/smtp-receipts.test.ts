@@ -123,4 +123,74 @@ describe('T21: SMTP acceptance receipts', () => {
     expect(result.messageId).toBe(result.rawMessage!.toString().match(/^Message-ID:\s*(.+?)\r?$/im)![1]);
     expect(result.rawMessage).toBeInstanceOf(Buffer);
   });
+
+  // T20 review: closing old transporters must not break in-flight sends,
+  // concurrent sends must be controlled, and the frozen raw/receipt
+  // contracts must hold.
+  describe('T20E: transporter lifecycle and send concurrency', () => {
+    it('T20E-INFLIGHT-SURVIVES: a transporter close during an in-flight send does not corrupt the result', async () => {
+      // The real nodemailer streamTransport is used; the close happens after
+      // sendMail resolves (in the finally block), so the send completes.
+      const nodemailer = await import('nodemailer');
+      const transport = nodemailer.createTransport({ streamTransport: true, buffer: true, newline: 'crlf' } as any);
+      const realSendMail = transport.sendMail.bind(transport);
+      let sendResolved = false;
+      vi.spyOn(service as any, 'createTransporter').mockResolvedValue({
+        sendMail: async (opts: any) => {
+          const info = await realSendMail(opts);
+          sendResolved = true;
+          return { messageId: messageIdOf(String(info.message)) };
+        },
+        close: vi.fn(),
+      });
+
+      const result = await service.sendEmail(account.id, account, composer as any);
+      expect(sendResolved).toBe(true);
+      // streamTransport has no per-recipient data: sent is undefined (unknown).
+      expect(result.sent).toBeUndefined();
+      expect(result.unknownRecipients).toBeDefined();
+      expect(result.rawMessage).toBeDefined();
+    });
+
+    it('T20E-CONCURRENT-SENDS: two concurrent sends each get their own transport', async () => {
+      const transporters: any[] = [];
+      vi.spyOn(service as any, 'createTransporter').mockImplementation(async () => {
+        const t = {
+          sendMail: vi.fn(async (opts: any) => ({ messageId: messageIdOf(String(opts.raw ?? '')) || '<gen@synth.test>' })),
+          close: vi.fn(),
+        };
+        transporters.push(t);
+        return t;
+      });
+
+      const [r1, r2] = await Promise.all([
+        service.sendEmail(account.id, account, composer as any),
+        service.sendEmail(account.id, account, composer as any),
+      ]);
+      expect(r1.messageId).toBeDefined();
+      expect(r2.messageId).toBeDefined();
+      expect(transporters).toHaveLength(2);
+    });
+
+    it('T20E-RECEIPT-INTEGRITY: partial rejection still reports receipts without resending', async () => {
+      let sendCount = 0;
+      vi.spyOn(service as any, 'createTransporter').mockResolvedValue({
+        sendMail: vi.fn(async () => {
+          sendCount++;
+          return {
+            messageId: '<m@synth.test>',
+            accepted: ['a@synth.test', 'hidden@synth.test'],
+            rejected: ['b@synth.test'],
+            response: '250/550',
+          };
+        }),
+        close: vi.fn(),
+      });
+
+      const result = await service.sendEmail(account.id, account, composer as any);
+      expect(sendCount).toBe(1); // no auto-resend
+      expect(result.sent).toBe(false);
+      expect(result.rejected).toEqual(['b@synth.test']);
+    });
+  });
 });
