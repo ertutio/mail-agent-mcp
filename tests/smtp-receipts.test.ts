@@ -242,6 +242,25 @@ describe('T21: SMTP acceptance receipts', () => {
       expect((service as any).transporters.size).toBe(0);
     });
 
+    it('T20R-STALE-SNAPSHOT-LATE-ENTRY: a stale snapshot entering after a fresher attempt cannot pass via the live record', async () => {
+      const { made } = setup();
+      // The live store holds the new identity; B carries it, A carries the
+      // pre-change snapshot but ENTERS after B (worst case for attempt-order
+      // detection alone).
+      (service as any).accountManager = { getAccount: () => REV_B_ACCOUNT };
+
+      const resultB = await service.sendEmail(account.id, REV_B_ACCOUNT, composer as any);
+      expect(resultB.sent).toBe(true);
+      expect(made.length).toBe(1);
+
+      // A enters last with the stale snapshot: attempt-order comparison sees
+      // its own record, but the live-record comparison rejects it.
+      await expect(service.sendEmail(account.id, account, composer as any)).rejects.toBeInstanceOf(SafeSendPreflightError);
+      expect(made[1]!.sendMail).not.toHaveBeenCalled();
+      expect(made[1]!.close).toHaveBeenCalledTimes(1);
+      expect((service as any).transporters.size).toBe(0);
+    });
+
     it('T20R-VERIFY-FAIL-CLEANUP: a failed verify closes its own transport and registers nothing', async () => {
       service = new SmtpService();
       (service as any).authResolver = {
