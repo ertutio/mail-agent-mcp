@@ -299,9 +299,23 @@ export async function runEnrollmentCli(
 
     const email = await ask('Email address');
     const name = await ask('Account name', { defaultValue: email });
+    const credentials = dependencies.credentials ?? new WindowsCredentialBackend();
+    // BUG-SEC-04 (T16): CLI enrollment proves the credentials work with a real
+    // login before anything is committed — the same verification the web
+    // wizard injects. A failed verification rolls the fresh vault writes back
+    // (AccountEnrollmentService.persist) and nothing reaches accounts.json.
+    const verify = async (account: ImapAccount): Promise<void> => {
+      if (dependencies.authenticateOnly) {
+        await dependencies.authenticateOnly(account, credentials);
+        return;
+      }
+      const resolver = new AccountAuthResolver(credentials);
+      await new ImapService(resolver).authenticateOnly(account);
+    };
     const enrollment = new AccountEnrollmentService(
-      dependencies.credentials ?? new WindowsCredentialBackend(),
+      credentials,
       new AccountManager(),
+      verify,
     );
 
     if (provider !== 'qq' && provider !== 'gmail') {
@@ -329,7 +343,9 @@ export async function runEnrollmentCli(
       secret: true,
     });
     writeOutput('Opening Gmail authorization in your browser...\n');
-    const { refreshToken } = await runGmailOAuthLoopback({
+    // Honor the same injection seam as the repair path (T16 review).
+    const oauth = dependencies.runGmailOAuth ?? runGmailOAuthLoopback;
+    const { refreshToken } = await oauth({
       clientId,
       clientSecret,
       loginHint: email,
