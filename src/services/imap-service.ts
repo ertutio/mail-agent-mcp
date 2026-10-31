@@ -8,6 +8,7 @@ import { htmlToMarkdown, normalizeWhitespace } from './html-to-markdown.js';
 import { assertCredentialsResolved } from '../utils/env-credentials.js';
 import { AccountAuthResolver, buildImapAuth } from '../credentials/account-auth.js';
 import { resolveMailProxy } from '../utils/mail-proxy.js';
+import { accountRevision } from '../utils/account-revision.js';
 
 /**
  * Providers that require IMAP access to be manually enabled in account settings.
@@ -183,6 +184,8 @@ export class ImapService {
   private connections: Map<string, ConnectionState> = new Map();
   private pendingConnections: Map<string, ImapFlow> = new Map();
   private reconnectAttempts: Map<string, number> = new Map();
+  // T12: the account revision each live connection was built with.
+  private connectionRevisions: Map<string, string> = new Map();
   private maxReconnectAttempts = 3;
   private accountManager?: AccountManager;
 
@@ -269,6 +272,8 @@ export class ImapService {
       isConnected: true,
     });
     this.reconnectAttempts.set(account.id, 0);
+    // T12: every successfully created connection records its identity revision.
+    this.connectionRevisions.set(account.id, accountRevision(account));
   }
 
   async disconnect(accountId: string): Promise<void> {
@@ -311,6 +316,18 @@ export class ImapService {
       throw new Error(`Account ${accountId} was removed or not found. Open the local browser setup to manage accounts.`);
     }
     let state = this.connections.get(accountId);
+    if (state && configuredAccount) {
+      // T12 / SA-01: the connection was established with one identity; if the
+      // account's revision has changed (connection config, send policy or
+      // credential reference — NOT display name or tuning), the live client
+      // carries a stale identity and must be replaced before this operation.
+      const storedRev = this.connectionRevisions.get(accountId);
+      const currentRev = accountRevision(configuredAccount);
+      if (storedRev !== undefined && storedRev !== currentRev) {
+        this.abortConnection(accountId);
+        state = undefined;
+      }
+    }
     if (!state) {
       // Auto-connect using stored account credentials
       if (this.accountManager) {
@@ -318,6 +335,10 @@ export class ImapService {
         if (account) {
           await this.connect(account);
           state = this.connections.get(accountId);
+          if (state) {
+            // T12: remember the identity revision this connection was built with.
+            this.connectionRevisions.set(accountId, accountRevision(account));
+          }
         }
       }
       if (!state) {
@@ -339,7 +360,9 @@ export class ImapService {
       this.reconnectAttempts.set(accountId, attempts + 1);
       console.log(`Reconnecting to account ${accountId} (attempt ${attempts + 1})`);
 
-      const account = state.account;
+      // T12: reconnect with the CURRENT identity, not the stale one the dead
+      // connection was built with.
+      const account = configuredAccount ?? state.account;
       try {
         // Dispose the unusable instance; the connection is already gone, so
         // ignore any teardown error.
@@ -349,6 +372,7 @@ export class ImapService {
           // ignore
         }
         this.connections.delete(accountId);
+        this.connectionRevisions.delete(accountId);
 
         // Build a brand-new ImapFlow client + connection state. connect() resets
         // the reconnect-attempt counter to 0 on success.
@@ -357,6 +381,7 @@ export class ImapService {
         if (!state) {
           throw new Error('connection state missing after reconnect');
         }
+        this.connectionRevisions.set(accountId, accountRevision(account));
       } catch (err) {
         throw new Error(`Failed to reconnect: ${err instanceof Error ? err.message : String(err)}`);
       }
