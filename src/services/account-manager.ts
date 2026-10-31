@@ -266,22 +266,25 @@ export class AccountManager {
       id, // Ensure ID doesn't change
     };
 
-    this.accounts.set(id, updatedAccount);
-    await this.saveAccounts();
-
-    // Return decrypted version
+    // T10 / SA-06: construct the decrypted RESPONSE before committing — if
+    // return-object construction fails (e.g. a decrypt error), the update is
+    // not committed at all, keeping response, memory and disk in the same
+    // pre-update state.
     const decrypted: ImapAccount = {
       ...updatedAccount,
       password: this.decrypt(updatedAccount.password),
     };
-    
+
     if (updatedAccount.smtp?.password) {
       decrypted.smtp = {
         ...updatedAccount.smtp,
         password: this.decrypt(updatedAccount.smtp.password),
       };
     }
-    
+
+    this.accounts.set(id, updatedAccount);
+    await this.saveAccounts();
+
     return decrypted;
   }
 
