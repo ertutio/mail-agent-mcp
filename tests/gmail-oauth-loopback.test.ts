@@ -281,3 +281,103 @@ describe('runGmailOAuthLoopback', () => {
     })).rejects.toThrow(/authorization timed out/i);
   });
 });
+
+// T19 / BUG-SEC-05: the token deadline and byte budget must cover the whole
+// response body — success and error — not just the headers. A drip-fed body
+// used to read forever (the timer was cleared once headers arrived) and an
+// oversized body used to be accepted.
+describe('T19: OAuth response body deadlines and budgets', () => {
+  const raceDeadline = async (promise: Promise<unknown>, ms: number): Promise<never> =>
+    new Promise((_, reject) => {
+      const timer = setTimeout(() => reject(new Error('test harness deadline')), ms);
+      promise.then(
+        () => { clearTimeout(timer); },
+        () => { clearTimeout(timer); },
+      );
+    });
+
+  const dripForever = (signal?: AbortSignal): ReadableStream<Uint8Array> => {
+    const encoder = new TextEncoder();
+    return new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(encoder.encode('{"refresh_tok'));
+        const interval = setInterval(() => {
+          try { controller.enqueue(encoder.encode('e')); } catch { /* closed */ }
+        }, 25);
+        // Real fetch aborts the body when the caller's signal fires; the
+        // mock must model that or a deadline can never interrupt a read.
+        signal?.addEventListener('abort', () => {
+          clearInterval(interval);
+          // Real undici aborts surface as AbortError; model that name so the
+          // deadline mapping in the service sees the same shape as production.
+          const abortError = new Error('This operation was aborted');
+          abortError.name = 'AbortError';
+          try { controller.error(abortError); } catch { /* already closed */ }
+        }, { once: true });
+      },
+    });
+  };
+
+  it('T19-LOOPBACK-BODY-DEADLINE: a drip-fed success body hits the token deadline', async () => {
+    const tokenFetch = vi.fn<typeof fetch>(async (_input, init) =>
+      new Response(dripForever(init?.signal ?? undefined), { status: 200, headers: { 'content-type': 'application/json' } }));
+    const run = runGmailOAuthLoopback({
+      clientId: 'client-id',
+      fetch: tokenFetch,
+      timeoutMs: 300,
+      openBrowser: async (value) => {
+        const auth = new URL(value);
+        const callback = new URL(auth.searchParams.get('redirect_uri')!);
+        callback.searchParams.set('code', 'authorization-code');
+        callback.searchParams.set('state', auth.searchParams.get('state')!);
+        await fetch(callback);
+      },
+    });
+    await Promise.race([
+      expect(run).rejects.toThrow(/timed out/i),
+      raceDeadline(run.catch(() => undefined), 4000),
+    ]);
+  }, 10000);
+
+  it('T19-LOOPBACK-ERROR-BODY-DEADLINE: a drip-fed error body still fails by status', async () => {
+    const tokenFetch = vi.fn<typeof fetch>(async (_input, init) =>
+      new Response(dripForever(init?.signal ?? undefined), { status: 400 }));
+    const run = runGmailOAuthLoopback({
+      clientId: 'client-id',
+      fetch: tokenFetch,
+      timeoutMs: 300,
+      openBrowser: async (value) => {
+        const auth = new URL(value);
+        const callback = new URL(auth.searchParams.get('redirect_uri')!);
+        callback.searchParams.set('code', 'authorization-code');
+        callback.searchParams.set('state', auth.searchParams.get('state')!);
+        await fetch(callback);
+      },
+    });
+    await Promise.race([
+      expect(run).rejects.toThrow(/status 400/),
+      raceDeadline(run.catch(() => undefined), 4000),
+    ]);
+  }, 10000);
+
+  it('T19-LOOPBACK-BODY-BYTES: an oversized success body is rejected', async () => {
+    const padding = 'x'.repeat(2 * 1024 * 1024);
+    const tokenFetch = vi.fn<typeof fetch>(async () =>
+      new Response(JSON.stringify({ refresh_token: padding }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }));
+    await expect(runGmailOAuthLoopback({
+      clientId: 'client-id',
+      fetch: tokenFetch,
+      timeoutMs: 3000,
+      openBrowser: async (value) => {
+        const auth = new URL(value);
+        const callback = new URL(auth.searchParams.get('redirect_uri')!);
+        callback.searchParams.set('code', 'authorization-code');
+        callback.searchParams.set('state', auth.searchParams.get('state')!);
+        await fetch(callback);
+      },
+    })).rejects.toThrow(/exceeded/i);
+  }, 10000);
+});

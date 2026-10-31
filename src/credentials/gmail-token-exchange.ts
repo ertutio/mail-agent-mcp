@@ -2,6 +2,7 @@ import type { ImapAccount } from '../types/index.js';
 import type { CredentialBackend } from './credential-backend.js';
 import { gmailClientSecretTargetsForAccount } from './credential-backend.js';
 import { createProxyAwareFetch, type ProxyEnvironment, type ProxyFetchDependencies } from './proxy-fetch.js';
+import { OAuthBodyBudgetError, readBoundedJson } from './oauth-body-budget.js';
 
 const GMAIL_TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token';
 const DEFAULT_TIMEOUT_MS = 15_000;
@@ -148,7 +149,7 @@ export function createGmailAccessTokenExchange(
       if (!response.ok) {
         let oauthError: string | undefined;
         try {
-          oauthError = safeOAuthError(await response.json());
+          oauthError = safeOAuthError(await readBoundedJson(response));
         } catch {
           // A malformed provider body must not hide the safe HTTP status.
         }
@@ -157,8 +158,14 @@ export function createGmailAccessTokenExchange(
       }
       let payload: unknown;
       try {
-        payload = await response.json();
-      } catch {
+        payload = await readBoundedJson(response);
+      } catch (error) {
+        if (error instanceof OAuthBodyBudgetError) throw error;
+        // T19 review: a body read aborted by the token deadline is a timeout,
+        // not a parse failure — the deadline covers the whole body.
+        if (error instanceof Error && error.name === 'AbortError') {
+          throw new Error('Gmail token exchange timed out');
+        }
         throw new Error('Gmail token exchange returned invalid JSON');
       }
 

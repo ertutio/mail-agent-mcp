@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { createServer, type Server, type ServerResponse } from 'node:http';
 import { createProxyAwareFetch } from './proxy-fetch.js';
+import { readBoundedJson } from './oauth-body-budget.js';
 
 export const GMAIL_OAUTH_SUCCESS_TEXT =
   'Authorization response received. You can close this window and return to the Mail Agent setup page or terminal. Token exchange and local account registration are still in progress; check the setup page or terminal for the final result.';
@@ -88,7 +89,7 @@ async function readSafeTokenError(
 ): Promise<SafeTokenError | undefined> {
   let payload: unknown;
   try {
-    payload = await response.json();
+    payload = await readBoundedJson(response);
   } catch {
     return undefined;
   }
@@ -286,38 +287,49 @@ export async function runGmailOAuthLoopback(
         }
         throw new Error('Gmail OAuth token exchange request failed');
       }
-    } finally {
-      clearTimeout(tokenTimer);
-    }
 
-    if (!tokenResponse.ok) {
-      const safeError = await readSafeTokenError(tokenResponse);
-      const errorSuffix = safeError
-        ? ` (${safeError.code}${safeError.category ? `: ${safeError.category}` : ''})`
-        : '';
-      throw new Error(
-        `Gmail OAuth token exchange failed with status ${tokenResponse.status}`
-        + errorSuffix,
-      );
-    }
+      // T19 / BUG-SEC-05: the token deadline covers the whole body — success
+      // and error — and every body read is byte-bounded. The timer is cleared
+      // only after the body is fully consumed, so a drip-fed body cannot read
+      // forever after the headers arrived.
+      let payload: unknown;
+      try {
+        if (!tokenResponse.ok) {
+          const safeError = await readSafeTokenError(tokenResponse);
+          const errorSuffix = safeError
+            ? ` (${safeError.code}${safeError.category ? `: ${safeError.category}` : ''})`
+            : '';
+          throw new Error(
+            `Gmail OAuth token exchange failed with status ${tokenResponse.status}`
+            + errorSuffix,
+          );
+        }
+        payload = await readBoundedJson(tokenResponse);
+      } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError') {
+          throw new Error('Gmail OAuth token exchange timed out');
+        }
+        throw error;
+      } finally {
+        clearTimeout(tokenTimer);
+      }
 
-    let payload: unknown;
-    try {
-      payload = await tokenResponse.json();
-    } catch {
-      throw new Error('Gmail OAuth token exchange returned invalid JSON');
-    }
-    const refreshToken =
-      typeof payload === 'object'
-      && payload !== null
-      && 'refresh_token' in payload
-      && typeof payload.refresh_token === 'string'
-        ? payload.refresh_token.trim()
-        : '';
-    if (!refreshToken) {
-      throw new Error('Gmail OAuth token exchange returned no refresh token');
-    }
-    return { refreshToken, redirectUri };
+      const refreshToken =
+        typeof payload === 'object'
+        && payload !== null
+        && 'refresh_token' in payload
+        && typeof payload.refresh_token === 'string'
+          ? payload.refresh_token.trim()
+          : '';
+      if (!refreshToken) {
+        throw new Error('Gmail OAuth token exchange returned no refresh token');
+      }
+      return { refreshToken, redirectUri };
+      } finally {
+        // Backstop for the whole exchange block; the body-read finally above
+        // normally releases the timer first. Double-clear is a no-op.
+        clearTimeout(tokenTimer);
+      }
   } finally {
     if (callbackTimer) clearTimeout(callbackTimer);
     try {
