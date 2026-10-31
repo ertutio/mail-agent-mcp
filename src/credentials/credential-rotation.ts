@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import type { CredentialBackend } from './credential-backend.js';
@@ -22,7 +22,9 @@ export interface CredentialRotationOptions {
    * T17: exclusive guard (the account-store cross-process lock) around the
    * identity re-check, the vault write AND the rollback, so every vault
    * mutation of this target is serialized against concurrent removes and
-   * repairs.
+   * repairs. REQUIRED for correct ownership attribution: the generation
+   * journal's read-modify-write is only serialized under this guard — a
+   * caller omitting it gets degraded (best-effort) attribution.
    */
   writeGuard?: (action: () => Promise<void>) => Promise<void>;
   /**
@@ -80,7 +82,12 @@ function bumpGeneration(dir: string, target: string): number {
   const next = (targets[key] ?? 0) + 1;
   targets[key] = next;
   mkdirSync(dir, { recursive: true, mode: 0o700 });
-  writeFileSync(join(dir, GENERATION_FILE), JSON.stringify({ v: 1, targets }), { encoding: 'utf8', mode: 0o600 });
+  // T17 audit M1/M2: atomic replace — a torn write must never reset the
+  // counters and re-issue a stale generation to a concurrent rotation.
+  const file = join(dir, GENERATION_FILE);
+  const temp = join(dir, GENERATION_FILE + '.' + process.pid + '.tmp');
+  writeFileSync(temp, JSON.stringify({ v: 1, targets }), { encoding: 'utf8', mode: 0o600 });
+  renameSync(temp, file);
   return next;
 }
 
@@ -106,10 +113,12 @@ export async function rotateCredential(options: CredentialRotationOptions): Prom
     if (options.reverify) {
       await options.reverify();
     }
+    // T17 audit M3: record the generation BEFORE the vault write — a journal
+    // failure then aborts the attempt before the vault is touched, instead of
+    // leaving an unverified replacement behind with no rollback path.
+    myGeneration = bumpGeneration(generationDir, options.target);
     previous = snapshot(options.credentials, options.target);
     options.credentials.write(options.target, replacement);
-    // T17: recorded inside the same guard, right after the write lands.
-    myGeneration = bumpGeneration(generationDir, options.target);
   };
   if (options.writeGuard) {
     await options.writeGuard(writeReplacement);
