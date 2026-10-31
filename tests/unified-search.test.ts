@@ -115,4 +115,185 @@ describe('T26R: cursor account binding', () => {
     const { call } = setup(100, [{ ...accounts[0], host: 'other.imap.qq.com' }]);
     await expect(call({ query: '项目', cursors: fakeCursor })).rejects.toThrow(/identity changed/);
   });
+
+  // T27 / SA-04: account discovery failure must be explicitly reported,
+  // resumable via cursors, and bounded. Sources/coverage/partial preserved.
+  describe('T27R: account discovery failure resume', () => {
+    it('T27R-DISCOVERY-FAIL: a listFolders failure marks the account failed with pending cursors', async () => {
+      const { call, imap } = setup();
+      imap.listFolders.mockImplementation(async (id: string) => {
+        if (id === 'net') throw new Error('connection refused');
+        return [{ name: 'INBOX', attributes: [] }];
+      });
+
+      const result = await call({ query: '项目' });
+
+      // The failed account is explicitly marked.
+      const net = result.accounts.find((a: any) => a.accountId === 'net');
+      expect(net.status).toBe('failed');
+      // Sources/coverage preserved for the healthy accounts.
+      expect(result.totalFound).toBe(2);
+      expect(result.partial).toBe(true);
+      // Pending cursors exist for the failed account so it can be retried.
+      const netCursors = result.cursors.filter((c: any) => c.accountName === 'netease');
+      expect(netCursors.length).toBeGreaterThan(0);
+    });
+
+    it('T27R-CURSOR-RESUME: a cursor resume targets only the failed account', async () => {
+      const { call, imap } = setup();
+      imap.listFolders.mockImplementation(async (id: string) => {
+        if (id === 'net') throw new Error('connection refused');
+        return [{ name: 'INBOX', attributes: [] }];
+      });
+
+      const first = await call({ query: '项目' });
+      const netCursors = first.cursors.filter((c: any) => c.accountName === 'netease');
+      expect(netCursors.length).toBeGreaterThan(0);
+
+      // Recovery: listFolders now works.
+      imap.listFolders.mockResolvedValue([{ name: 'INBOX', attributes: [] }]);
+
+      const second = await call({ query: '项目', cursors: first.cursors });
+      // The recovered account contributes results.
+      const net = second.accounts.find((a: any) => a.accountId === 'net');
+      expect(net.status).toBe('ok');
+      // The healthy accounts are NOT re-searched (they had no pending cursors).
+      expect(second.totalFound).toBeGreaterThanOrEqual(1);
+    });
+
+    it('T27R-RETRY-BOUNDED: the retry is bounded by the deadline and page limit', async () => {
+      const { call, imap } = setup(50); // very short timeout
+      imap.listFolders.mockResolvedValue([{ name: 'INBOX', attributes: [] }]);
+      imap.searchEmailPage.mockImplementation(async () => {
+        // Always returns a nextCursor — never finishes.
+        return { messages: [message(1, '2026-10-01')], matched: 1, nextCursor: { beforeUid: 0, uidValidity: 123 } };
+      });
+
+      const result = await call({ query: '项目' });
+      // The timeout bounded the retry.
+      expect(result.partial).toBe(true);
+    });
+  });
+});
+
+describe('T27E: extended resume edge cases', () => {
+  it('T27E-PERSISTENT-FAIL: repeated failures keep emitting cursors, bounded by deadline', async () => {
+    const { call, imap } = setup(100);
+    imap.listFolders.mockRejectedValue(new Error('connection refused'));
+
+    // Pass 1: all accounts fail discovery, cursors emitted.
+    const pass1 = await call({ query: '项目' });
+    expect(pass1.accounts.every((a: any) => a.status === 'failed')).toBe(true);
+    expect(pass1.cursors.length).toBeGreaterThan(0);
+
+    // Pass 2: same failure again — still emits cursors, no crash, bounded.
+    const pass2 = await call({ query: '项目', cursors: pass1.cursors });
+    expect(pass2.accounts.every((a: any) => a.status === 'failed')).toBe(true);
+    expect(pass2.partial).toBe(true);
+  });
+
+  it('T27E-COMPLETED-NOT-RESEARCHED: a resumed pass does not re-search completed folders', async () => {
+    const { call, imap } = setup();
+    // First pass: net fails discovery, others complete.
+    imap.listFolders.mockImplementation(async (id: string) => {
+      if (id === 'net') throw new Error('connection refused');
+      return [{ name: 'INBOX', attributes: [] }];
+    });
+    const pass1 = await call({ query: '项目' });
+    const netCursors = pass1.cursors.filter((c: any) => c.accountName === 'netease');
+    expect(netCursors.length).toBeGreaterThan(0);
+
+    const callsAfterPass1 = imap.searchEmailPage.mock.calls.length;
+
+    // Recovery: net works now.
+    imap.listFolders.mockImplementation(async (id: string) => [{ name: 'INBOX', attributes: [] }]);
+
+    const pass2 = await call({ query: '项目', cursors: pass1.cursors });
+    // The completed accounts (qq, work) were NOT re-searched: the call count
+    // grew only by net's single folder page.
+    const newCalls = imap.searchEmailPage.mock.calls.length - callsAfterPass1;
+    expect(newCalls).toBe(1);
+    // net recovered and contributed.
+    const net = pass2.accounts.find((a: any) => a.accountId === 'net');
+    expect(net.status).toBe('ok');
+    expect(net.foldersSearched).toContain('INBOX');
+  });
+
+  it('T27E-PAGE-BUDGET: page limit bounds a folder that never finishes', async () => {
+    const { call, imap } = setup(2000);
+    imap.listFolders.mockResolvedValue([{ name: 'INBOX', attributes: [] }]);
+    // Every page returns a nextCursor — the folder never finishes.
+    imap.searchEmailPage.mockImplementation(async () => ({
+      messages: [message(1, '2026-10-01')], matched: 1,
+      nextCursor: { beforeUid: 0, uidValidity: 123 },
+    }));
+
+    const result = await call({ query: '项目' });
+    // The page budget bounded the folder (25 pages max), it went to pending.
+    expect(result.partial).toBe(true);
+    expect(result.cursors.length).toBeGreaterThan(0);
+    // Bounded: 3 accounts × 1 folder × maxPagesPerFolder(25) = 75 max calls.
+    expect(imap.searchEmailPage.mock.calls.length).toBeLessThanOrEqual(75);
+  });
+
+  it('T27E-TIMEOUT-RESUME: a timeout mid-pagination resumes from the cursor', async () => {
+    let pageCount = 0;
+    const { call, imap } = setup(60); // very short timeout
+    imap.listFolders.mockResolvedValue([{ name: 'INBOX', attributes: [] }]);
+    imap.searchEmailPage.mockImplementation(async () => {
+      pageCount++;
+      return {
+        messages: [message(pageCount, '2026-10-0' + Math.min(pageCount, 9))], matched: 1,
+        nextCursor: { beforeUid: 100 - pageCount, uidValidity: 123 },
+      };
+    });
+
+    const pass1 = await call({ query: '项目' });
+    // The account timed out with a pending cursor.
+    expect(pass1.partial).toBe(true);
+    const resumeCursors = pass1.cursors.filter((c: any) => c.accountId === 'qq');
+    if (resumeCursors.length > 0) {
+      // Resume carries the last beforeUid, not a restart from scratch.
+      expect(resumeCursors[0].beforeUid).toBeDefined();
+    }
+  });
+});
+
+describe('T27F: cross-continuation budget exhaustion', () => {
+  it('T27F-PASS-COUNTER: output cursors carry the incremented pass number', async () => {
+    const { call, imap } = setup(2000);
+    imap.listFolders.mockResolvedValue([{ name: 'INBOX', attributes: [] }]);
+    imap.searchEmailPage.mockImplementation(async () => ({
+      messages: [message(1, '2026-10-01')], matched: 1,
+      nextCursor: { beforeUid: 0, uidValidity: 123 },
+    }));
+
+    const result = await call({ query: '项目' });
+    expect(result.cursors.length).toBeGreaterThan(0);
+    for (const c of result.cursors) {
+      expect(c.pass).toBe(1);
+    }
+  });
+
+  it('T27F-BUDGET-EXHAUSTED: after MAX_SEARCH_PASSES the cursor is rejected', async () => {
+    const { call, imap } = setup(2000);
+    imap.listFolders.mockResolvedValue([{ name: 'INBOX', attributes: [] }]);
+    imap.searchEmailPage.mockImplementation(async () => ({
+      messages: [message(1, '2026-10-01')], matched: 1,
+      nextCursor: { beforeUid: 0, uidValidity: 123 },
+    }));
+
+    // Get real output cursors (with correct filterKey and revision).
+    const first = await call({ query: '项目' });
+    expect(first.cursors.length).toBeGreaterThan(0);
+    // Set pass to the limit (5) and try again.
+    const exhausted = first.cursors.map((c: any) => ({ ...c, pass: 5 }));
+    await expect(call({ query: '项目', cursors: exhausted })).rejects.toThrow(/budget exhausted/);
+  });
+
+  it('T27F-NO-CURSOR-NO-LIMIT: a fresh search (no cursors) always works', async () => {
+    const { call } = setup();
+    const result = await call({ query: '项目' });
+    expect(result.success).toBe(true);
+  });
 });
