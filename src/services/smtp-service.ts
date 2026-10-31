@@ -7,6 +7,25 @@ import { AccountAuthResolver, buildSmtpAuth } from '../credentials/account-auth.
 import { resolveMailProxy } from '../utils/mail-proxy.js';
 import {materializeBoundedAttachments,MAX_BODY_CHARS} from '../utils/mail-resource-limits.js';
 
+/**
+ * Per-recipient acceptance contract for a submitted message (T21 / MAIL-10).
+ * sent is true only when every reported recipient was accepted; transports
+ * without recipient data leave sent undefined with unknownRecipients set.
+ * Nothing here claims final delivery — only SMTP-level acceptance.
+ */
+export interface SmtpSendResult {
+  messageId: string;
+  rawMessage?: Buffer;
+  /** true only when every reported recipient was accepted. */
+  sent?: boolean;
+  accepted?: string[];
+  rejected?: string[];
+  /** Present when the transport reported no per-recipient data. */
+  unknownRecipients?: string;
+  /** Human-readable outcome for partial/full rejection. */
+  message?: string;
+}
+
 export class SmtpService {
   private transporters: Map<string, Transporter> = new Map();
 
@@ -157,7 +176,7 @@ export class SmtpService {
     return compiled.compile().build();
   }
 
-  async sendEmail(accountId: string, account: ImapAccount, email: EmailComposer): Promise<{ messageId: string; rawMessage?: Buffer }> {
+  async sendEmail(accountId: string, account: ImapAccount, email: EmailComposer): Promise<SmtpSendResult> {
     try {
       const transporter = await this.createTransporter(account);
       const mailOptions = this.toMailOptions(account, email);
@@ -174,7 +193,43 @@ export class SmtpService {
         to: SmtpService.flattenAddresses([mailOptions.to, mailOptions.cc, mailOptions.bcc]),
       };
       const info = await transporter.sendMail({ envelope, raw: rawMessage });
-      return { messageId: info.messageId, rawMessage };
+
+      // T21 / MAIL-10: surface per-recipient acceptance. SMTP transports
+      // report accepted/rejected arrays; transports without recipient data
+      // (stream/buffer transports) leave the outcome unknown. Partial or
+      // full rejection never claims sent:true, and nothing here claims final
+      // delivery — only what the SMTP server accepted this attempt.
+      const accepted = Array.isArray((info as any).accepted)
+        ? (info as any).accepted.map((v: unknown) => typeof v === 'string' ? v : String((v as { address: string }).address))
+        : undefined;
+      const rejected = Array.isArray((info as any).rejected)
+        ? (info as any).rejected.map((v: unknown) => typeof v === 'string' ? v : String((v as { address: string }).address))
+        : undefined;
+
+      let sent: boolean | undefined;
+      let message: string | undefined;
+      let unknownRecipients: string | undefined;
+      if (accepted === undefined || rejected === undefined) {
+        unknownRecipients = 'Transport did not report per-recipient acceptance; outcome unknown';
+      } else if (rejected.length === 0 && accepted.length > 0) {
+        sent = true;
+      } else if (accepted.length === 0 && rejected.length > 0) {
+        sent = false;
+        message = `All recipients rejected by the SMTP server (${rejected.join(', ')}); no recipient accepted`;
+      } else {
+        sent = false;
+        message = `Partially accepted: ${accepted.length} accepted, ${rejected.length} rejected by the SMTP server (${rejected.join(', ')}); the remaining recipients were not accepted`;
+      }
+
+      return {
+        messageId: info.messageId,
+        rawMessage,
+        sent,
+        ...(accepted !== undefined ? { accepted } : {}),
+        ...(rejected !== undefined ? { rejected } : {}),
+        ...(unknownRecipients !== undefined ? { unknownRecipients } : {}),
+        ...(message !== undefined ? { message } : {}),
+      };
     } catch (error) {
       throw new Error(`Failed to send email: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
