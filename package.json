@@ -1,6 +1,7 @@
 {
-  "name": "mail-agent-mcp",
-  "version": "0.1.1",
+  "name": "@ertutio/mail-agent-mcp",
+  "private": true,
+  "version": "0.1.0",
   "description": "Local-first email MCP server for Gmail and QQ Mail with OAuth, Windows Credential Manager, IMAP search/read, attachment controls, and preview-confirmed sending.",
   "main": "dist/index.js",
   "bin": {
@@ -106,13 +107,13 @@
       "role": "Original upstream author"
     }
   ],
-  "mcpName": "io.github.SinoEdwards/mail-agent-mcp",
+  "mcpName": "io.github.ertutio/mail-agent-mcp",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/SinoEdwards/mail-agent-mcp.git"
+    "url": "git+https://github.com/ertutio/mail-agent-mcp.git"
   },
-  "homepage": "https://github.com/SinoEdwards/mail-agent-mcp#readme",
+  "homepage": "https://github.com/ertutio/mail-agent-mcp#readme",
   "bugs": {
-    "url": "https://github.com/SinoEdwards/mail-agent-mcp/issues"
+    "url": "https://github.com/ertutio/mail-agent-mcp/issues"
   }
 }

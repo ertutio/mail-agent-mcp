@@ -1,6 +1,6 @@
 # Release-candidate inventory
 
-This file classifies the v0.1.0 Public Preview source-release surface for SinoEdwards/mail-agent-mcp.
+This file classifies the v0.1.0 Public Preview release surface for ertutio/mail-agent-mcp.
 
 ## Source
 

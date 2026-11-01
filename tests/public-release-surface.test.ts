@@ -6,7 +6,7 @@ const root = process.cwd();
 const read = (path: string): string => readFileSync(join(root, path), 'utf8');
 
 describe('public release surface', () => {
-  it('documents the supported providers, safe-send boundary, and clone-first setup', () => {
+  it('documents the supported providers, safe-send boundary, and release installation', () => {
     const readme = read('README.en.md');
     expect(read('README.md')).toContain('[English](README.en.md)');
     expect(readme).toContain('[中文](README.md)');
@@ -81,21 +81,22 @@ describe('public release surface', () => {
 
   it('uses the approved independent GitHub identity and keeps publishing disabled', () => {
     const pkg = JSON.parse(read('package.json')) as Record<string, unknown>;
-    expect(pkg).toMatchObject({ name: 'mail-agent-mcp', version: '0.1.1' });
+    expect(pkg).toMatchObject({ name: '@ertutio/mail-agent-mcp', version: '0.1.0', private: true });
     expect(pkg).toMatchObject({
-      mcpName: 'io.github.SinoEdwards/mail-agent-mcp',
+      mcpName: 'io.github.ertutio/mail-agent-mcp',
       repository: {
         type: 'git',
-        url: 'git+https://github.com/SinoEdwards/mail-agent-mcp.git',
+        url: 'git+https://github.com/ertutio/mail-agent-mcp.git',
       },
-      homepage: 'https://github.com/SinoEdwards/mail-agent-mcp#readme',
-      bugs: { url: 'https://github.com/SinoEdwards/mail-agent-mcp/issues' },
+      homepage: 'https://github.com/ertutio/mail-agent-mcp#readme',
+      bugs: { url: 'https://github.com/ertutio/mail-agent-mcp/issues' },
     });
     const server = JSON.parse(read('server.json')) as Record<string, unknown>;
     expect(server).toMatchObject({
-      name: 'io.github.SinoEdwards/mail-agent-mcp',
-      version: '0.1.1',
-      repository: { url: 'https://github.com/SinoEdwards/mail-agent-mcp' },
+      name: 'io.github.ertutio/mail-agent-mcp',
+      version: '0.1.0',
+      repository: { url: 'https://github.com/ertutio/mail-agent-mcp' },
+      packages: [],
     });
     expect(() => read('.github/workflows/release.yml')).toThrow();
     expect(read('.github/workflow-drafts/release.yml')).not.toMatch(/npm publish|mcp-publisher|id-token:\s*write/i);

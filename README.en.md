@@ -21,7 +21,7 @@ Based on [SinoEdwards/mail-agent-mcp](https://github.com/SinoEdwards/mail-agent-
 - Portable environment configuration and dynamic Windows loopback system-proxy detection, without user-specific ports or paths.
 - Runtime dependency security updates, duplicate account-name protection, password double-encryption correction, and an accurate OAuth callback status message.
 
-> Release status: v0.1.1 Public Preview / Beta. Install from this GitHub repository; the package is not published to npm or the MCP Registry.
+> Release status: v0.1.0 Public Preview / Beta. Install from the GitHub Release; the package is not published to npm or the MCP Registry.
 
 ## Features
 
@@ -74,27 +74,25 @@ imap_send_email, imap_reply_to_email, and imap_forward_email are legacy handlers
 
 Requirements: Windows 10/11 and Node.js 22.12 or newer for hardened Gmail/QQ/NetEase enrollment.
 
-1. Clone the repository and enter it:
+1. Download `mail-agent-mcp-0.1.0.zip` from the [v0.1.0 GitHub Release](https://github.com/ertutio/mail-agent-mcp/releases/tag/v0.1.0) and extract it.
+
+2. In the extracted directory, install the locked production dependencies and check the enrollment commands:
+
+   ```powershell
+   npm ci --omit=dev
+   node dist/enroll.js --help
+   ```
+
+   The ZIP includes the built files. See [INSTALL.md](INSTALL.md) for details. Developers can instead build from source:
 
    ```powershell
    git clone https://github.com/ertutio/mail-agent-mcp.git
    Set-Location mail-agent-mcp
-   ```
-
-2. Install locked dependencies and build:
-
-   ```powershell
    npm ci
    npm run build
    ```
 
-3. Check the enrollment commands:
-
-   ```powershell
-   node dist/enroll.js --help
-   ```
-
-4. Open the local account form in your OS default browser (the current UI is Chinese):
+3. Open the local account form in your OS default browser (the current UI is Chinese):
 
    ```powershell
    node dist/setup.js --skip-claude
@@ -119,7 +117,7 @@ Requirements: Windows 10/11 and Node.js 22.12 or newer for hardened Gmail/QQ/Net
    node dist/enroll.js netease-enterprise
    ```
 
-5. Register the local build with Codex CLI:
+4. Register the local build with Codex CLI:
 
    ```powershell
    codex mcp add --env IMAP_MCP_READ_ONLY=true mail-agent -- node "$PWD\dist\index.js"
@@ -343,7 +341,7 @@ The MCP server and generic IMAP features may run there, with explicit proxy envi
 
 ### Is the npm package available?
 
-No. Version 0.1.1 is installed from [this fork](https://github.com/ertutio/mail-agent-mcp); npm and MCP Registry publishing remain separate future release decisions.
+No. Version 0.1.0 is installed from [this fork’s GitHub Release](https://github.com/ertutio/mail-agent-mcp/releases/tag/v0.1.0); npm and MCP Registry publishing remain separate future release decisions.
 
 ## Development and validation
 

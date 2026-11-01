@@ -1,6 +1,18 @@
 # Changelog
 
-## Provider proxy routing (unreleased)
+## [0.1.0] - 2026-11-01
+
+First GitHub installation release of the ertutio fork. The release ZIP contains built files; npm and MCP Registry publication are not part of this release. Existing configuration and credential targets remain compatible.
+
+### Included
+
+- Unified mailbox search, secure NetEase enrollment, provider-aware proxy routing and the security fixes documented below.
+
+## Prior project history
+
+The entries below record changes from SinoEdwards/mail-agent-mcp and its upstream; their versions and dates are historical and do not denote releases of the ertutio fork.
+
+## Provider proxy routing (previously unreleased)
 
 - QQ and NetEase IMAP/SMTP now connect directly despite global proxy settings; Gmail OAuth, refresh and mail require a proxy without direct fallback.
 - Add dedicated `IMAP_MCP_GMAIL_PROXY`, dynamic Windows loopback system-proxy detection, and portable environment-variable configuration for other systems.
