@@ -4,17 +4,61 @@
 
 ## 当前游标
 
+北京时间 2026-10-31 夜至 2026-11-01 早。以下是今晚准备状态，尚未执行本队列；“ready”不是已修复或已验收。总任务保持 `in_progress`。
+
 | 字段 | 当前记录 |
 | --- | --- |
-| 总任务状态 | `in_progress`：PR #26 已合并；14 项待修，夜间续接入口见下文，历史 review_pending 回执保留为当时记录 |
-| 代码基线 | 已合并远端 `main@0560ade2202f6fb49f23ee20b149d4b16ef075a7`；[PR #26](https://github.com/ertutio/mail-agent-mcp/pull/26) MERGED，9 项通过范围已集成 |
-| 原计划来源 | [PR #3](https://github.com/ertutio/mail-agent-mcp/pull/3)，head `eee1daf88b52d4969f96c117dc93219b6dd5c7f3`，2026-10-17；计划未合并不等于其中修复已实现 |
-| 当前检查点 / 子项 | `2026-10-31 补修轮完成 + T21/T10/T11/T12 新增`：14 个暂缓 PR 全部 rebase 至 main@0e3c47b 并按夜间续接表补修（force-with-lease 推回原分支），另交付 T21（[PR #29](https://github.com/ertutio/mail-agent-mcp/pull/29)）、T10（[PR #30](https://github.com/ertutio/mail-agent-mcp/pull/30)）、T11（[PR #31](https://github.com/ertutio/mail-agent-mcp/pull/31)）、T12 连接失效重连（[PR #32](https://github.com/ertutio/mail-agent-mcp/pull/32)）、T13 预览 revision 绑定（[PR #33](https://github.com/ertutio/mail-agent-mcp/pull/33)）、T14 连接 single-flight（[PR #34](https://github.com/ertutio/mail-agent-mcp/pull/34)）、T15 取消信号（[PR #35](https://github.com/ertutio/mail-agent-mcp/pull/35)）、T26 游标账户绑定（[PR #36](https://github.com/ertutio/mail-agent-mcp/pull/36)）。等待重验合并。不代表完整 T01–T37 完成。 |
-| next_action | 按夜间续接表原顺序重验合并 14 项及新增 #29–#36；合并后跑 T35 稳定集成。继续就绪项：T27（发现失败续查）依赖 #36/T26 合并；T25/T17/T20 依赖 #31/T11 合并后实施。 |
-| 本子项通过条件 | 各 PR 补修后全量本地门禁通过（本轮记录：每分支 697–720 passed/1 skipped）；合并顺序遵守父链；CI Node22/24 全门禁以合并时准确 head 为准。 |
-| 全局阻塞 | 剩余 prod 5 / full 8 moderate 依赖公告未扩修；T33 扩展维护、T34/T36 门控保留；真实服务商、WinCred、部署和发布不由本轮代码验收替代。 |
+| 已接受代码基线 | `main@7467a0c68eecb0f1873166770e63eba8b2633255`；[PR #37](https://github.com/ertutio/mail-agent-mcp/pull/37) 已合并。开工先核远端后续提交，保留其他执行者的修改。 |
+| 已验候选 / CI | `1bfc513545eebb934120af04e96f96cb1ad13ba7`；[run 41177399857](https://github.com/ertutio/mail-agent-mcp/actions/runs/41177399857) 的 Ubuntu Node22/24 所需步骤全通过；合并树与候选树相同。 |
+| 本地证据 | 260 suites，875 PASS、0 FAIL、1 Windows 下 POSIX owner-permission 平台 skip；coverage statements 83.21%、branches 74.69%、functions 85.47%、lines 86.15%。合成 junction 测试使用当时获准环境完成，不能据此自动提升今晚权限。build/lint/secrets/diff/pack 与 high 阈值两类 audit 通过；生产 5 / 全量 10 moderate 受影响节点仍保留，不称零漏洞。 |
+| 已关闭的旧队列 | 已审 24 个来源 PR 全部关闭，审计 head 均为 main 祖先；13 显示 merged、11 通过整合 PR 的关闭引用关闭，不能把后者写成 GitHub 逐 PR merged。不重做旧“14 项待合并”或 #29–#36。 |
+| 本轮已交付边界 | 四个夜间 PR 全部合并入 main（#41→8418f0e、#39→74a8a58、#40→a71e761、#42→80106c7），合并树本地 926 passed + 1 skip，最终 main CI（[run 41262688757](https://github.com/ertutio/mail-agent-mcp/actions/runs/41262688757)）Node22/24 绿。各轮独立审计（T25 PASS、T17 三轮 APPROVE/PASS-WITH-RESERVATIONS→修复、T20 APPROVE）与 RED→GREEN 证据随 PR comment 归档。 |
+| 今晚 next_action | main@80106c736f4d 为已验候选；下一步 T35 稳定集成（coverage/audit/pack 全套在合并树上重跑）；T33/T34/T36 维持人工门控。 |
+| 夜间交付状态 | 候选保持 `review_pending`，独立审计覆盖与运行结果齐全后供次日复核；不自动合并、部署、发布或真实邮箱验证。 |
 
-## 2026-10-31 补修轮（14 个暂缓 PR 全部处理）
+## 今晚就绪队列
+
+每个行为单元沿用[总计划执行循环](development-roadmap.md#持续执行循环)。一项目同时一个生产行为单元，允许对冻结候选独立只读审计；两个项目可并行。同一共享文件由一个执行者维护，不把文件冲突伪装成技术阻塞。
+
+| 顺序 / 状态 | 工作与依赖 | 本次可检查的完成条件 |
+| --- | --- | --- |
+| 1 / ready：T27 发现失败续查 | T26 身份/范围契约已交付，先接通现有 cursor 表示，不另造不兼容分页协议。 | 初次 LIST/发现 throw、timeout、取消均明确区分；可恢复失败留下有界 continuation，续查可成功；重试/页数/时间预算有限且跨续页不重置成无限循环。保留账户来源、覆盖及 partial，成功账户不丢不重复从头搜；pending 范围、revision/UIDVALIDITY 与旧游标兼容按实际协议验证，已移除/改身份账户拒绝旧定位。服务恢复、持续失败和预算耗尽都有真实 handler/service 证据。 |
+| 2 / ready：T25 附件 part 身份与一次物化 | 依赖已交付 T11，沿用实际 MIME 解析、附件根和冻结发送流程。 | 合成 MIME 同名不同字节、无名、顺序变化和 CID 不按第一同名误取；以稳定 part 身份定位并核对实际字节。账户 revision/UIDVALIDITY 变化拒绝旧定位；预览→确认沿用同一已物化字节，不二次下载替换。超限/失败/取消的暂存清理与附件根安全保持；不擅自扩大附件产品协议。 |
+| 3 / ready：T17 凭据事务 | 依赖 T09/T11；先检查现有锁、revision、enrollment catch 与精确 vault target，不另起全库事务框架。 | repair/register/remove 在写前按实际跨进程协议重验 id/target/revision；网络等待有界，过期操作不能覆盖新成功或复活已移除秘密。受控双进程/现有等效锁层 gate 覆盖旧 repair 晚败、新 repair 成功、remove 交错与写盘失败；vault/内存/磁盘一致并保留当前回滚 catch 的耐久时点。只在隔离 fake vault/temp store 验证，真实 WinCred 不运行。 |
+| 4 / blocked_by_T17：T20 剩余集成 | 当前 SMTP 每次重新取 auth/建 transport、提交边界 revision 已交付；T17 稳定后验其剩余部分。 | 不重写现有无缓存实现；验证配置轮换、同 target 凭据更新、OAuth 到期/刷新与并发在实际发送边界消费正确身份。旧失败不污染新凭据；只在明确零 SMTP 副作用时允许新预览，accepted/unknown 从不自动重发；每次 transport 只清自己的拥有物。 |
+| 持续 / T35 | 每个共享接口稳定点，不等待全路线结束。 | 受影响定点/相邻测试后按 acceptance 完成必要本地 coverage、准确 SHA 的 Node22/24 CI 及质量门禁；复用有效证据，不每个小提交重跑整套。若环境/权限受限，准确标未执行并转独立工作。 |
+
+本队列是优先级，只有真实技术前置才阻塞后继。T27 或 T25 卡住时，另一个可继续；T17 若涉及未确定的共享回滚协议，先保存决策问题，不让 T20 绕过它。当前项目没有独立就绪实现时，整理证据、补明确缺失测试或转另一项目；不制造新的范围来消耗额度。
+
+## 保留门控与阻塞登记
+
+| 范围 | 今晚状态 / 解除条件 |
+| --- | --- |
+| T33 扩展依赖维护 | `awaiting_human`；生产 5 / 全量 10 moderate 是本轮快照，实施时重查公告。原高危最小修复授权不扩为任意升级；不 audit fix、不降阈值。 |
+| T34 fork 身份 | `awaiting_human`；维护者决定 npm/server namespace、署名及兼容策略后才统一改名。 |
+| T36 实际部署 | `awaiting_human`；实际安装/进程/代表调用需候选与单独部署授权，普通夜间不替换安装、不重启 MCP、不操作真实邮箱或 WinCred。 |
+| 同一卡点两次有效修正仍失败 | 保存问题 ID、两次假设/提交/真实结果，转独立高阶只读咨询；不可用则只阻塞此路径。咨询后一次定向修正仍失败，等待具体用户决定；计数跨代理/会话/夜晚保留。修复前预期 FAIL 与工具未执行断言单列，不算产品修正失败。 |
+
+## 晨间交接模板（执行时填写）
+
+当前各项均 `NOT_RUN`，不是已经发生的夜间成果。每完成单元维护一行；无待办决定时 next_action 写具体行为，而不是泛化“继续”。
+
+| T / 断言与状态 | 分支 / exact SHA / PR 与父依赖 | 有效反例→修复结果、相邻/CI run、skip/cache | 独立审计范围 / 遗留 | 失败计数 / 回退 / next_action |
+| --- | --- | --- | --- | --- |
+| T27 / MERGED（main） | [fix/t27-discovery-resume](https://github.com/ertutio/mail-agent-mcp/tree/fix/t27-discovery-resume) @ `52dfc6cdcb2d95af1c3a5938681ae7e25989e920`；PR #39。 已合并：merge commit `74a8a584c30d`。基础 a6bc690（pass 计数）+ 99b6365/52dfc6c（T27E/T27G 证据）。 | 反例：持续失败的 listFolders 驱动链式 cursor 续查无限重试 → 修复：cursor 内 `pass` 计数 + `MAX_SEARCH_PASSES=5`，超限在联网前抛预算耗尽。T27G 经真实 handler 断言计数逐 pass 递增并终止。分支全套 87 files / 886 passed + 1 skip；[CI run 41212467560](https://github.com/ertutio/mail-agent-mcp/actions/runs/41212467560) Node22/24 绿。 | 已独立审计：cursor schema 的 pass 字段兼容旧游标（缺省 0，可续一次后被界住）、预算错误在 listFolders 之前抛出、账户发现失败/timeout/取消三态区分回归保留。遗留：pass 上限 5 为固定常量，不可配置（有意保守）。 | 0 次有效修正失败；无回退。next_action：等待维护者按 PR #39 comment 重验合并；合并后 T35 复用其 CI 证据。 |
+| T25 / MERGED（main） | [fix/t25-attachment-part-identity](https://github.com/ertutio/mail-agent-mcp/tree/fix/t25-attachment-part-identity) @ `a06f181`（718fc44 类型修复 + a06f181 审计补救）；PR #40。 已合并：merge commit `a71e76107dd6`。92cd61b（出现序 partIndex）→ 67fb6ed（revision/UIDVALIDITY 绑定）→ 718fc44 → a06f181。 | 反例：转发含两个同名 report.pdf 的邮件两份同字节；转发链传 undefined 跳过 UIDVALIDITY/revision → 修复：EmailContent 携带读取时 uidValidity；materializeOriginalAttachments 边界核验 revision + 每次获取在锁内复验活体 revision + fail-closed（UIDVALIDITY 缺失即拒绝）。E2E（真实 ImapService→MIME）覆盖同名/UIDVALIDITY 变化拒绝/身份变化拒绝（边界后落地的编辑被 per-fetch 检查捕获）/confirm 不重下载。892 tests；coverage 83.36/74.91/85.64/86.27；[CI run 41221488469](https://github.com/ertutio/mail-agent-mcp/actions/runs/41221488469) 绿。 | 独立审计：PASS，H1/H2 已修复；残留（已文档化）：同名+CID 混合键冲突（92cd61b 前既有）、STATUS 先于 fetchOne 的顺序未钉住、下载工具 uidValidity 来源不对称、错误文案 re-list 措辞。 | 0 次有效修正失败；无回退。next_action：等待维护者按 PR #40 round-5 comment 重验合并。 |
+| T17 / MERGED（main） | [fix/t17-repair-transactions](https://github.com/ertutio/mail-agent-mcp/tree/fix/t17-repair-transactions) @ `dbc64da`（4e69e6f 落地变更归属 + dbc64da 补偿误报修复）；PR #41。 已合并：merge commit `8418f0eb8b9b`。33bbe9d → fac4d24 → 2919e79 → b7bfb6c → ebdd40c → 1c2d8a2 → 4e69e6f → dbc64da。 | 反例（round-7 新失败路径）：M3a 加固使 bump 先于凭据写入 → B 计数移动但写入失败（vault 未变）→ A 晚败错误跳过回滚（b7bfb6c 后继 1c2d8a2 上 RED）→ 修复：bumpGeneration 移到写入落地后（只有落地的变更拥有 generation）；journal 此点失败在锁内内联补偿（恢复 previous/删除新条目）再抛出，关闭 M3a 窗口；补偿自身失败以 CredentialRollbackError 上报（dbc64da）。全部既有契约序列逐字节保留（equal-value 胜者、remove-wins×2、正常失败、stale revision、B-先于-A-守卫）。T17L-FAILED-WRITE-NO-BUMP RED→PASS 实证。893 tests；coverage 83.43/75.00/85.52/86.31；[CI run 41261830047](https://github.com/ertutio/mail-agent-mcp/actions/runs/41261830047) 绿。 | 独立复审：APPROVE——交错与判别力按回退序追踪确认，previous 现行性确认（补偿块零 await），equal-value 竞态确认未重开；残留（已文档化）：write→bump 崩溃窗口（无 WAL，安全方向）、M3b 保守误报不变、补偿测试无 guarded 变体。 | 0 次有效修正失败；无回退。next_action：等待维护者按 PR #41 round-7 comment 重验合并。 |
+| T20 / MERGED（main） | [fix/t20-smtp-revision](https://github.com/ertutio/mail-agent-mcp/tree/fix/t20-smtp-revision) @ `36226eb`（160bc63 两 bug 修复 + 36226eb 审计 H1a）；PR #42。 已合并：merge commit `80106c736f4d`。 | 反例：revision 变化关闭在途发送的 transport；revision pre-await 记录后不复验，陈旧 A 晚到可登记进 B 集合并提交 → 修复：移除 close 循环（每次发送独占并在 finally 释放）+ verify 后复验记录 + 活体账户记录对照（setAccountManager 接线）。T20R 走真实 createTransporter（仅控制 transport/auth），INFLIGHT-NOT-CLOSED/STALE-AUTH-ABORTS 在 dd096377 代码 RED；STALE-SNAPSHOT-LATE-ENTRY 在 160bc63 RED。messageIdOf 未定义引用（ReferenceError 被吞成 unknown）与泄漏 service 依赖已清除。880 tests；coverage 83.28/74.85/85.34/86.19；[CI run 41220630214](https://github.com/ertutio/mail-agent-mcp/actions/runs/41220630214) 绿。 | 独立审计：APPROVE，H1a 已修复；残留（已文档化）：disconnect/verifySmtpConnection 的潜在路径（零生产调用方）、composeRaw 窗口由 safe-send checkRevision 覆盖、特定错误文案被两层重包裹。 | 0 次有效修正失败；无回退。next_action：等待维护者按 PR #42 round-5 comment 重验合并。 |
+
+结束或硬中断时另列：未提交文件及所有者、运行中 CI/进程和恢复方式、计划 ref/head、最后一个冻结候选、所有 blocker 的精确解除条件。已验待复核、未验证、阻塞分开；测试原始日志保留在无秘密的可追溯位置，不把环境错误、skip 或静态审计写成 PASS。
+
+## 历史记录（以下均非当前执行游标）
+
+下文完整保留 2026-10-17 至 10-31 补修前后的当时快照。其旧 next_action、待合并数量、静态缺陷判断、moderate 数量和初始队列均已由本文件上方当前游标覆盖；用于追踪原断言，不再指挥今晚从 T07 或旧 PR 链重新实施。
+
+<a id="2026-10-31-补修轮14-个暂缓-pr-全部处理"></a>
+
+## 历史：2026-10-31 补修轮（14 个暂缓 PR 全部处理）
 
 全部 14 个暂缓 PR 已 rebase 至 main@0e3c47b（含 T02/T03/T04/T06/T30/T31/T32 集成与依赖修复），按夜间续接表逐项补修并 force-with-lease 推回原分支；每项均含针对评审条件的新反例（先 FAIL 后 PASS）与全量本地门禁。每分支全量 697–720 passed / 1 skipped（claude-config 单次 Windows 临时目录 flake 隔离重跑通过，历史已记录）。
 
@@ -35,7 +79,9 @@
 | #14 / T16 | T16R-NETEASE-FAIL-ROLLBACK + T16R-GMAIL-FAIL-ROLLBACK：两入口验证失败同样 vault 回滚、零持久、不报 enrolled；gmail enroll 路径补 runGmailOAuth 注入缝 |
 | #15 / T19 | T19R-REFRESH-BODY-DEADLINE：refresh 路径 drip body 滴流同样受总 deadline 约束（AbortError 映射为 timed out，不再伪装 invalid JSON） |
 
-## 2026-10-30 夜间续接
+<a id="2026-10-30-夜间续接"></a>
+
+## 历史：2026-10-30 夜间续接
 
 [PR #26](https://github.com/ertutio/mail-agent-mcp/pull/26) 已合并至远端 main `0560ade2202f6fb49f23ee20b149d4b16ef075a7`，9 项通过范围已交付；高危 audit 已清，仍有生产 5 / 全量 8 moderate。源码 CI [41012567518](https://github.com/ertutio/mail-agent-mcp/actions/runs/41012567518) 和最终 CI [41013455268](https://github.com/ertutio/mail-agent-mcp/actions/runs/41013455268) 的 Node22/24 全门禁均 PASS。以下分类是本次审查快照，不是后续修复已执行：8 FAIL、4 PARTIAL、2 BLOCKED。历史证据、失败修正计数与下方逐项证据继续保留。
 
@@ -62,7 +108,9 @@
 
 执行每项：受控反例 FAIL → 最小修复 → 定点 PASS 与相邻回归 → 记录确切 SHA、用例、结果和未测项并保存/开 PR → 继续下一 ready 项。复用仍适用的成功证据，仅相关源码、依赖、配置、环境或输入变化时重跑受影响检查；稳定集成按验收约定执行。只用 mock、localhost、隔离临时配置和合成数据。14 项解除后继续原 T01–T37 队列中的 ready 工作；T33 扩展维护、T34 身份及 T36 部署保留原门控。提交/推送/开 PR 以用户给执行者的启动指令及已有授权为准；本文不新增合并、部署、npm 发布或真实邮箱授权。
 
-## 2026-10-30 依赖修复与合并续接
+<a id="2026-10-30-依赖修复与合并续接"></a>
+
+## 历史：2026-10-30 依赖修复与合并续接
 
 维护者本轮明确授权使用 Terra 修复上一轮依赖阻断并在验收通过后合并候选 PR #26；T33 开发依赖排除仅在本次高危修复所需范围解除。不扩大到暂缓的 14 个功能 PR，T34/T36 和真实邮箱、部署、发布边界保留。以下记录本轮实际验收证据；最终 CI 与合并结果见上方夜间续接，历史记录保留。
 
@@ -75,7 +123,9 @@
 | 格式检查 | 原索引的两个 package 文件均为全 CRLF，新行被普通 git diff --check 报 trailing whitespace；仅统一为 LF 保持 JSON 解析值不变，普通 git diff --check 已补查通过。该规范化会增加文本差异行数，依赖实际变化以上表为准。 |
 | 新 CI / 合并 | `PASS（源码门禁）`：[run 41012567518](https://github.com/ertutio/mail-agent-mcp/actions/runs/41012567518)，head `3ea1a9b466d5ce6bbcc996c5f855bb297288f34e`，Node22/24 的安装、测试、构建、产物、lint、diff、secrets、生产 audit、全量 audit、pack 全部 success，无所需步骤跳过。此后仅补本文与路线图；最终文档 head 的 Node22/24 全门禁 [run 41013455268](https://github.com/ertutio/mail-agent-mcp/actions/runs/41013455268) PASS，PR #26 已合并。最低 Node22.12、WinCred 和真实服务商未在本轮验证，T36 保持独立。 |
 
-## 2026-10-30 集中验收
+<a id="2026-10-30-集中验收"></a>
+
+## 历史：2026-10-30 集中验收
 
 以下保留上一轮依赖修复前的验收快照；当前依赖与合并状态以上方续接记录为准。
 
@@ -114,7 +164,9 @@
 
 本轮没有对上述阻断尝试产品修正，失败修正计数为 0；现有 PR 的反例与修复记录另行保留，不因这次审查重置已有排障历史。
 
-## 已交付与证据边界
+<a id="已交付与证据边界"></a>
+
+## 历史：已交付与证据边界
 
 - PR #1/#2 已合并。原 SA-08 跨账户分页、SEC-01 `/api` 保护已修复：保留回归，不再排待修；T26/T27 与 T08 修改时复用/补验其相邻断言。
 - 当前代码已有 Gmail OAuth、QQ/Windows Credential Manager、安全附件根、账号选择、发送/回复/转发预览及 literal `confirmed:true` 的 imap_confirm_send。旧直接发信工具不注册，继续保留现有安全边界。
@@ -124,7 +176,9 @@
 - 原路线的 662 通过/1 跳过、81.93% coverage 是 2026-10-17 同源码tree的历史结果，本计划未重跑；历史全量audit失败也不是当前查询，更不能写零漏洞。保存原开发依赖排除，T33未经解除不自动修复/升级。
 - 历史磁盘overlay/注册/版本号不证明当前进程加载版本或本轮MCP调用成功。T36仍待独立授权和实际运行证据。
 
-## 初始就绪队列
+<a id="初始就绪队列"></a>
+
+## 历史：初始就绪队列
 
 子项状态：`ready / in_progress / verifying / review_pending / blocked / accepted`；总状态另有 `awaiting_human / complete`。表中的就绪准备范围不授权提前接通未定共享契约。一个检查点可拆为多个原 T 子项保存，每个原编号独立对账。
 
@@ -139,7 +193,9 @@
 | C6 / T31/T32/T35 | T31/T32可独立；T35在受影响接口稳定时贯穿执行。 |
 | C7 / T33/T34/T36 | blocked：分别等开发依赖范围决定、fork身份决定、候选通过T35及部署授权；其他核心工作继续。 |
 
-## 范围与验证缺口
+<a id="范围与验证缺口"></a>
+
+## 历史：范围与验证缺口
 
 | 项 | 当前结论 / 下一步 |
 | --- | --- |
@@ -149,7 +205,9 @@
 | V-01/V-02 | 当前运行进程、实际MCP调用、服务商差异、WinCred、最低Node和跨平台等按变更列待验证；mock/Ubuntu CI不能充当这些证据。 |
 | R1–R5/F1–F8 | 按总计划原表保留风险/延期；可信审批、跨平台vault、全文索引、新provider等不自动扩入实现。 |
 
-## 历史提交回执（不代表本轮验收）
+<a id="历史提交回执不代表本轮验收"></a>
+
+## 历史：历史提交回执（不代表本轮验收）
 
 以下保留各实现 PR 提交时的原始回执与当时游标。当前状态以上方 2026-10-30 集中验收为准，历史 PASS/test 数字不覆盖本轮 FAIL、BLOCKED 或 NOT_RUN。
 
