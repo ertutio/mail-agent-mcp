@@ -42,6 +42,9 @@ const spamService = new SpamService();
 // Allow ImapService to auto-connect using stored credentials
 imapService.setAccountManager(accountManager);
 
+// T20: SMTP staleness checks compare against the live account record
+smtpService.setAccountManager(accountManager);
+
 // Register all tools
 registerTools(server, imapService, accountManager, smtpService, spamService);
 

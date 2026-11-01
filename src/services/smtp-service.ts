@@ -7,6 +7,8 @@ import { resolveMailProxy } from '../utils/mail-proxy.js';
 import {materializeBoundedAttachments,MAX_BODY_CHARS} from '../utils/mail-resource-limits.js';
 import { composerRecipients, mailboxAddresses, deliveryReceipt, normalizeAddressList } from '../utils/mail-compose.js';
 import { SafeSendPreflightError } from './safe-send-service.js';
+import { accountRevision } from '../utils/account-revision.js';
+import type { AccountManager } from './account-manager.js';
 
 /**
  * Per-recipient acceptance contract for a submitted message (T21 / MAIL-10).
@@ -30,8 +32,18 @@ export interface SmtpSendResult {
 
 export class SmtpService {
   private transporters: Map<string, Set<Transporter>> = new Map();
+  // T20: the account revision each transporter Set was built with.
+  private transporterRevisions: Map<string, string> = new Map();
 
   constructor(private readonly authResolver: AccountAuthResolver = new AccountAuthResolver()) {}
+
+  // T20: when wired, the live account record decides staleness - a stale
+  // snapshot entering late cannot pass by overwriting the attempt record.
+  private accountManager?: AccountManager;
+
+  setAccountManager(accountManager: AccountManager): void {
+    this.accountManager = accountManager;
+  }
 
   async createTransporter(account: ImapAccount): Promise<Transporter> {
     // Resolve on each attempt: an account ID or non-secret revision cannot
@@ -39,6 +51,12 @@ export class SmtpService {
     // See ImapService.connect: name the missing variable instead of letting the
     // provider reject a blank credential with a generic auth error.
     if (!account.auth) assertCredentialsResolved(account, 'smtp');
+
+    // T20: every send owns and releases its own transporter. A revision
+    // change never closes another in-flight attempt transport - the
+    // attempt post-verify re-check below is what stops stale auth.
+    const startRev = accountRevision(account);
+    this.transporterRevisions.set(account.id, startRev);
 
     const smtpConfig = account.smtp || this.getDefaultSmtpConfig(account);
     const { secure, requireTLS } = this.resolveTlsMode(smtpConfig.port, smtpConfig.secure);
@@ -59,6 +77,23 @@ export class SmtpService {
     // Verify connection
     try { await transporter.verify(); }
     catch (error) { transporter.close(); throw error; }
+
+    // T20: the auth resolution and verify awaited above - re-verify the
+    // identity before registering. A newer attempt recorded a different
+    // revision in the meantime, so this attempt is stale: it must not join
+    // the newer attempt set or proceed to submit with old auth.
+    if (this.transporterRevisions.get(account.id) !== startRev) {
+      transporter.close();
+      throw new SafeSendPreflightError('SMTP account changed while preparing the send; create a new preview before sending');
+    }
+    // T20 audit H1a: compare against the LIVE record, not just attempt order.
+    // A stale snapshot entering after a fresher attempt would otherwise pass
+    // by overwriting the record; the live comparison rejects it.
+    const configured = this.accountManager?.getAccount(account.id);
+    if (configured && accountRevision(configured) !== startRev) {
+      transporter.close();
+      throw new SafeSendPreflightError('SMTP account changed while preparing the send; create a new preview before sending');
+    }
     const active = this.transporters.get(account.id) ?? new Set<Transporter>();
     active.add(transporter);
     this.transporters.set(account.id, active);
