@@ -23,8 +23,8 @@ const originalWrite = process.stdout.write.bind(process.stdout);
 dotenv.config();
 
 const server = new McpServer({
-  name: 'mail-agent-mcp',
-  version: '0.1.1',
+  name: 'io.github.ertutio/mail-agent-mcp',
+  version: '0.1.0',
 });
 
 const credentialBackend = process.platform === 'win32'

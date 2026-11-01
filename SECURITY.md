@@ -52,4 +52,4 @@ The server does not intentionally write mail bodies to persistent storage. Pendi
 
 ## Reporting a vulnerability
 
-Use the [private GitHub Security Advisory channel](https://github.com/SinoEdwards/mail-agent-mcp/security/advisories/new). Do not publish credential leaks or exploit details in a public issue. Include the affected version, impact, and a minimal reproduction made only from synthetic mailbox data. If a real credential was exposed, revoke or rotate it before sharing any diagnostic material.
+Use the [private GitHub Security Advisory channel](https://github.com/ertutio/mail-agent-mcp/security/advisories/new). Do not publish credential leaks or exploit details in a public issue. Include the affected version, impact, and a minimal reproduction made only from synthetic mailbox data. If a real credential was exposed, revoke or rotate it before sharing any diagnostic material.
