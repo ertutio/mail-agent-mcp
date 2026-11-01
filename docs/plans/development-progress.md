@@ -12,8 +12,8 @@
 | 当前检查点 / 子项 | `2026-10-31 补修轮完成 + T21/T10/T11/T12 新增`：14 个暂缓 PR 全部 rebase 至 main@0e3c47b 并按夜间续接表补修（force-with-lease 推回原分支），另交付 T21（[PR #29](https://github.com/ertutio/mail-agent-mcp/pull/29)）、T10（[PR #30](https://github.com/ertutio/mail-agent-mcp/pull/30)）、T11（[PR #31](https://github.com/ertutio/mail-agent-mcp/pull/31)）、T12 连接失效重连（[PR #32](https://github.com/ertutio/mail-agent-mcp/pull/32)）、T13 预览 revision 绑定（[PR #33](https://github.com/ertutio/mail-agent-mcp/pull/33)）、T14 连接 single-flight（[PR #34](https://github.com/ertutio/mail-agent-mcp/pull/34)）、T15 取消信号（[PR #35](https://github.com/ertutio/mail-agent-mcp/pull/35)）、T26 游标账户绑定（[PR #36](https://github.com/ertutio/mail-agent-mcp/pull/36)）。等待重验合并。不代表完整 T01–T37 完成。 |
 | next_action | 按夜间续接表原顺序重验合并 14 项及新增 #29–#36；合并后跑 T35 稳定集成。继续就绪项：T27（发现失败续查）依赖 #36/T26 合并；T25/T17/T20 依赖 #31/T11 合并后实施。 |
 | 本子项通过条件 | 各 PR 补修后全量本地门禁通过（本轮记录：每分支 697–720 passed/1 skipped）；合并顺序遵守父链；CI Node22/24 全门禁以合并时准确 head 为准。 |
-| 全局阻塞 |
-| T35 最终集成验收 | **PASS**：main@`5079f1b9e40b`（#41/#39/#40/#42/#43 全部包含）；acceptance.md 集中门禁 9 项全过（含生产/全量 audit 0 已知漏洞、pack 产物、coverage 83.64/75.41/85.56/86.47）；重点互操作定点套件 77 passed；Node22/24 CI [run 41265016397](https://github.com/ertutio/mail-agent-mcp/actions/runs/41265016397) 绿；启动 smoke（enroll/web）通过。详见 [t35-final-acceptance-2026-11-01](t35-final-acceptance-2026-11-01.md)。T36 保持未执行。 | 依赖公告已清零（生产/全量 audit 均 0 已知漏洞，逐项证据见 docs/analysis/2026-11-01-t33-dependency-maintenance.md，本轮用户授权扩修 T33）；T34/T36 门控保留；真实服务商、WinCred、部署和发布不由本轮代码验收替代。 |
+| 全局阻塞 | 依赖公告已清零（T33 经 PR #43 合并，main@`5079f1b9e40b`）；T34/T36 门控保留；真实服务商、WinCred、部署和发布不由本轮代码验收替代。 |
+| T35 最终集成验收 | **PASS**：main@`5079f1b9e40b`（#41/#39/#40/#42/#43 全部包含）；acceptance.md 集中门禁 9 项全过（生产/全量 audit 0 已知漏洞、pack 产物、coverage 83.64/75.41/85.56/86.47）；重点互操作定点套件 77 passed；Node22/24 CI [run 41265016397](https://github.com/ertutio/mail-agent-mcp/actions/runs/41265016397) 绿；启动 smoke 通过。详见 [t35-final-acceptance-2026-11-01](t35-final-acceptance-2026-11-01.md)。T36 保持未执行。 |
 
 ## 2026-10-31 补修轮（14 个暂缓 PR 全部处理）
 

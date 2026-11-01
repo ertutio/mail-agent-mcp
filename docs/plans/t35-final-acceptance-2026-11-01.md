@@ -11,7 +11,7 @@
 | # | 命令 | 结果 |
 | --- | --- | --- |
 | 1 | `npm run build` | Build complete!（dist/enroll.js、dist/index.js、dist/setup.js、dist/web/server.js 等产物生成） |
-| 2 | `npm test` | 91 files / **929 passed + 1 skipped**，0 FAIL |
+| 2 | `npm test` | 92 test files（91 passed + 1 平台跳过文件 account-manager-permissions）/ **929 passed + 1 skipped**，0 FAIL |
 | 3 | `npm run lint` | 通过（tsc --noEmit --skipLibCheck；@types/nodemailer 8.0.2 对 nodemailer 10.3.1） |
 | 4 | `git diff --check` | 干净（工作树无变更） |
 | 5 | `npm run test:coverage` | statements 83.64% / branches 75.41% / functions 85.56% / lines 86.47%（≥ 既有基线 83.21/74.69/85.47/86.15） |
@@ -29,16 +29,21 @@
 
 | 行为 | 套件（case 数） |
 | --- | --- |
-| 凭据轮换（写边界重验、锁内快照/回滚、generation 归属、remove 不复活、同值不剥夺） | credential-rotation + enroll-repair-lease（真实 store lock + fake vault journal） |
-| SMTP 并发与不自动重发 | smtp-receipts（T20R 真实 createTransporter + T21 收据契约） |
-| 附件身份与冻结字节 | attachment-part-selection（T25E/T25R 真实 MIME）+ smtp-frozen-mime（真实 streamTransport） |
-| 有限搜索续查 | unified-search（T26 身份绑定 + T27 pass 预算） |
-| 依赖升级后邮件解析 | addressparser-hardening（三条公告向量经生产入口）+ safe-send-mime-integration（真实 mailparser） |
+| 凭据轮换（写边界重验、锁内快照/回滚、generation 归属、remove 不复活、同值不剥夺） | credential-rotation（15 runtime，含 it.each 展开）+ enroll-repair-lease（9）——真实 store lock + fake vault journal |
+| SMTP 并发与不自动重发 | smtp-receipts（10；T20R 真实 createTransporter + T21 收据契约） |
+| 附件身份与冻结字节 | attachment-part-selection（10；T25E/T25R 真实 MIME）+ smtp-frozen-mime（4；真实 streamTransport） |
+| 有限搜索续查 | unified-search.test.ts（T26 身份绑定 + T27 pass 预算；23 cases；不含另行分文件的 unified-search-pagination） |
+| 依赖升级后邮件解析 | addressparser-hardening（3）+ safe-send-mime-integration（3；真实 mailparser） |
 
 ## 启动脚本 smoke
 
 - `node dist/enroll.js`（stdin EOF）：干净进入交互提示并退出 0。
 - `node dist/web/server.js`：127.0.0.1:3000 监听，HTTP 200（浏览器安装会话正常启动；本地临时日志不进入任何验收记录）。
+
+## 独立复审与 next_action
+
+- 独立只读复审（新上下文）：T35 PASS 记录公正成立——SHA、五 merge、九门禁、CI run、77 定点用例（静态计数 76 声明 + 1 it.each 展开 = 77）、单平台 skip、0 漏洞依赖默认级别 audit、T36 边界逐项核对通过。两条 minor（92/91 文件计数、进度表行结构）已按复审修正于本提交。
+- next_action：验收记录合并后，T36（部署验收）等待人工授权；npm 公告为时间点数据，后续按 T33 约束回归复核。
 
 ## 复用与跳过
 
