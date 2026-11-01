@@ -126,10 +126,18 @@ export async function rotateCredential(options: CredentialRotationOptions): Prom
       // between our write and this failure. Compensate inline so an
       // unverified replacement never lingers (audit M3a), then surface the
       // journal failure.
-      if (previous!.exists) {
-        options.credentials.write(options.target, previous!.value!);
-      } else {
-        options.credentials.delete(options.target);
+      try {
+        if (previous!.exists) {
+          options.credentials.write(options.target, previous!.value!);
+        } else {
+          options.credentials.delete(options.target);
+        }
+      } catch {
+        // The compensation itself failed: the vault may keep the unverified
+        // replacement. That is a rollback failure, not an ownership answer —
+        // surface it so the caller reports an inconsistent state instead of
+        // a restored credential.
+        throw new CredentialRollbackError(cause);
       }
       throw cause;
     }
