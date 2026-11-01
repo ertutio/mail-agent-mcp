@@ -10,7 +10,7 @@
 | --- | --- |
 | 已接受代码基线 | `main@7467a0c68eecb0f1873166770e63eba8b2633255`；[PR #37](https://github.com/ertutio/mail-agent-mcp/pull/37) 已合并。开工先核远端后续提交，保留其他执行者的修改。 |
 | 已验候选 / CI | `1bfc513545eebb934120af04e96f96cb1ad13ba7`；[run 41177399857](https://github.com/ertutio/mail-agent-mcp/actions/runs/41177399857) 的 Ubuntu Node22/24 所需步骤全通过；合并树与候选树相同。 |
-| 本地证据 | 260 suites，875 PASS、0 FAIL、1 Windows 下 POSIX owner-permission 平台 skip；coverage statements 83.21%、branches 74.69%、functions 85.47%、lines 86.15%。合成 junction 测试使用当时获准环境完成，不能据此自动提升今晚权限。build/lint/secrets/diff/pack 与 high 阈值两类 audit 通过；生产 5 / 全量 10 moderate 受影响节点仍保留，不称零漏洞。 |
+| 本地证据 | 260 suites，875 PASS、0 FAIL、1 Windows 下 POSIX owner-permission 平台 skip；coverage statements 83.21%、branches 74.69%、functions 85.47%、lines 86.15%。合成 junction 测试使用当时获准环境完成，不能据此自动提升今晚权限。build/lint/secrets/diff/pack 与 high 阈值两类 audit 通过；依赖漏洞已清零并合并：T33 经 [PR #43](https://github.com/ertutio/mail-agent-mcp/pull/43) 合并入 main（merge commit `5079f1b9e40b`），合并树上生产/全量 audit 均 0、独立复审 APPROVE，证据 docs/analysis/2026-11-01-t33-dependency-maintenance.md（该文档随 PR #43 合入 main）。 |
 | 已关闭的旧队列 | 已审 24 个来源 PR 全部关闭，审计 head 均为 main 祖先；13 显示 merged、11 通过整合 PR 的关闭引用关闭，不能把后者写成 GitHub 逐 PR merged。不重做旧“14 项待合并”或 #29–#36。 |
 | 本轮已交付边界 | 四个夜间 PR 全部合并入 main（#41→8418f0e、#39→74a8a58、#40→a71e761、#42→80106c7），合并树本地 926 passed + 1 skip，最终 main CI（[run 41262688757](https://github.com/ertutio/mail-agent-mcp/actions/runs/41262688757)）Node22/24 绿。各轮独立审计（T25 PASS、T17 三轮 APPROVE/PASS-WITH-RESERVATIONS→修复、T20 APPROVE）与 RED→GREEN 证据随 PR comment 归档。 |
 | 今晚 next_action | main@80106c736f4d 为已验候选；下一步 T35 稳定集成（coverage/audit/pack 全套在合并树上重跑）；T33/T34/T36 维持人工门控。 |
