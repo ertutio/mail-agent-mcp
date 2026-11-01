@@ -75,6 +75,8 @@ export interface EmailContent extends EmailMessage {
   htmlContent?: string;
   markdownContent?: string;
   bodyFormat?: EmailBodyFormat;
+  /** Mailbox UIDVALIDITY observed while reading this content (T25 forward-chain binding). */
+  uidValidity?: number;
   headers: Record<string, string | string[]>;
   attachments: Attachment[];
 }

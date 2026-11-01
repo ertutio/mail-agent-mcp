@@ -896,6 +896,10 @@ export class ImapService {
     try {
       lock = await client.getMailboxLock(folderName);
 
+      // T25: capture the mailbox UIDVALIDITY under the same lock that read the
+      // message so callers can bind later reads (forward attachments) to it.
+      const mailbox = client.mailbox || undefined;
+      const uidValidity = mailbox?.uidValidity !== undefined ? Number(mailbox.uidValidity) : undefined;
       const source = await client.fetchOne(uid, { source: boundedSource, size: true, flags: true }, { uid: true });
 
       if (!source || !source.source) {
@@ -903,7 +907,8 @@ export class ImapService {
       }
 
       assertMessageSize(source.source,source.size);
-      return await this.buildEmailContentFromSource(uid, source.source, source.flags, options);
+      const rendered = await this.buildEmailContentFromSource(uid, source.source, source.flags, options);
+      return uidValidity !== undefined ? { ...rendered, uidValidity } : rendered;
     } finally {
       if (lock) {
         lock.release();
@@ -1133,13 +1138,32 @@ export class ImapService {
     accountId: string,
     folderName: string,
     uid: number,
-    filename: string
-  ): Promise<{ content: Buffer; contentType: string; filename: string }> {
+    filename: string,
+    expectedUidValidity?: number,
+    partIndex?: number,
+    expectedAccountRevision?: string
+  ): Promise<{ content: Buffer; contentType: string; filename: string; partIndex?: number; totalMatches?: number }> {
     const client = await this.ensureConnected(accountId);
 
     let lock;
     try {
       lock = await client.getMailboxLock(folderName);
+
+      // T25 audit H1: per-fetch identity check - the forward chain binds each
+      // read to the preview account revision, so an edit landing after the
+      // handler boundary check cannot redirect this fetch to a new identity.
+      if (expectedAccountRevision !== undefined && this.getAccountRevision(accountId) !== expectedAccountRevision) {
+        throw new Error('Account identity changed while reading the attachment; re-run the forward preview');
+      }
+
+      // T25 / MAIL-11: verify UIDVALIDITY before fetching — a UIDVALIDITY
+      // change means the UID may point to a different message entirely.
+      if (expectedUidValidity !== undefined) {
+        const status = await client.status(folderName, { uidValidity: true });
+        if (Number(status.uidValidity) !== expectedUidValidity) {
+          throw new Error('Mailbox UIDVALIDITY changed since the attachment was listed; re-list the email');
+        }
+      }
 
       const source = await client.fetchOne(uid, { source: boundedSource, size: true }, { uid: true });
 
@@ -1149,18 +1173,33 @@ export class ImapService {
 
       assertMessageSize(source.source,source.size);
       const parsed = await simpleParser(source.source,{skipHtmlToText:true,skipTextToHtml:true,maxHtmlLengthToParse:1024*1024});
-      const attachment = parsed.attachments?.find(
-        (att: any) => att.filename === filename || att.contentId === filename
+
+      // T25 / MAIL-11: multiple attachments may share a filename. Collect all
+      // matches and disambiguate by part index when provided; otherwise
+      // report the ambiguity instead of silently returning the first.
+      // CID matching normalizes angle brackets (mailparser keeps <cid>).
+      const normalizeCid = (v: string) => v.replace(/^<|>$/g, '');
+      const matches = (parsed.attachments ?? []).filter(
+        (att: any) => att.filename === filename || normalizeCid(att.contentId ?? '') === normalizeCid(filename)
       );
 
-      if (!attachment) {
+      if (matches.length === 0) {
         throw new Error(`Attachment "${filename}" not found in email UID ${uid}`);
       }
 
+      // T25 review: partIndex selects a specific same-name attachment.
+      // Without it, a single match is returned; multiple matches without a
+      // partIndex are an ambiguity (the caller must re-request with an index).
+      const selected = partIndex !== undefined ? matches[partIndex] : matches[0];
+      if (!selected) {
+        throw new Error(`Attachment part index ${partIndex} out of range (${matches.length} matches for "${filename}")`);
+      }
+
       return {
-        content: attachment.content,
-        contentType: attachment.contentType || 'application/octet-stream',
-        filename: attachment.filename || 'unknown',
+        content: selected.content,
+        contentType: selected.contentType || 'application/octet-stream',
+        filename: selected.filename || 'unknown',
+        ...(matches.length > 1 ? { partIndex: partIndex ?? 0, totalMatches: matches.length } : {}),
       };
     } finally {
       if (lock) {

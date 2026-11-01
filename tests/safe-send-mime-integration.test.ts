@@ -24,7 +24,14 @@ const original = Buffer.from([
 
 async function harness() {
   const imap = new ImapService();
-  const client = { getMailboxLock: vi.fn(async () => ({ release: vi.fn() })), fetchOne: vi.fn(async () => ({ source: original, flags: new Set(), size: original.length })) };
+  const client = {
+    // T25: the forward chain binds reads to the mailbox UIDVALIDITY captured
+    // at the original read, so the fake client must expose it (fail-closed).
+    mailbox: { uidValidity: 4242n } as any,
+    status: vi.fn(async () => ({ uidValidity: 4242n })),
+    getMailboxLock: vi.fn(async () => ({ release: vi.fn() })),
+    fetchOne: vi.fn(async () => ({ source: original, flags: new Set(), size: original.length })),
+  };
   // Only protocol I/O is substituted: actual getEmailContent and mailparser are exercised.
   vi.spyOn(imap as any, 'ensureConnected').mockResolvedValue(client);
   const copies: Buffer[] = [];
@@ -39,8 +46,12 @@ async function harness() {
   vi.spyOn(smtp, 'sendEmail').mockImplementation(async (...args) => { returned = await actualSend(...args); return returned; });
   const handlers = new Map<string, Function>();
   const account = { id: 'mime-fixture', name: 'Synthetic', host: 'imap.example.test', port: 993, tls: true, user: 'me@example.test', password: '', defaultBcc: ['audit@example.test'] };
+  // Mirror the real AccountManager shape: getAccount is synchronous, and the
+  // ImapService learns the manager so getAccountRevision resolves revisions.
+  const manager = { resolveAccountId: () => account.id, getAccount: () => account } as any;
+  imap.setAccountManager(manager);
   safeSendTools({ registerTool: (name: string, _schema: unknown, handler: Function) => handlers.set(name, handler) } as any,
-    imap, { resolveAccountId: () => account.id, getAccount: async () => account } as any, smtp);
+    imap, manager, smtp);
   const call = async (name: string, input: unknown) => JSON.parse((await handlers.get(name)!(input)).content[0].text);
   return { imap, call, copies, snapshot: () => ({ submitted, streamed, returned }) };
 }
