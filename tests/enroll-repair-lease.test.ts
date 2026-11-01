@@ -18,6 +18,8 @@ class JournalBackend implements CredentialBackend {
   readonly values = new Map<string, string>();
   readonly writes: Array<{ target: string; secret: string; op: number }> = [];
   readonly deletes: Array<{ target: string; op: number }> = [];
+  /** When set, the next write is refused without touching the vault. */
+  writeError?: Error;
   private sequence = 0;
 
   private handle(value: string): SecretHandle {
@@ -28,6 +30,11 @@ class JournalBackend implements CredentialBackend {
     return value === undefined ? undefined : this.handle(value);
   }
   write(target: string, secret: string): void {
+    if (this.writeError) {
+      const error = this.writeError;
+      this.writeError = undefined;
+      throw error;
+    }
     this.writes.push({ target, secret, op: ++this.sequence });
     this.values.set(target, secret);
   }
@@ -238,6 +245,33 @@ describe('T17L: repair/remove coordination and rollback ownership', () => {
     expect(error?.message).toMatch(/repair failed/);
     expect(backend.values.get(target)).toBe('replacement-A');
     expect(backend.writes.map((w) => w.secret)).toEqual(['replacement-A', 'replacement-A']);
+  });
+
+  it('T17L-FAILED-WRITE-NO-BUMP: B updates the counter but its write fails; A still restores OLD', async () => {
+    const created = await enrollAccount();
+    const gate = deferred();
+    const deps = repairDeps(created.id, gate);
+    const repair = startRepair(created.id, deps);
+    // A wrote its replacement R and is parked in verification.
+    await vi.waitFor(() => expect(backend.writes).toHaveLength(1));
+    expect(backend.writes[0]).toMatchObject({ target, secret: 'replacement-A' });
+
+    // B (same account lock) starts its rotation: the counter moves, but the
+    // credential write itself FAILS and the vault is left untouched by B.
+    backend.writeError = new Error('credential backend unavailable');
+    await expect(rotateCredential({
+      credentials: backend, target, expectedTarget: target,
+      replacement: 'replacement-B', verify: async () => undefined,
+      writeGuard: (action) => withAccountStoreLock(dir, action),
+    })).rejects.toThrow(/backend unavailable/);
+
+    // A fails late: B never mutated the vault, so its counter must not strip
+    // A's ownership — the previous credential is restored.
+    gate.release();
+    const error = await repair;
+    expect(error?.message).toMatch(/repair failed/);
+    expect(backend.values.get(target)).toBe('old-secret');
+    expect(backend.writes.map((w) => w.secret)).toEqual(['replacement-A', 'old-secret']);
   });
 
   it('T17L-GMAIL-REMOVE-WINS: the gmail repair path honors the same remove-wins ownership', async () => {

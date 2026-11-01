@@ -113,12 +113,26 @@ export async function rotateCredential(options: CredentialRotationOptions): Prom
     if (options.reverify) {
       await options.reverify();
     }
-    // T17 audit M3: record the generation BEFORE the vault write — a journal
-    // failure then aborts the attempt before the vault is touched, instead of
-    // leaving an unverified replacement behind with no rollback path.
-    myGeneration = bumpGeneration(generationDir, options.target);
     previous = snapshot(options.credentials, options.target);
     options.credentials.write(options.target, replacement);
+    // T17: only a mutation that LANDED owns a generation — the bump happens
+    // after the write. A rotation whose credential write fails (backend
+    // error) must not move the counter, or a concurrent older attempt would
+    // wrongly lose ownership and skip its legitimate rollback.
+    try {
+      myGeneration = bumpGeneration(generationDir, options.target);
+    } catch (cause) {
+      // Still inside the guard: nothing else could have mutated the vault
+      // between our write and this failure. Compensate inline so an
+      // unverified replacement never lingers (audit M3a), then surface the
+      // journal failure.
+      if (previous!.exists) {
+        options.credentials.write(options.target, previous!.value!);
+      } else {
+        options.credentials.delete(options.target);
+      }
+      throw cause;
+    }
   };
   if (options.writeGuard) {
     await options.writeGuard(writeReplacement);

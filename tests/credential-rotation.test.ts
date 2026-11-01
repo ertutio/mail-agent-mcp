@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeAll, afterAll } from 'vitest';
-import { mkdtempSync, rmSync, existsSync, readFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { CredentialBackend, SecretHandle } from '../src/credentials/credential-backend.js';
@@ -30,8 +30,12 @@ class FakeBackend implements CredentialBackend {
     return handle;
   }
   write(target: string, secret: string): void {
+    if (this.writeError) {
+      const error = this.writeError;
+      this.writeError = undefined;
+      throw error;
+    }
     this.writes.push({ target, secret });
-    if (this.writeError) throw this.writeError;
     this.values.set(target, secret);
   }
   delete(target: string): boolean {
@@ -213,6 +217,56 @@ describe('rotateCredential', () => {
     expect(error).toBe(verification);
     expect(backend.values.get(target)).toBe('same-code');
     expect(backend.writes.map((w) => w.secret)).toEqual(['same-code', 'same-code']);
+  });
+
+  // T17: a rotation whose credential write FAILS must not move the counter —
+  // its non-mutation would otherwise strip ownership from a concurrent older
+  // attempt and make it skip a legitimate rollback.
+  it('does not let a failed-write rotation consume the generation', async () => {
+    const backend = new FakeBackend();
+    backend.values.set(target, 'old-secret');
+    const verification = new Error('verification failed');
+    let parked: (() => void) | undefined;
+    const parkedPromise = new Promise<void>((resolve) => { parked = resolve; });
+    const attemptA = rotateCredential({
+      credentials: backend, target, expectedTarget: target, replacement: 'new-code',
+      verify: async () => { await parkedPromise; throw verification; },
+      generationDir,
+    }).then(() => undefined, (error) => error);
+    await vi.waitFor(() => expect(backend.writes).toHaveLength(1));
+
+    // B: the counter would move, but the credential write itself fails and
+    // the vault is untouched.
+    backend.writeError = new Error('backend unavailable');
+    await expect(rotateCredential({
+      credentials: backend, target, expectedTarget: target, replacement: 'other-code',
+      verify: async () => undefined, generationDir,
+    })).rejects.toThrow(/backend unavailable/);
+    backend.writeError = undefined;
+    expect(backend.values.get(target)).toBe('new-code');
+
+    // A fails late: B never mutated the vault, so A restores the previous.
+    parked!();
+    const error = await attemptA;
+    expect(error).toBe(verification);
+    expect(backend.values.get(target)).toBe('old-secret');
+    expect(backend.writes.map((w) => w.secret)).toEqual(['new-code', 'old-secret']);
+  });
+
+  it('compensates inline when the journal fails after the vault write', async () => {
+    const backend = new FakeBackend();
+    backend.values.set(target, 'old-secret');
+    // A FILE path as the journal dir: mkdir/write fail after the vault write.
+    const notADir = join(generationDir, 'not-a-dir');
+    writeFileSync(notADir, 'x', 'utf8');
+    await expect(rotateCredential({
+      credentials: backend, target, expectedTarget: target, replacement: 'new-code',
+      verify: async () => undefined, generationDir: notADir,
+    })).rejects.toThrow();
+    // Still inside the guard nothing else could have mutated the vault, so
+    // the attempt compensates instead of leaving an unverified replacement.
+    expect(backend.values.get(target)).toBe('old-secret');
+    expect(backend.writes.map((w) => w.secret)).toEqual(['new-code', 'old-secret']);
   });
 
   it('skips the restore conservatively when the generation journal disappears', async () => {
