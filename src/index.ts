@@ -9,6 +9,7 @@ import { registerTools } from './tools/index.js';
 import { AccountAuthResolver } from './credentials/account-auth.js';
 import { createGmailAccessTokenExchange } from './credentials/gmail-token-exchange.js';
 import { UnavailableCredentialBackend, WindowsCredentialBackend } from './credentials/windows-credential-backend.js';
+import { resolvePackageVersion } from './utils/package-version.js';
 
 // Silence any package version output to stdout
 const originalWrite = process.stdout.write.bind(process.stdout);
@@ -24,7 +25,7 @@ dotenv.config();
 
 const server = new McpServer({
   name: 'io.github.ertutio/mail-agent-mcp',
-  version: '0.1.0',
+  version: resolvePackageVersion(import.meta.url),
 });
 
 const credentialBackend = process.platform === 'win32'
