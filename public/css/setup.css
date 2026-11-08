@@ -5,3 +5,13 @@
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 @media(min-width:801px) and (max-height:820px){.masthead{height:80px}.form-panel{padding:30px 40px 24px}.intro{margin-bottom:23px}.eyebrow{display:none}.field{margin-bottom:16px}.primary{margin-top:22px}.accounts-panel{padding-top:32px}footer{padding-top:18px}}
 .remove-account{flex-shrink:0;border:0;background:transparent;color:#7b899d;font-size:11px;padding:7px 4px;border-radius:4px}.remove-account:hover{color:#a83240;background:#fff0f1}.remove-account:disabled{opacity:.4;cursor:default}dialog{border:1px solid var(--line);border-radius:14px;padding:26px;width:min(440px,calc(100vw - 32px));color:#172b4d;box-shadow:0 24px 80px #172b4d30}dialog::backdrop{background:#172b4d55}dialog h2{font-size:20px;letter-spacing:-.4px;margin:0 0 14px}dialog p{color:var(--muted);font-size:13px;line-height:1.9;margin:0 0 17px}.remove-identity{background:#f6f8fc;border:1px solid #e3e9f2;border-radius:8px;padding:13px;display:flex;flex-direction:column;gap:5px;font-size:13px;overflow-wrap:anywhere}.remove-identity span{color:var(--muted);font-size:12px}.dialog-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:23px}.dialog-actions .secondary{margin:0;padding:10px 18px}.danger{border:1px solid #a93543;background:#b73846;color:white;border-radius:8px;padding:10px 18px}.danger:hover{background:#a32c3a}.danger:disabled{opacity:.55;cursor:wait}.dialog-error{color:#a0323c;margin-top:15px;margin-bottom:0}
+
+/* F2: account diagnostics panel */
+.diagnostics-body { display: grid; gap: 6px; margin: 12px 0; }
+.diagnosis-line { display: flex; align-items: baseline; gap: 8px; margin: 0; font-size: 14px; }
+.diagnosis-mark { width: 16px; text-align: center; font-weight: 600; }
+.diagnosis-mark.ok { color: #177245; }
+.diagnosis-mark.bad { color: #b3261e; }
+.diagnosis-mark.muted { color: #7a7a7a; }
+.diagnosis-detail { color: #7a7a7a; font-size: 13px; }
+.diagnostics-steps { margin-top: 4px; }

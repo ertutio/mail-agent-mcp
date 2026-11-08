@@ -25,4 +25,18 @@
   <p id="remove-error" class="dialog-error" role="alert" hidden></p>
   <div class="dialog-actions"><button id="cancel-remove" class="secondary" type="button" autofocus>取消</button><button id="confirm-remove" class="danger" type="button">确认移除</button></div>
 </dialog>
+<dialog id="diagnostics-dialog" aria-labelledby="diagnostics-title">
+  <h2 id="diagnostics-title">账号诊断</h2>
+  <div class="remove-identity"><strong id="diagnostics-name"></strong><span id="diagnostics-email"></span></div>
+  <div id="diagnostics-body" class="diagnostics-body"><p class="hint">正在诊断…</p></div>
+  <p id="diagnostics-steps" class="hint diagnostics-steps" hidden></p>
+  <div class="dialog-actions"><button id="close-diagnostics" class="secondary" type="button" autofocus>关闭</button><button id="start-repair" class="primary" type="button" hidden>修复凭据</button></div>
+</dialog>
+<dialog id="repair-dialog" aria-labelledby="repair-title">
+  <h2 id="repair-title">更新登录凭据</h2>
+  <p class="hint">先验证新的客户端授权码，验证通过后才会替换已保存的凭据；验证失败时原凭据保持不变。不会发送邮件。</p>
+  <div class="field"><label for="repair-code">新的客户端授权码</label><div class="secret-input"><input id="repair-code" type="password" autocomplete="new-password" maxlength="4096"><button id="show-repair-secret" type="button" aria-label="显示授权码" aria-pressed="false">显示</button></div></div>
+  <p id="repair-error" class="dialog-error" role="alert" hidden></p>
+  <div class="dialog-actions"><button id="cancel-repair" class="secondary" type="button" autofocus>取消</button><button id="confirm-repair" class="primary" type="button">验证并更新</button></div>
+</dialog>
 </body></html>

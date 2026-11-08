@@ -7,6 +7,9 @@ import { fileURLToPath, pathToFileURL } from 'url';
 import open from 'open';
 import { AccountManager } from '../services/account-manager.js';
 import { ImapService } from '../services/imap-service.js';
+import { SmtpService } from '../services/smtp-service.js';
+import { resolveMailProxy } from '../utils/mail-proxy.js';
+import { rotateCredential, CredentialGateRejection } from '../credentials/credential-rotation.js';
 import { emailProviders, getProviderByEmail } from '../providers/email-providers.js';
 import { AccountAuthResolver } from '../credentials/account-auth.js';
 import { createGmailAccessTokenExchange } from '../credentials/gmail-token-exchange.js';
@@ -37,19 +40,93 @@ function stripAccountSecrets<T extends Record<string, any>>(account: T): Omit<T,
   return safe as Omit<T, 'password'>;
 }
 
+// F2 diagnostics helpers — fixed guidance crosses the boundary; provider
+// details are reduced to a stage plus a sanitized excerpt.
+function sanitizeDetail(message: string): string {
+  return message.replace(/[\x00-\x1f\x7f]/g, ' ').trim().slice(0, 300);
+}
+
+function classifyConnectionStage(message: string): 'proxy' | 'tls' | 'authenticate' | 'connect' | 'session' {
+  const m = message.toLowerCase();
+  if (m.includes('imap_mcp_mail_proxy') || m.includes('imap_mcp_gmail_proxy')) return 'proxy';
+  if (/(tls|ssl|certificate|self[- ]signed|handshake|starttls)/.test(m)) return 'tls';
+  if (/(auth|login|credential|password|authorization|invalid.*grant)/.test(m)) return 'authenticate';
+  if (/(econnrefused|enotfound|etimedout|timeout|econnreset|ehostunreach|enetunreach|eai_again|getaddrinfo|dns|socket)/.test(m)) return 'connect';
+  return 'session';
+}
+
+function proxyDiagnostics(account: ImapAccount): { applied: boolean; host?: string; source?: string } {
+  try {
+    const configured = resolveMailProxy(process.env, account.host, account.auth?.provider);
+    if (!configured) return { applied: false };
+    let host: string | undefined;
+    try {
+      const parsed = new URL(configured);
+      if (parsed.hostname) host = parsed.hostname + (parsed.port ? `:${parsed.port}` : '');
+    } catch { /* unparseable — report applied without host */ }
+    const source = account.auth?.provider === 'gmail'
+      ? 'gmail-policy'
+      : process.env.IMAP_MCP_MAIL_PROXY?.trim() ? 'IMAP_MCP_MAIL_PROXY'
+        : 'system-http-proxy';
+    return { applied: true, ...(host ? { host } : {}), source };
+  } catch {
+    // An invalid proxy configuration is itself a diagnostic finding; the
+    // IMAP check below will fail with it and the stage mapping reports it.
+    return { applied: true, source: 'invalid-config' };
+  }
+}
+
+function diagnosticsNextSteps(state: {
+  authKind: string;
+  imap: { status: string; stage?: string };
+  smtp: { status: string; stage?: string };
+  proxy: { applied: boolean; source?: string };
+}): string[] {
+  const steps: string[] = [];
+  if (state.imap.status === 'ok' && state.smtp.status === 'ok') return ['诊断通过，收发状态正常。'];
+  switch (state.imap.stage) {
+    case 'authenticate':
+      steps.push('登录验证失败：请在邮箱设置中重新生成客户端授权码，然后使用本页的“修复凭据”更新。');
+      break;
+    case 'tls':
+      steps.push('TLS/证书验证失败：请确认服务器证书有效；使用代理时检查代理是否拦截了 TLS。');
+      break;
+    case 'proxy':
+      steps.push('代理配置无效：请检查 IMAP_MCP_MAIL_PROXY / IMAP_MCP_GMAIL_PROXY 环境变量的代理地址。');
+      break;
+    case 'connect':
+      steps.push('无法连接服务器：请检查网络、服务器地址和端口；使用代理时确认代理可用。');
+      break;
+    case 'session':
+      if (state.imap.status === 'failed') steps.push('登录成功但读取邮箱失败：请稍后重试；持续失败时检查账号的文件夹权限。');
+      break;
+  }
+  if (state.smtp.status === 'not_configured') steps.push('未配置 SMTP：该账号目前无法发送邮件；可在编辑账号时补充 SMTP 服务器。');
+  if (state.smtp.status === 'failed') steps.push('SMTP 验证失败：发送功能暂不可用；请核对 SMTP 服务器与凭据后重试。');
+  if (state.authKind === 'oauth') steps.push('Gmail 授权失效时，使用 mail-agent-enroll gmail-repair 重新授权。');
+  if (state.authKind === 'missing') steps.push('账号缺少凭据：请使用“修复凭据”更新，或移除后重新添加。');
+  if (!steps.length) steps.push('部分检查未通过，请按上方各状态项处理后重试诊断。');
+  return steps;
+}
+
 export class WebUIServer {
   private readonly sessionToken = randomBytes(32).toString('hex');
   private app: express.Application;
   private accountManager: AccountManager;
   private imapService: ImapService;
+  private smtpService: SmtpService;
+  private credentialBackend: CredentialBackend;
   private port: number;
   private httpServer?: Server;
   private idleTimer?: ReturnType<typeof setTimeout>;
   private readonly onInterrupt = () => { void this.stop(); };
+  // F2: one repair at a time — credential rotation serializes against other
+  // repairs the same way the enrollment router serializes enrollments.
+  private repairBusy = false;
 
   constructor(
     port: number = 3000,
-    deps: { accountManager?: AccountManager; imapService?: ImapService; credentials?: CredentialBackend;
+    deps: { accountManager?: AccountManager; imapService?: ImapService; smtpService?: SmtpService; credentials?: CredentialBackend;
       runGmailOAuth?: typeof runGmailOAuthLoopback; openBrowser?: (url: string) => Promise<void> | void } = {},
   ) {
     this.app = express();
@@ -57,12 +134,17 @@ export class WebUIServer {
     const credentialBackend = deps.credentials ?? (process.platform === 'win32'
       ? new WindowsCredentialBackend()
       : new UnavailableCredentialBackend());
+    this.credentialBackend = credentialBackend;
     const authResolver = new AccountAuthResolver(
       credentialBackend,
       createGmailAccessTokenExchange({ credentials: credentialBackend }),
     );
     this.accountManager = deps.accountManager ?? new AccountManager(credentialBackend);
     this.imapService = deps.imapService ?? new ImapService(authResolver);
+    // F2: SMTP diagnostics reuse the same auth resolution and the T20
+    // identity guards through the account manager wiring.
+    this.smtpService = deps.smtpService ?? new SmtpService(authResolver);
+    this.smtpService.setAccountManager(this.accountManager);
 
     this.setupMiddleware();
     this.app.use('/api', enrollmentRouter({
@@ -417,6 +499,130 @@ export class WebUIServer {
           success: false,
           error: error instanceof Error ? error.message : 'Test failed',
         });
+      }
+    });
+
+    // F2: per-account diagnostics — IMAP, SMTP, proxy and authorization
+    // status with the failing stage and an actionable next step. The
+    // response carries no credentials: fixed guidance text plus a sanitized
+    // error excerpt at most.
+    this.app.get('/api/accounts/:id/diagnostics', async (req, res) => {
+      const account = this.accountManager.getAccount(req.params.id);
+      if (!account) {
+        res.status(404).json({ success: false, error: 'Account not found' });
+        return;
+      }
+      const auth = account.auth;
+      const authKind = auth?.provider === 'gmail' ? 'oauth' : auth ? 'vault' : account.password ? 'password' : 'missing';
+      const diagnostics: Record<string, unknown> = {
+        success: true,
+        accountId: account.id,
+        accountName: account.name,
+        host: account.host,
+        checkedAt: new Date().toISOString(),
+        auth: {
+          kind: authKind,
+          ...(auth?.provider ? { provider: auth.provider } : {}),
+          ...(auth?.credentialTarget ? { credentialTarget: auth.credentialTarget } : {}),
+        },
+        proxy: proxyDiagnostics(account),
+      };
+
+      let imapStage: string | undefined;
+      try {
+        const result = await this.imapService.testConnection(account);
+        if (result.success) {
+          diagnostics.imap = { status: 'ok', ...(result.folders ? { folders: result.folders.length } : {}), ...(result.messageCount !== undefined ? { messageCount: result.messageCount } : {}) };
+        } else {
+          imapStage = classifyConnectionStage(result.error ?? '');
+          diagnostics.imap = { status: 'failed', stage: imapStage, ...(result.error ? { detail: sanitizeDetail(result.error) } : {}) };
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        imapStage = classifyConnectionStage(message);
+        diagnostics.imap = { status: 'failed', stage: imapStage, detail: sanitizeDetail(message) };
+      }
+
+      let smtpStage: string | undefined;
+      if (account.smtp) {
+        try {
+          const ok = await this.smtpService.verifySmtpConnection(account);
+          diagnostics.smtp = ok ? { status: 'ok' } : { status: 'failed', stage: 'smtp_connect' };
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          smtpStage = classifyConnectionStage(message);
+          diagnostics.smtp = { status: 'failed', stage: smtpStage, detail: sanitizeDetail(message) };
+        }
+      } else {
+        diagnostics.smtp = { status: 'not_configured' };
+      }
+
+      diagnostics.nextSteps = diagnosticsNextSteps({
+        authKind,
+        imap: diagnostics.imap as { status: string; stage?: string },
+        smtp: diagnostics.smtp as { status: string; stage?: string },
+        proxy: diagnostics.proxy as { applied: boolean; source?: string },
+      });
+      res.json(diagnostics);
+    });
+
+    // F2: repair entry for password/vault accounts — verify the replacement
+    // credential BEFORE any write (a failing login leaves the stored
+    // credential untouched); vault rotation rides the T17 transaction with
+    // rollback. Gmail re-authorization stays a separate capability (CLI).
+    this.app.post('/api/accounts/:id/repair', async (req, res) => {
+      const input = z.object({ authorizationCode: z.string().trim().min(1).max(4096) }).strict().safeParse(req.body);
+      if (!input.success) {
+        res.status(400).json({ success: false, error: '请提供新的客户端授权码。' });
+        return;
+      }
+      if (this.repairBusy) {
+        res.status(409).json({ success: false, error: '另一个账号正在修复，请完成后再试。' });
+        return;
+      }
+      const account = this.accountManager.getAccount(req.params.id);
+      if (!account) {
+        res.status(404).json({ success: false, error: 'Account not found' });
+        return;
+      }
+      if (account.auth?.provider === 'gmail') {
+        res.status(400).json({ success: false, error: 'Gmail 账号请使用 mail-agent-enroll gmail-repair 重新授权；本页修复入口适用于授权码登录的邮箱。' });
+        return;
+      }
+      this.repairBusy = true;
+      try {
+        const candidate = { ...account, password: input.data.authorizationCode };
+        const credentialTarget = account.auth?.credentialTarget;
+        if (credentialTarget) {
+          // Vault-backed account (QQ / NetEase): rotate through the T17
+          // transaction — verify first, roll back on failure, never leave a
+          // half-written credential behind.
+          await rotateCredential({
+            credentials: this.credentialBackend,
+            target: credentialTarget,
+            expectedTarget: credentialTarget,
+            replacement: input.data.authorizationCode,
+            verify: () => this.imapService.authenticateOnly(candidate),
+            reverify: async () => {
+              const live = this.accountManager.getAccount(account.id);
+              if (!live || live.auth?.credentialTarget !== credentialTarget) {
+                throw new CredentialGateRejection('账号在修复期间被移除或凭据目标发生变化');
+              }
+            },
+          });
+        } else {
+          // Local-encrypted account: verify the login BEFORE the update so a
+          // failing credential writes nothing (T16 shape).
+          await this.imapService.authenticateOnly(candidate);
+          const updated = await this.accountManager.updateAccount(account.id, { password: input.data.authorizationCode });
+          res.json({ success: true, accountId: account.id, account: stripAccountSecrets(updated) });
+          return;
+        }
+        res.json({ success: true, accountId: account.id });
+      } catch (error) {
+        res.status(400).json({ success: false, error: '凭据验证失败，原凭据保持不变。请确认已在邮箱设置中开启 IMAP 且授权码正确后再试。' });
+      } finally {
+        this.repairBusy = false;
       }
     });
 

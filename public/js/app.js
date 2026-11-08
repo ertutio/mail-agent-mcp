@@ -79,12 +79,92 @@ async function viewAccounts() {
     const copy = document.createElement('div'); copy.className = 'account-copy';
     const name = document.createElement('p'); name.className = 'account-name'; name.textContent = account.name; name.title = account.name;
     const email = document.createElement('p'); email.className = 'account-email'; email.textContent = account.email || account.user; email.title = email.textContent;
+    const diagnose = document.createElement('button'); diagnose.type = 'button'; diagnose.className = 'remove-account';
+    diagnose.textContent = '诊断'; diagnose.setAttribute('aria-label', '诊断邮箱连接：' + account.name);
+    diagnose.disabled = busy || sessionExpired;
+    diagnose.addEventListener('click', () => showDiagnostics(account));
     const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'remove-account';
     remove.textContent = '移除'; remove.setAttribute('aria-label', '移除邮箱连接：' + account.name);
     remove.disabled = busy || sessionExpired;
     remove.addEventListener('click', () => showRemoval(account));
-    copy.append(name, email); row.append(avatar, copy, remove); list.append(row);
+    copy.append(name, email); row.append(avatar, copy, diagnose, remove); list.append(row);
   }
+}
+
+// F2: per-account diagnostics — IMAP / SMTP / proxy / authorization status
+// with the failing stage and an actionable next step. All content is
+// rendered with textContent only; provider data never becomes markup.
+const DIAGNOSIS_LABELS = {
+  imap: 'IMAP 收信', smtp: 'SMTP 发信', proxy: '代理', auth: '授权',
+};
+function statusLine(label, status, detail) {
+  const line = document.createElement('p'); line.className = 'diagnosis-line';
+  const mark = document.createElement('span');
+  mark.className = 'diagnosis-mark ' + (status === 'ok' ? 'ok' : status === 'skipped' || status === 'not_configured' ? 'muted' : 'bad');
+  mark.textContent = status === 'ok' ? '✓' : status === 'failed' ? '✕' : '—';
+  const text = document.createElement('span');
+  text.textContent = label + '：' + ({ ok: '正常', failed: '失败', not_configured: '未配置', skipped: '未启用' }[status] || status);
+  line.append(mark, text);
+  if (detail) { const extra = document.createElement('span'); extra.className = 'diagnosis-detail'; extra.textContent = '（' + detail + '）'; line.append(extra); }
+  return line;
+}
+const STAGE_LABELS = { proxy: '代理配置', tls: 'TLS/证书', authenticate: '登录验证', connect: '连接服务器', session: '邮箱会话', smtp_connect: '连接服务器' };
+let diagnosticsAccount;
+async function showDiagnostics(account) {
+  if (busy || sessionExpired) return;
+  diagnosticsAccount = account;
+  $('diagnostics-name').textContent = account.name;
+  $('diagnostics-email').textContent = account.email || account.user;
+  const body = $('diagnostics-body'); body.replaceChildren();
+  const steps = $('diagnostics-steps'); steps.hidden = true; steps.textContent = '';
+  $('start-repair').hidden = true;
+  $('diagnostics-dialog').showModal();
+  try {
+    const d = await setupFetch('/api/accounts/' + encodeURIComponent(account.id) + '/diagnostics');
+    body.replaceChildren();
+    const imap = d.imap || { status: 'unknown' };
+    const smtp = d.smtp || { status: 'unknown' };
+    const proxy = d.proxy || { applied: false };
+    const auth = d.auth || {};
+    body.append(statusLine(DIAGNOSIS_LABELS.imap, imap.status, imap.stage ? STAGE_LABELS[imap.stage] || imap.stage : undefined));
+    body.append(statusLine(DIAGNOSIS_LABELS.smtp, smtp.status, smtp.stage ? STAGE_LABELS[smtp.stage] || smtp.stage : undefined));
+    body.append(statusLine(DIAGNOSIS_LABELS.proxy, proxy.applied ? 'ok' : 'not_configured', proxy.applied ? (proxy.source === 'gmail-policy' ? 'Gmail 专用代理' : proxy.source === 'IMAP_MCP_MAIL_PROXY' ? '本机代理配置' : proxy.source === 'invalid-config' ? '配置无效' : '系统代理') : '直连'));
+    body.append(statusLine(DIAGNOSIS_LABELS.auth, auth.kind === 'oauth' || auth.kind === 'vault' || auth.kind === 'password' ? 'ok' : 'failed',
+      auth.kind === 'oauth' ? 'Google 授权' : auth.kind === 'vault' ? '系统凭据库' : auth.kind === 'password' ? '授权码' : '缺少凭据'));
+    if (Array.isArray(d.nextSteps) && d.nextSteps.length) {
+      steps.textContent = '下一步：' + d.nextSteps.join(' ');
+      steps.hidden = false;
+    }
+    const repairable = (auth.kind === 'vault' || auth.kind === 'password') && (imap.status === 'failed' || smtp.status === 'failed' || smtp.status === 'not_configured');
+    $('start-repair').hidden = !repairable;
+    $('start-repair').setAttribute('aria-label', '修复邮箱凭据：' + account.name);
+  } catch (error) {
+    body.replaceChildren();
+    const fail = document.createElement('p'); fail.className = 'hint'; fail.textContent = error.message;
+    body.append(fail);
+  }
+}
+function startRepair() {
+  if (!diagnosticsAccount || busy) return;
+  $('repair-code').value = '';
+  $('repair-error').hidden = true;
+  $('repair-dialog').showModal();
+}
+async function confirmRepair() {
+  if (!diagnosticsAccount || busy) return;
+  const code = $('repair-code').value;
+  if (!code) { $('repair-error').textContent = '请填写新的客户端授权码。'; $('repair-error').hidden = false; return; }
+  const account = diagnosticsAccount;
+  busy = true; $('confirm-repair').textContent = '正在验证…';
+  $('repair-error').hidden = true;
+  try {
+    await setupFetch('/api/accounts/' + encodeURIComponent(account.id) + '/repair', { method: 'POST', body: JSON.stringify({ authorizationCode: code }) });
+    $('repair-dialog').close(); $('diagnostics-dialog').close(); diagnosticsAccount = undefined;
+    feedback('凭据已验证并更新。旧授权码已失效，请在聊天中重新使用该邮箱。', 'success');
+  } catch (error) {
+    $('repair-error').textContent = error.message;
+    $('repair-error').hidden = false;
+  } finally { busy = false; $('confirm-repair').textContent = '验证并更新'; }
 }
 function showRemoval(account) {
   if (busy || sessionExpired) return;
@@ -192,6 +272,19 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('confirm-remove').addEventListener('click', confirmRemoval);
   $('cancel-remove').addEventListener('click', () => { if (!busy) { $('remove-dialog').close(); selectedRemoval = undefined; } });
   $('remove-dialog').addEventListener('cancel', event => { if (busy) event.preventDefault(); else selectedRemoval = undefined; });
+  $('close-diagnostics').addEventListener('click', () => { if (!busy) { $('diagnostics-dialog').close(); diagnosticsAccount = undefined; } });
+  $('diagnostics-dialog').addEventListener('cancel', event => { if (busy) event.preventDefault(); else diagnosticsAccount = undefined; });
+  $('start-repair').addEventListener('click', startRepair);
+  $('confirm-repair').addEventListener('click', confirmRepair);
+  $('cancel-repair').addEventListener('click', () => { if (!busy) $('repair-dialog').close(); });
+  $('repair-dialog').addEventListener('cancel', event => { if (busy) event.preventDefault(); });
+  $('show-repair-secret').addEventListener('click', () => {
+    const visible = $('repair-code').type === 'password';
+    $('repair-code').type = visible ? 'text' : 'password';
+    $('show-repair-secret').textContent = visible ? '隐藏' : '显示';
+    $('show-repair-secret').setAttribute('aria-label', visible ? '隐藏授权码' : '显示授权码');
+    $('show-repair-secret').setAttribute('aria-pressed', String(visible));
+  });
   $('provider').addEventListener('change', updateProvider);
   $('enrollment-form').addEventListener('submit', submit);
   $('client-id').addEventListener('input', manualOAuthChanged);
