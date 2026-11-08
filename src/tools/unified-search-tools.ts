@@ -7,6 +7,7 @@ import { accountRevision } from '../utils/account-revision.js';
 import { parseSearchDateBound } from '../utils/search-input.js';
 import { z } from 'zod';
 import {createHash} from 'node:crypto';
+import { dedupeByMessageId, aggregateConversations, withCopies } from '../utils/mail-dedup.js';
 
 interface RuntimeOptions { accountTimeoutMs?: number; overallTimeoutMs?: number; maxPagesPerFolder?:number }
 interface PendingFolder {accountName:string;accountId:string;accountRevision:string;folder?:string;beforeUid?:number;uidValidity?:number;filterKey?:string}
@@ -48,6 +49,8 @@ export function unifiedSearchTools(server: McpServer, imap: ImapService, manager
       includeTrash: z.boolean().default(false).describe('Include Trash in cross-folder search'),
       includeSpam: z.boolean().default(false).describe('Include Spam in cross-folder search'),
       includeDrafts: z.boolean().default(false).describe('Include Drafts in cross-folder search'),
+      dedupe: z.boolean().default(false).describe('F4: drop duplicate copies of the same message across accounts/folders. Copies match by exact normalized Message-ID; messages without a Message-ID are never merged. Survivors carry copies:[{accountId,accountName,folder,uid}] for every dropped location.'),
+      groupByConversation: z.boolean().default(false).describe('F4: aggregate results into conversations using Message-ID/In-Reply-To/References only - same-subject mails without threading headers stay independent. Adds conversations[]; the flat messages list stays in place.'),
       pass: z.coerce.number().int().min(1).optional().describe('Continuation pass number (from the previous response cursors); bounded by maxSearchPasses'),
     },
   }, async (args) => {
@@ -95,7 +98,7 @@ export function unifiedSearchTools(server: McpServer, imap: ImapService, manager
     if (criteria.since && criteria.before && criteria.since >= criteria.before) throw new Error('since must precede before');
     if (args.seen !== undefined) criteria.seen = args.seen;
     if (args.flagged !== undefined) criteria.flagged = args.flagged;
-    const filterKey=createHash('sha256').update(JSON.stringify({criteria,limit:args.limit??50,searchAllFolders:args.searchAllFolders!==false,folder:args.folder??'INBOX',includeTrash:args.includeTrash??false,includeSpam:args.includeSpam??false,includeDrafts:args.includeDrafts??false})).digest('hex');
+    const filterKey=createHash('sha256').update(JSON.stringify({criteria,limit:args.limit??50,searchAllFolders:args.searchAllFolders!==false,folder:args.folder??'INBOX',includeTrash:args.includeTrash??false,includeSpam:args.includeSpam??false,includeDrafts:args.includeDrafts??false,...(args.dedupe?{dedupe:true}:{}),...(args.groupByConversation?{conversationGroup:true}:{})})).digest('hex');
     if(args.cursors?.some(c=>c.filterKey!==filterKey))throw new Error('Continuation filters changed; restart the search without cursors');
     const limit = args.limit ?? 50;
     const deadline = Date.now() + (runtime.overallTimeoutMs ?? 40_000);
@@ -168,14 +171,20 @@ export function unifiedSearchTools(server: McpServer, imap: ImapService, manager
     }));
     const time = (message: EmailMessage) => { const value = new Date(message.date).getTime(); return Number.isFinite(value) ? value : 0; };
     messages.sort((a, b) => time(b) - time(a) || a.accountId.localeCompare(b.accountId) || a.folder.localeCompare(b.folder) || b.uid - a.uid);
-    const limited = messages.slice(0, limit);
+    // F4: optional cross-mailbox dedup (exact Message-ID; no-ID copies stay)
+    // and conversation aggregation (thread headers only, never subject).
+    const deduped = args.dedupe ? withCopies(...(r => [r.unique, r.copiesOf] as const)(dedupeByMessageId(messages))) : messages;
+    const limited = deduped.slice(0, limit);
+    const conversations = args.groupByConversation
+      ? (() => { const all = aggregateConversations(deduped); return { list: all.slice(0, limit), truncatedCount: Math.max(0, all.length - limit) }; })()
+      : undefined;
     return { content: [{ type: 'text', text: JSON.stringify({
       success: outcomes.some(outcome => outcome.status === 'ok' || outcome.status === 'partial'),
       partial: outcomes.some(outcome => outcome.status !== 'ok'),
       totalFound: outcomes.reduce((sum,a)=>sum+a.matched,0), returned: limited.length, truncated: outcomes.reduce((sum,a)=>sum+a.matched,0)>limit,
       cursors:outcomes.flatMap(a=>a.foldersPending).map(c=>({...c,filterKey,pass:nextPass})),
       scope: args.searchAllFolders === false ? (args.folder ?? 'INBOX') : 'all_selectable_folders',
-      accounts: outcomes, messages: limited,
+      accounts: outcomes, messages: limited, ...(conversations ? { conversations: conversations.list, ...(conversations.truncatedCount ? { conversationsTruncated: conversations.truncatedCount } : {}) } : {})
     }, null, 2) }] };
   });
 }
