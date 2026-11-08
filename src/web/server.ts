@@ -16,6 +16,7 @@ import type { CredentialBackend } from '../credentials/credential-backend.js';
 import { AccountEnrollmentService } from '../credentials/account-enrollment.js';
 import { runGmailOAuthLoopback } from '../credentials/gmail-oauth-loopback.js';
 import { enrollmentRouter } from './enrollment-router.js';
+import { resolvePackageVersion } from '../utils/package-version.js';
 import type { Server } from 'node:http';
 import { z } from 'zod';
 
@@ -421,7 +422,10 @@ export class WebUIServer {
 
     // Health check
     this.app.get('/api/health', (req, res) => {
-      res.json({ status: 'ok', version: '1.0.0' });
+      // B6: report the version of the installed package (module-relative
+      // manifest read) instead of a hardcoded string that drifts from
+      // package.json on release.
+      res.json({ status: 'ok', version: resolvePackageVersion(import.meta.url) });
     });
   }
 

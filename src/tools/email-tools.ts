@@ -1085,7 +1085,7 @@ export function emailTools(
 
   // Save draft tool — composes a message and appends it to the Drafts folder with the \Draft flag
   server.registerTool('imap_save_draft', {
-    description: 'Save an email as a draft in the Drafts folder (no send). Takes the same fields as imap_send_email (including account defaultBcc when configured).',
+    description: 'Save an email as a draft in the Drafts folder (no send). Takes the same fields as imap_send_email (including account defaultBcc when configured; the stored MIME keeps Bcc so the recipients survive reopening). If the APPEND outcome is unknown the result sets outcomeUnknown and asks you to check the Drafts folder first — saving again without checking could duplicate the draft.',
     inputSchema: {
       ...accountSelector,
       to: addressList('to', 'Recipient email address(es). Either an array of addresses or a single comma-separated string.').optional(),
@@ -1122,7 +1122,9 @@ export function emailTools(
       attachments: buildAttachments(attachments as AttachmentInput[] | undefined),
     };
 
-    const rawMessage = await smtpService.composeRaw(account, emailComposer);
+    // B2: unlike the send path, the draft MIME keeps the Bcc header so the
+    // merged default+explicit BCC recipients survive reopening the draft.
+    const rawMessage = await smtpService.composeRaw(account, emailComposer, { keepBcc: true });
 
     const draftsFolder = folder ?? await imapService.findDraftsFolder(accountId);
     if (!draftsFolder) {
@@ -1130,20 +1132,36 @@ export function emailTools(
     }
 
     const appended = await imapService.appendMessage(accountId, draftsFolder, rawMessage, ['\\Draft', '\\Seen']);
-    if (!appended) {
-      throw new Error(`Failed to append draft to folder "${draftsFolder}"`);
+    if (appended.saved) {
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            success: true,
+            folder: draftsFolder,
+            message: `Draft saved to "${draftsFolder}"`,
+          }, null, 2)
+        }]
+      };
     }
-
-    return {
-      content: [{
-        type: 'text',
-        text: JSON.stringify({
-          success: true,
-          folder: draftsFolder,
-          message: `Draft saved to "${draftsFolder}"`,
-        }, null, 2)
-      }]
-    };
+    // B5: the APPEND was submitted but its result was never confirmed — the
+    // server may already hold the draft. Report the indeterminate state and
+    // let the user check the folder; retrying is their explicit decision.
+    if (appended.outcomeUnknown) {
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            success: false,
+            outcomeUnknown: true,
+            folder: draftsFolder,
+            error: appended.error,
+            message: `Draft APPEND outcome is unknown; the draft may have been saved to "${draftsFolder}". Check the folder before retrying — saving again could duplicate the draft.`,
+          }, null, 2)
+        }]
+      };
+    }
+    throw new Error(appended.error ?? `Failed to append draft to folder "${draftsFolder}"`);
   });
 
   // Reply to email tool
@@ -1310,7 +1328,10 @@ export function emailTools(
       'Locate an email by its RFC822 Message-ID across folders and return its current { folder, uid } plus basic envelope. ' +
       'Robust to the message having been moved or archived (IMAP UIDs are folder-relative). ' +
       'Pass the returned folder + uid to imap_reply_to_email or imap_get_email. ' +
-      'Without `folders`, searches Gmail \\All Mail when present, else INBOX → Archive → Sent → remaining folders.',
+      'Without `folders`, searches Gmail \\All Mail when present, else INBOX → Archive → Sent → remaining folders. ' +
+      'Coverage is explicit: status found/not_found/partial, complete flags full coverage, foldersFailed lists per-folder ' +
+      'errors, foldersPending lists requested folders past the 25-folder cap or after the match — a false result with ' +
+      'complete:false was NOT searched everywhere.',
     inputSchema: {
       accountId: z.string().describe('Account ID'),
       messageId: z.string().describe('RFC822 Message-ID, with or without angle brackets'),
