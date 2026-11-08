@@ -206,11 +206,17 @@ export class SmtpService {
   }
 
   // Build the raw RFC 822 message without sending. Used for drafts and Sent-folder copies.
-  async composeRaw(account: ImapAccount, email: EmailComposer): Promise<Buffer> {
+  // B2: `keepBcc` keeps the Bcc header in the compiled MIME so a saved draft
+  // restores its (explicit and account-default) BCC recipients on reopen.
+  // Without the option — the send path — Bcc stays envelope-only (T22): the
+  // wire MIME carries no Bcc while the SMTP envelope still covers it.
+  async composeRaw(account: ImapAccount, email: EmailComposer, options?: { keepBcc?: boolean }): Promise<Buffer> {
     if((email.text?.length??0)>MAX_BODY_CHARS||(email.html?.length??0)>MAX_BODY_CHARS)throw new Error('Message body exceeds the processing limit');
     const attachments=email.attachments?await materializeBoundedAttachments(email.attachments):undefined;
     const compiled = new MailComposer(this.toMailOptions(account, {...email,attachments}));
-    return compiled.compile().build();
+    const message = compiled.compile();
+    if (options?.keepBcc) message.keepBcc = true;
+    return message.build();
   }
 
   async sendEmail(accountId: string, account: ImapAccount, email: EmailComposer, beforeSubmit?: () => Promise<void> | void): Promise<SmtpSendResult> {

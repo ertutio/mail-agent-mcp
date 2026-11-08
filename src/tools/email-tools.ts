@@ -1122,7 +1122,9 @@ export function emailTools(
       attachments: buildAttachments(attachments as AttachmentInput[] | undefined),
     };
 
-    const rawMessage = await smtpService.composeRaw(account, emailComposer);
+    // B2: unlike the send path, the draft MIME keeps the Bcc header so the
+    // merged default+explicit BCC recipients survive reopening the draft.
+    const rawMessage = await smtpService.composeRaw(account, emailComposer, { keepBcc: true });
 
     const draftsFolder = folder ?? await imapService.findDraftsFolder(accountId);
     if (!draftsFolder) {
