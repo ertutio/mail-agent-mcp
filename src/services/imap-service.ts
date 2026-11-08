@@ -9,6 +9,7 @@ import { assertCredentialsResolved } from '../utils/env-credentials.js';
 import { AccountAuthResolver, buildImapAuth } from '../credentials/account-auth.js';
 import { resolveMailProxy } from '../utils/mail-proxy.js';
 import { accountRevision } from '../utils/account-revision.js';
+import { attachmentMatchesKey } from '../utils/attachment-part-match.js';
 
 /**
  * Providers that require IMAP access to be manually enabled in account settings.
@@ -1177,10 +1178,11 @@ export class ImapService {
       // T25 / MAIL-11: multiple attachments may share a filename. Collect all
       // matches and disambiguate by part index when provided; otherwise
       // report the ambiguity instead of silently returning the first.
-      // CID matching normalizes angle brackets (mailparser keeps <cid>).
-      const normalizeCid = (v: string) => v.replace(/^<|>$/g, '');
+      // CID matching normalizes angle brackets (mailparser keeps <cid>); the shared
+      // predicate (B1) is the exact rule the forward caller counts occurrence
+      // positions by.
       const matches = (parsed.attachments ?? []).filter(
-        (att: any) => att.filename === filename || normalizeCid(att.contentId ?? '') === normalizeCid(filename)
+        (att: any) => attachmentMatchesKey(att, filename)
       );
 
       if (matches.length === 0) {
