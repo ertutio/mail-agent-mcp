@@ -156,11 +156,22 @@ export function aggregateConversations<T extends DedupableMessage>(messages: T[]
     const members = group
       .map(index => messages[index]!)
       .sort((a, b) => timeOf(b) - timeOf(a));
-    const newest = members[0]!;
-    const root = messageIdOf.get(group[0]!)!;
-    const subject = typeof newest.subject === 'string' ? newest.subject : '';
+    // F4 (review): the root is determined by header relations — the member
+    // that no other member replies to (earliest when several). Taking the
+    // first input message mislabeled the newest reply as the root under the
+    // newest-first input order.
+    const memberIds = new Set(group.map(index => messageIdOf.get(index)!).filter(Boolean));
+    const candidates = members.filter(member => {
+      const own = normalizeMessageIdKey(member.messageId);
+      return !referenceKeys(member).some(id => memberIds.has(id) && id !== own);
+    });
+    const earliest = candidates.length
+      ? [...candidates].sort((a, b) => timeOf(a) - timeOf(b))[0]!
+      : undefined;
+    const rootId = earliest ? normalizeMessageIdKey(earliest.messageId) : '';
+    const subject = typeof members[0]!.subject === 'string' ? members[0]!.subject as string : '';
     conversations.push({
-      ...(root ? { rootMessageId: root } : {}),
+      ...(rootId ? { rootMessageId: rootId } : {}),
       subject,
       messages: members,
     });

@@ -60,6 +60,8 @@ export interface EmailMessage {
   subject: string;
   messageId: string;
   inReplyTo?: string;
+  /** Raw References header (F4) — projected only when the caller asks for thread headers. */
+  references?: string;
   flags: string[];
   customKeywords: string[];
 }

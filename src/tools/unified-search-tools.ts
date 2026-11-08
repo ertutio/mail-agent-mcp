@@ -134,7 +134,7 @@ export function unifiedSearchTools(server: McpServer, imap: ImapService, manager
             let finished=false;
             for(let page=0;page<(runtime.maxPagesPerFolder??25);page++){
               const cursor=pending.beforeUid!==undefined?{beforeUid:pending.beforeUid,uidValidity:pending.uidValidity!}:undefined;
-              const found=await imap.searchEmailPage(account.id,folder,criteria,cursor);
+              const found=await imap.searchEmailPage(account.id,folder,criteria,cursor,{includeThreadHeaders:args.groupByConversation===true});
               if(cancelled)return;
               outcome.matched+=found.matched;
               for(const message of found.messages)local.push({...message,accountId:account.id,accountName:account.name,folder});

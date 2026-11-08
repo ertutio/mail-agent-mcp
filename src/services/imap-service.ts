@@ -697,7 +697,7 @@ export class ImapService {
    * fetch or parse message bodies — used for lightweight header analysis such
    * as spam indicator checks. UIDs with no headers returned are omitted.
    */
-  async searchEmailPage(accountId:string,folderName:string,criteria:SearchCriteria,cursor?:{beforeUid:number;uidValidity:number}):Promise<{messages:EmailMessage[];matched:number;nextCursor?:{beforeUid:number;uidValidity:number}}>{
+  async searchEmailPage(accountId:string,folderName:string,criteria:SearchCriteria,cursor?:{beforeUid:number;uidValidity:number},options?:{includeThreadHeaders?:boolean}):Promise<{messages:EmailMessage[];matched:number;nextCursor?:{beforeUid:number;uidValidity:number}}>{
     const client=await this.ensureConnected(accountId);
     const lock=await client.getMailboxLock(folderName);
     try{
@@ -726,10 +726,17 @@ export class ImapService {
       const ordered=[...new Set(candidates)].sort((a,b)=>b-a);
       const uids=ordered.slice(0,200);
       const messages:EmailMessage[]=[];
-      if(uids.length){for await(const msg of client.fetch(uids,{uid:true,envelope:true,flags:true,internalDate:true},{uid:true})){
+      const wantThreadHeaders=options?.includeThreadHeaders===true;
+      if(uids.length){for await(const msg of client.fetch(uids,wantThreadHeaders
+        ?{uid:true,envelope:true,flags:true,internalDate:true,headers:true}
+        :{uid:true,envelope:true,flags:true,internalDate:true},{uid:true})){
         if(messages.length>=200)throw new Error('Server violated bounded message fetch');
         const flags=Array.from(msg.flags||[]) as string[];
-        messages.push({uid:msg.uid,date:new Date(msg.internalDate||msg.envelope?.date||0),from:msg.envelope?.from?.[0]?this.formatAddress(msg.envelope.from[0]).slice(0,2048):'',to:(msg.envelope?.to||[]).slice(0,100).map(a=>this.formatAddress(a).slice(0,2048)),subject:(msg.envelope?.subject||'').slice(0,2000),messageId:(msg.envelope?.messageId||'').slice(0,2048),flags,customKeywords:flags.filter(f=>!isSystemFlag(f))});
+        // F4: thread identifiers come from the envelope (in-reply-to) and
+        // the page's raw headers (references) — fetched in one round-trip
+        // so conversation aggregation sees the real threading chain.
+        const threadHeaders=wantThreadHeaders?parseRawHeaders(msg.headers||''):undefined;
+        messages.push({uid:msg.uid,date:new Date(msg.internalDate||msg.envelope?.date||0),from:msg.envelope?.from?.[0]?this.formatAddress(msg.envelope.from[0]).slice(0,2048):'',to:(msg.envelope?.to||[]).slice(0,100).map(a=>this.formatAddress(a).slice(0,2048)),subject:(msg.envelope?.subject||'').slice(0,2000),messageId:(msg.envelope?.messageId||'').slice(0,2048),flags,customKeywords:flags.filter(f=>!isSystemFlag(f)),...(threadHeaders?{inReplyTo:msg.envelope?.inReplyTo||threadHeaders['in-reply-to'],references:threadHeaders['references']}:{})});
       }}
       return {messages,matched:uids.length,...(ordered.length>uids.length?{nextCursor:{beforeUid:uids[uids.length-1]!-1,uidValidity:validity}}:{})};
     }finally{lock.release();}

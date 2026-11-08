@@ -175,3 +175,112 @@ describe('F4: unified search flags', () => {
     expect(result.cursors[0].filterKey).not.toBe(filterKeyFor({}));
   });
 });
+
+// F4 review: the REAL read chain must deliver the threading identifiers.
+// searchEmailPage previously dropped in-reply-to/references, so a genuine
+// root+reply mailbox still aggregated into two conversations. These tests
+// drive the real ImapService over a mocked imapflow connection and assert
+// through the unified handler.
+import { ImapService } from '../src/services/imap-service.js';
+
+interface F4Msg {
+  uid: number;
+  messageId: string;
+  inReplyTo?: string;
+  references?: string;
+  subject: string;
+  date: string;
+}
+
+const f4Imap = (pageUids: number[][], byUid: Map<number, F4Msg>) => {
+  const svc = new ImapService();
+  const queue = [...pageUids];
+  const client = {
+    mailbox: { uidValidity: 111n, uidNext: 1000 },
+    list: vi.fn(async () => [{ path: 'INBOX', delimiter: '/', flags: [] }]),
+    getMailboxLock: async () => ({ release: () => {} }),
+    status: vi.fn(async () => ({ uidValidity: 111n, uidNext: 1000 })),
+    search: vi.fn(async () => (queue.length > 1 ? queue.shift()! : queue[0]!)),
+    fetch: vi.fn((uids: number[]) => {
+      const items = uids.map(uid => {
+        const m = byUid.get(uid)!;
+        const headers = m.references ? `References: ${m.references}\r\n` : '';
+        return {
+          uid,
+          envelope: { messageId: m.messageId, inReplyTo: m.inReplyTo, subject: m.subject, date: m.date },
+          flags: new Set<string>(),
+          internalDate: m.date,
+          headers,
+        };
+      });
+      return { [Symbol.asyncIterator]: () => {
+        let i = 0;
+        return { next: async () => (i < items.length ? { done: false as const, value: items[i++] } : { done: true as const, value: undefined }) };
+      } };
+    }),
+  };
+  vi.spyOn(svc as any, 'ensureConnected').mockResolvedValue(client);
+  return { svc, client };
+};
+const f4Runner = (svc: ImapService, accounts: Array<{ id: string; name: string; host: string }>) => {
+  let handler: any;
+  unifiedSearchTools({ registerTool: (_n: string, _s: any, h: any) => { handler = h; } } as any, svc as any, {
+    getAllAccounts: () => accounts,
+    resolveAccountId: (_id: any, name?: string) => accounts.find(a => a.name === name)!.id,
+  } as any);
+  return async (args: any) => JSON.parse((await handler(args)).content[0].text);
+};
+
+const f4Accounts = [
+  { id: 'a1', name: 'A1', host: 'imap.a.synth.test' },
+  { id: 'a2', name: 'A2', host: 'imap.b.synth.test' },
+];
+
+describe('F4 review: real read chain carries threading headers into aggregation', () => {
+  it('F4-REAL-CHAIN-REPLIES: a genuine root+reply mailbox aggregates into ONE conversation', async () => {
+    const root: F4Msg = { uid: 3, messageId: '<root@t>', subject: 'Root', date: '2026-01-01T00:00:00Z' };
+    const reply: F4Msg = { uid: 9, messageId: '<re@t>', inReplyTo: '<root@t>', references: '<root@t>', subject: 'Re: Root', date: '2026-01-02T00:00:00Z' };
+    const { svc } = f4Imap([[9, 3]], new Map([[9, reply], [3, root]]));
+    const run = f4Runner(svc, [f4Accounts[0]!]);
+    const result = await run({ groupByConversation: true, limit: 50 });
+    expect(result.conversations).toHaveLength(1);
+    expect((result.conversations as any[])[0].rootMessageId).toBe('root@t');
+    expect((result.conversations as any[])[0].messages).toHaveLength(2);
+  });
+
+  it('F4-REAL-CHAIN-NEWEST-FIRST-ROOT: the newest reply is not mislabeled as the root', async () => {
+    const root: F4Msg = { uid: 3, messageId: '<root@t>', subject: 'Root', date: '2026-01-01T00:00:00Z' };
+    const reply: F4Msg = { uid: 9, messageId: '<re@t>', inReplyTo: '<root@t>', subject: 'Re: Root', date: '2026-01-05T00:00:00Z' };
+    // Newest-first page order: the reply arrives before the root.
+    const { svc } = f4Imap([[9, 3]], new Map([[9, reply], [3, root]]));
+    const run = f4Runner(svc, [f4Accounts[0]!]);
+    const result = await run({ groupByConversation: true, limit: 50 });
+    expect((result.conversations as any[])[0].rootMessageId).toBe('root@t');
+  });
+
+  it('F4-REAL-CHAIN-REFERENCES-ONLY: a References-only reply still connects without In-Reply-To', async () => {
+    const root: F4Msg = { uid: 3, messageId: '<root@t>', subject: 'Root', date: '2026-01-01T00:00:00Z' };
+    const reply: F4Msg = { uid: 9, messageId: '<re@t>', references: '<root@t>', subject: 'Re: Root', date: '2026-01-03T00:00:00Z' };
+    const { svc } = f4Imap([[9, 3]], new Map([[9, reply], [3, root]]));
+    const run = f4Runner(svc, [f4Accounts[0]!]);
+    const result = await run({ groupByConversation: true, limit: 50 });
+    expect(result.conversations).toHaveLength(1);
+    expect((result.conversations as any[])[0].messages).toHaveLength(2);
+  });
+
+  it('F4-REAL-CHAIN-CROSS-ACCOUNT: a reply landing in another mailbox stays in one conversation', async () => {
+    const root: F4Msg = { uid: 3, messageId: '<root@t>', subject: 'Root', date: '2026-01-01T00:00:00Z' };
+    const reply: F4Msg = { uid: 41, messageId: '<re@t>', inReplyTo: '<root@t>', subject: 'Re: Root', date: '2026-01-02T00:00:00Z' };
+    // Two accounts are queried concurrently: account pages are independent.
+    let a1Done = false;
+    const { svc } = f4Imap([[3], [41]], new Map([[3, root], [41, reply]]));
+    const clientSpy = vi.spyOn(svc as any, 'ensureConnected');
+    const run = f4Runner(svc, f4Accounts);
+    const result = await run({ groupByConversation: true, limit: 50 });
+    // listFolders + searchEmailPage per account.
+    expect(clientSpy).toHaveBeenCalledTimes(4);
+    void a1Done;
+    expect(result.conversations).toHaveLength(1);
+    expect((result.conversations as any[])[0].messages).toHaveLength(2);
+  });
+});
