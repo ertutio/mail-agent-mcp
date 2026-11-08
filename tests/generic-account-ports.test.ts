@@ -5,6 +5,7 @@ import { readFileSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { WebUIServer } from '../src/web/server.js';
+import { SmtpService } from '../src/services/smtp-service.js';
 import { AccountManager } from '../src/services/account-manager.js';
 
 // F3: the generic ("other IMAP") form exposes IMAP/SMTP ports and encryption.
@@ -151,5 +152,37 @@ describe('F3: generic account ports and encryption', () => {
     const stored = store().find((a: any) => a.name === candidate.name);
     // Backend defaults: TLS on, IMAP 993.
     expect(stored).toMatchObject({ port: 993, tls: true });
+  });
+});
+
+// F3 review: the saved encryption choice must match the actual transport.
+describe('F3 review: standard-port encryption pairing', () => {
+  it('F3-REVIEW-465-STARTTLS-REJECTED: 465 + STARTTLS is refused at save time', async () => {
+    const { status, body } = await call('POST', '/api/accounts', genericCandidate({ name: nextAccountName(), smtp: { host: 'smtp.other.synth.test', port: 465, secure: false } }));
+    expect(status).toBe(400);
+    expect(body.error).toContain('465');
+  });
+
+  it('F3-REVIEW-587-IMPLICIT-REJECTED: 587 + implicit TLS is refused at save time', async () => {
+    const { status, body } = await call('POST', '/api/accounts', genericCandidate({ name: nextAccountName(), smtp: { host: 'smtp.other.synth.test', port: 587, secure: true } }));
+    expect(status).toBe(400);
+    expect(body.error).toContain('587');
+  });
+
+  it('F3-REVIEW-CUSTOM-PORT-HONORED: custom ports keep the stored mode and the transport contract follows', async () => {
+    for (const [port, secure] of [[2465, true], [9465, false]] as const) {
+      const { status } = await call('POST', '/api/accounts', genericCandidate({ name: nextAccountName(), smtp: { host: 'smtp.other.synth.test', port, secure } }));
+      expect(status).toBe(200);
+      const stored = store().find((a: any) => a.smtp?.port === port);
+      expect(stored.smtp).toMatchObject({ port, secure });
+      // The transport derives its TLS mode from exactly these values.
+      expect(SmtpService.resolveTlsMode(port, secure)).toEqual(
+        secure ? { secure: true, requireTLS: false } : { secure: false, requireTLS: true },
+      );
+    }
+  });
+
+  it('F3-REVIEW-STARTTLS-REQUIRED: a custom-port STARTTLS choice keeps requireTLS', () => {
+    expect(SmtpService.resolveTlsMode(2465, false)).toEqual({ secure: false, requireTLS: true });
   });
 });

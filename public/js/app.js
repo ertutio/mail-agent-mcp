@@ -53,6 +53,11 @@ function updateProvider() {
   $('gmail-fields').hidden = !gmail;
   $('password-fields').hidden = gmail;
   $('generic-fields').hidden = !other;
+  // Hidden containers still run constraint validation — disable the fields
+  // that are not in play so a stale invalid port can never block submit.
+  for (const id of ['imap-host', 'imap-port', 'imap-encryption']) $(id).disabled = !other;
+  const smtpInPlay = other && !!$('smtp-host').value.trim();
+  for (const id of ['smtp-host', 'smtp-port', 'smtp-encryption']) $(id).disabled = !smtpInPlay;
   $('smtp-advanced').hidden = !other || !$('smtp-host').value.trim();
   $('enterprise-hint').hidden = provider !== 'netease-enterprise';
   $('authorization-code').required = !gmail;

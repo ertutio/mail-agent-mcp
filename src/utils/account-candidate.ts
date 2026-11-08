@@ -143,9 +143,16 @@ function validateSmtp(value: unknown): SmtpConfig {
   // secure defaults to true, and the port derives from it (465/587) when the
   // caller omits it.
   const secure = booleanField(value, 'secure', true)!;
+  const port = portField(value, 'port', secure ? 465 : 587)!;
+  // F3 review: a standard port pins its encryption — 465 speaks implicit
+  // TLS and the submission ports upgrade via STARTTLS, so a saved choice
+  // that contradicts the port would silently change at transport time.
+  // Custom ports carry no convention; any mode is accepted and honored.
+  if (port === 465 && !secure) fail('smtp port 465 uses implicit TLS; choose TLS (or move STARTTLS to port 587)');
+  if ((port === 587 || port === 25) && secure) fail('smtp port 587 uses STARTTLS; choose STARTTLS (or move implicit TLS to port 465)');
   const smtp: SmtpConfig = {
     host: stringField(value, 'host', { max: 253, trim: true, prefix: 'smtp.' })!,
-    port: portField(value, 'port', secure ? 465 : 587)!,
+    port,
     secure,
   };
   const user = stringField(value, 'user', { optional: true, allowEmpty: true, max: 320, trim: true, prefix: 'smtp.' });
