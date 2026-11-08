@@ -110,6 +110,20 @@ errorCategory?: 'timeout' | 'folder_not_found' | 'append_failed';
   error?: string;
 }
 
+/** Outcome of APPENDing a draft (B5). A disconnect or timeout after the
+ * message was submitted leaves the outcome unknown: the server may already
+ * hold the draft, so the caller must not invite a blind retry. */
+export interface DraftAppendResult {
+  saved: boolean;
+  /** The APPEND was submitted but its result was not confirmed; the draft may already exist. */
+  outcomeUnknown?: boolean;
+  /** Folder the append targeted. */
+  folder?: string;
+  /** Why the save failed, when `saved` is false. */
+  errorCategory?: 'timeout' | 'append_failed';
+  error?: string;
+}
+
 export interface Folder {
   name: string;
   delimiter: string;
@@ -174,6 +188,14 @@ export interface EmailLocation {
   flags?: string[];
   customKeywords?: string[];
   foldersSearched?: string[];
+  /** B3: explicit outcome — found | not_found (full coverage, no match) | partial (coverage holes). */
+  status?: 'found' | 'not_found' | 'partial';
+  /** B3: true only when every requested folder was searched without an error. */
+  complete?: boolean;
+  /** B3: folders whose search failed; they were requested but NOT covered. */
+  foldersFailed?: Array<{ folder: string; error: string }>;
+  /** B3: requested folders never searched — past the folder cap or after the match. */
+  foldersPending?: string[];
 }
 
 export interface ConnectionPool {

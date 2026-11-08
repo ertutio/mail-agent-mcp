@@ -11,6 +11,7 @@ import type { Attachment, EmailAttachment, EmailComposer, EmailContent, ImapAcco
 import { resolveAttachmentInputPath } from '../utils/attachment-root.js';
 import {materializeBoundedAttachments,MAX_BODY_CHARS} from '../utils/mail-resource-limits.js';
 import { forwardBodies, replyRecipientGroups, normalizeAddressList } from '../utils/mail-compose.js';
+import { attachmentMatchesKey } from '../utils/attachment-part-match.js';
 import { accountRevision } from '../utils/account-revision.js';
 
 const DOWNLOAD_DIR = process.env.IMAP_DOWNLOAD_DIR || join(homedir(), 'Downloads', 'imap-attachments');
@@ -66,11 +67,14 @@ async function materializeOriginalAttachments(
   // Same-name attachments disambiguate by occurrence order — the k-th
   // entry keyed by contentId/filename must fetch the k-th match, not
   // silently the first (the forward used to attach one file twice).
-  const seen = new Map<string, number>();
-  return Promise.all(attachments.map(async (attachment) => {
+  // B1: the occurrence position counts under the SAME filename-or-CID rule
+  // getAttachmentContent matches by, so a same-name pair where one part
+  // carries a Content-ID (or a filename equal to another part's CID) still
+  // materializes [A, B] instead of the first match twice.
+  const ordered = [...attachments];
+  return Promise.all(ordered.map(async (attachment, position) => {
     const key = attachment.contentId ?? attachment.filename;
-    const partIndex = seen.get(key) ?? 0;
-    seen.set(key, partIndex + 1);
+    const partIndex = ordered.slice(0, position).filter(prev => attachmentMatchesKey(prev, key)).length;
     const downloaded = await imapService.getAttachmentContent(
       accountId,
       folder,

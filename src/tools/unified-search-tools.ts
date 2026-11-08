@@ -108,9 +108,16 @@ export function unifiedSearchTools(server: McpServer, imap: ImapService, manager
       const outcome: AccountOutcome = { accountId: account.id, accountName: account.name, status: 'ok', foldersSearched: [], foldersErrored: [], matched: 0,foldersPending:[] };
       let cancelled = false;
       let timer: ReturnType<typeof setTimeout> | undefined;
-      const remaining = deadline - Date.now();
-      if (remaining <= 0) { outcome.status = 'timeout';outcome.foldersPending=[{accountName:account.name,accountId:account.id,accountRevision:accountRevision(account)}]; outcomes[index] = outcome; return; }
       const supplied=args.cursors?.filter(c=>c.accountName===account.name);
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) { outcome.status = 'timeout';
+        // B4: the account never started, so its input cursors are exactly its
+        // unfinished resume positions. A bare cursor here dropped folder/
+        // beforeUid/uidValidity and the next pass re-scanned from scratch.
+        outcome.foldersPending = supplied?.length
+          ? supplied.map(c=>({accountName:account.name,accountId:account.id,accountRevision:accountRevision(account),folder:c.folder,beforeUid:c.beforeUid,uidValidity:c.uidValidity}))
+          : [{accountName:account.name,accountId:account.id,accountRevision:accountRevision(account)}];
+        outcomes[index] = outcome; return; }
       let queue:PendingFolder[]=[];
       let current=-1;
       const operation = async () => {

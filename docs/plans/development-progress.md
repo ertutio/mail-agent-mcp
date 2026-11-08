@@ -2,7 +2,31 @@
 
 执行规则及 T01–T37 完成标准见[总计划](development-roadmap.md)，证据要求见[验收约定](../acceptance.md)。保存点更新本文件，不再为每轮制造一份平行路线。
 
-## 当前游标
+## 当前游标（2026-11-08，B1–B6 集成）
+
+本轮按维护者授权整合 PR #46–#51，并修复复审发现的四项问题。本地集成父提交为 `958e85f6eaecd74d6d352843dd8b260b73c4eb56`，基于 `main@9d9757296e109a1de68332740c5b9edc858d7d43` 正常合并六个原始 head，保留原提交祖先关系。本节记录修复工作树的本地验收，最终提交、远端 CI run 与主分支合并回执由承载本节的集成 PR 保存。
+
+| 范围 | 已验证行为 |
+| --- | --- |
+| B1 / [#46](https://github.com/ertutio/mail-agent-mcp/pull/46) | 共享附件匹配规则统一缺失文件名的 `unknown` 表示。真实 MIME 经读取、预览、确认发送后，无名附件与真正名为 `unknown` 的附件在正反顺序下均保持原字节顺序，原同名混合 CID 回归通过。 |
+| B2 / [#47](https://github.com/ertutio/mail-agent-mcp/pull/47) | 草稿保留显式及默认 BCC，发送 MIME 隐藏 Bcc，SMTP envelope 保留密送地址。草稿测试成功 mock 已适配 B5 的结构化返回值。 |
+| B3 / [#48](https://github.com/ertutio/mail-agent-mcp/pull/48) | Message-ID 搜索明确返回已查、失败和待查范围。空字符串、空白及 `<>` 在目录发现、连接和搜索之前报输入错误。 |
+| B4 / [#49](https://github.com/ertutio/mail-agent-mcp/pull/49) | 整体截止后尚未调度的账号保留每个目录的 `folder/beforeUid/uidValidity`，原身份、查询范围和 pass 校验回归通过。 |
+| B5 / [#50](https://github.com/ertutio/mail-agent-mcp/pull/50) | 使用安装的 ImapFlow APPEND 命令验证本地 APPENDLIMIT 与带 APPEND 命令身份的 NO/BAD 属明确失败。提交后断连、超时、缺失或其他命令身份的错误保留 unknown，并提示检查草稿箱后再决定重试。 |
+| B6 / [#51](https://github.com/ertutio/mail-agent-mcp/pull/51) | MCP 初始化和健康接口从模块位置读取包版本。四个构建产物齐全，任意临时 cwd 的构建产物初始化与 localhost 健康接口均返回 `0.1.0`，与 package.json 一致。 |
+
+| 验收项 | 本轮证据 |
+| --- | --- |
+| 定向回归 | `PASS`，13 files / 231 tests，包含附件身份、冻结 MIME、草稿 BCC/APPEND、Message-ID、统一搜索分页、健康接口和 UIDVALIDITY。 |
+| 完整测试与覆盖率 | `npm run test:coverage` 一次完整运行，96 files passed / 1 skipped，971 tests passed / 1 skipped，0 failed。Statements 84.33%、Branches 76.14%、Functions 86.04%、Lines 87.06%。Windows 按既有条件跳过 POSIX mode 位权限测试，任意 cwd 安装路径断言本轮通过。 |
+| 构建与产物 | `npm run build` 通过，包含 index/setup/enroll/web 四入口。构建后的 stdio 初始化与健康 HTTP smoke 使用隔离空配置及拒绝凭据读写的 dummy backend，结束后关闭子进程和 HTTP server。 |
+| 质量与包内容 | lint、普通 `git diff --check`、release secrets 扫描（227 files）通过。`npm pack --dry-run` 通过，13 files / 248.3 kB，包含四入口产物。 |
+| 依赖审计复用 | package.json 与 package-lock.json 相对基线无变化，lock Git blob 为 `72189e0d1ad81516184af69c0964beebcde91da4`。复用 2026-11-08 同一 lock 的生产及全量 audit，均 exit 0、0 漏洞。准确集成 head 的 CI 仍执行两项 audit。 |
+| 验证环境 | Node 24.19.0，隔离 TEMP/TMP 与 IMAP_MCP_CONFIG_DIR，构建及完整测试使用必要权限。pack 默认 cache 的 EPERM 经隔离 cache 修正后通过。imap-service.ts 仅有 20 行新增 CRLF 改为 LF，普通空白检查复验通过，语义验证证据复用。 |
+| 独立审计 | 未参与实现的 Sol medium 只读复核源码、调用者、相关测试及安装的 ImapFlow，未发现阻断问题。账号 revision、UIDVALIDITY 与预览到确认的冻结字节链均核对。 |
+| 成本与续接 | 开发协作用量及费用未知，新增运行时模型请求为 0。next_action 为核对承载本节的集成 PR 的准确 head、Node22/24 必需 CI 步骤和 main 合并回执，复用本节仍有效的本地证据。 |
+
+## 历史游标（截至 2026-11-01）
 
 | 字段 | 当前记录 |
 | --- | --- |

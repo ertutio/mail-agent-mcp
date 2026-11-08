@@ -215,3 +215,123 @@ describe('T25R: forward chain identity binding (real ImapService, real MIME)', (
     expect(smtpService.sendEmail).not.toHaveBeenCalled();
   });
 });
+
+// B1: the forward chain materializes original attachments by a key that is
+// `contentId ?? filename`. The occurrence index used to be counted per raw
+// key while the service matches by filename-OR-CID, so a same-name pair where
+// one part carries a Content-ID (or a filename equal to another part's CID)
+// fetched the first match twice and forwarded [A, A] for [A, B].
+describe('B1: forward attachment selection with mixed CID and filename collisions', () => {
+  const buildB1Mime = (parts: Array<{ filename?: string; content: string; cid?: string }>) => {
+    const boundary = 'bnd_b1';
+    const part = ({ filename, content, cid }: { filename?: string; content: string; cid?: string }) =>
+      `--${boundary}\r\nContent-Type: application/octet-stream\r\nContent-Disposition: attachment${filename !== undefined ? `; filename="${filename}"` : ''}\r\n${cid ? `Content-ID: <${cid}>\r\n` : ''}Content-Transfer-Encoding: 8bit\r\n\r\n${content}\r\n`;
+    return Buffer.from(`From: sender@synth.test\r\nTo: dest@synth.test\r\nSubject: B1 original\r\nMessage-ID: <b1@synth.test>\r\nMIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary="${boundary}"\r\n\r\n${parts.map(part).join('')}--${boundary}--\r\n`);
+  };
+
+  const setupB1Forward = (parts: Array<{ filename?: string; content: string; cid?: string }>) => {
+    const mime = buildB1Mime(parts);
+    const svc = new ImapService();
+    const client = {
+      mailbox: { uidValidity: 111n } as any,
+      getMailboxLock: async () => ({ release: () => {} }),
+      status: async () => ({ uidValidity: 111n }),
+      fetchOne: vi.fn(async () => ({ source: mime, size: mime.length, flags: [] })),
+    };
+    vi.spyOn(svc as any, 'ensureConnected').mockResolvedValue(client);
+    const account: any = {
+      id: 'acc1', name: 'Acc', host: 'imap.synth.test', port: 993, tls: true, secure: true,
+      user: 'me@synth.test', email: 'me@synth.test', password: '', saveToSent: false,
+      smtp: { host: 'smtp.synth.test', port: 465, secure: true },
+    };
+    const manager: any = { getAccount: vi.fn((): any => account), resolveAccountId: (id?: string) => id ?? 'acc1' };
+    svc.setAccountManager(manager);
+    const handlers = new Map<string, Function>();
+    const sent: any[] = [];
+    const smtpService = {
+      sendEmail: vi.fn(async (_accountId: string, _account: unknown, composer: any) => {
+        sent.push({ ...composer, attachments: composer.attachments?.map((a: any) => ({ ...a, content: Buffer.isBuffer(a.content) ? Buffer.from(a.content) : a.content })) });
+        return { messageId: '<fwd@synth.test>', rawMessage: Buffer.from('raw'), receipt: deliveryReceipt(composerRecipients(composer), composerRecipients(composer), []) };
+      }),
+    };
+    safeSendTools(
+      { registerTool: (name: string, _def: unknown, handler: Function) => handlers.set(name, handler) } as any,
+      svc, manager, smtpService as any,
+      { id: () => 'draft-b1', clock: () => 100, ttlMs: 1_000 },
+    );
+    return { handlers, sent, svc };
+  };
+
+  const forwardAndConfirm = async (handlers: Map<string, Function>) => {
+    const preview = JSON.parse((await handlers.get('imap_preview_forward_email')!({ accountId: 'acc1', folder: 'INBOX', uid: 7, to: ['you@synth.test'], includeAttachments: true })).content[0].text);
+    expect(preview.draftId).toBe('draft-b1');
+    return JSON.parse((await handlers.get('imap_confirm_send')!({ draftId: 'draft-b1', confirmed: true })).content[0].text);
+  };
+
+  it.each([
+    [{ content: 'UNNAMED-A' }, { filename: 'unknown', content: 'NAMED-B' }],
+    [{ filename: 'unknown', content: 'NAMED-B' }, { content: 'UNNAMED-A' }],
+    [{ content: 'UNNAMED-A' }, { content: 'UNNAMED-B' }],
+  ])('B1-UNNAMED: forwards missing filenames and real unknown filenames in MIME order', async (...parts) => {
+    const { handlers, sent, svc } = setupB1Forward(parts);
+    const original = await svc.getEmailContent('acc1', 'INBOX', 7);
+    expect(original.attachments.map(a => a.filename)).toEqual(['unknown', 'unknown']);
+    await forwardAndConfirm(handlers);
+    expect(sent[0].attachments.map((a: any) => a.content.toString().trim()))
+      .toEqual(parts.map(part => part.content));
+  });
+
+  it('B1-FWD-MIXED-CID: same-name pair with one Content-ID forwards [A, B] through preview and confirm', async () => {
+    const { handlers, sent } = setupB1Forward([
+      { filename: 'report.bin', content: 'B1-MIXED-VERSION-AAA', cid: 'cid-aaa' },
+      { filename: 'report.bin', content: 'B1-MIXED-VERSION-BBB' },
+    ]);
+    await forwardAndConfirm(handlers);
+    expect(sent[0].attachments).toHaveLength(2);
+    expect(sent[0].attachments[0].content.toString()).toContain('B1-MIXED-VERSION-AAA');
+    expect(sent[0].attachments[1].content.toString()).toContain('B1-MIXED-VERSION-BBB');
+    expect(sent[0].attachments[0].cid).toContain('cid-aaa');
+  });
+
+  it('B1-FWD-CID-FILENAME-COLLISION: a filename equal to another part\'s CID still selects its own bytes', async () => {
+    const { handlers, sent } = setupB1Forward([
+      { filename: 'y.bin', content: 'B1-COLLIDE-VERSION-AAA', cid: 'x.bin' },
+      { filename: 'x.bin', content: 'B1-COLLIDE-VERSION-BBB' },
+    ]);
+    await forwardAndConfirm(handlers);
+    expect(sent[0].attachments).toHaveLength(2);
+    expect(sent[0].attachments[0].content.toString()).toContain('B1-COLLIDE-VERSION-AAA');
+    expect(sent[0].attachments[0].cid).toContain('x.bin');
+    expect(sent[0].attachments[1].content.toString()).toContain('B1-COLLIDE-VERSION-BBB');
+  });
+
+  it('B1-FWD-MIXED-CID-REVERSED: CID part second keeps both distinct bytes in order', async () => {
+    const { handlers, sent } = setupB1Forward([
+      { filename: 'report.bin', content: 'B1-REV-VERSION-AAA' },
+      { filename: 'report.bin', content: 'B1-REV-VERSION-BBB', cid: 'cid-bbb' },
+    ]);
+    await forwardAndConfirm(handlers);
+    expect(sent[0].attachments).toHaveLength(2);
+    expect(sent[0].attachments[0].content.toString()).toContain('B1-REV-VERSION-AAA');
+    expect(sent[0].attachments[1].content.toString()).toContain('B1-REV-VERSION-BBB');
+  });
+
+  it('B1-SVC-KEY-LOOKUP: the service resolves a same-name pair by key and occurrence index', async () => {
+    const mime = buildB1Mime([
+      { filename: 'report.bin', content: 'B1-SVC-VERSION-AAA', cid: 'cid-aaa' },
+      { filename: 'report.bin', content: 'B1-SVC-VERSION-BBB' },
+    ]);
+    const svc = new ImapService();
+    vi.spyOn(svc as any, 'ensureConnected').mockResolvedValue({
+      getMailboxLock: async () => ({ release: () => {} }),
+      status: async () => ({ uidValidity: 111n }),
+      fetchOne: vi.fn(async () => ({ source: mime, size: mime.length })),
+    });
+
+    const byCid = await svc.getAttachmentContent('acc1', 'INBOX', 7, '<cid-aaa>', 111, 0);
+    expect(byCid.content.toString()).toContain('B1-SVC-VERSION-AAA');
+    // "report.bin" matches both parts; the second occurrence is the no-CID one.
+    const second = await svc.getAttachmentContent('acc1', 'INBOX', 7, 'report.bin', 111, 1);
+    expect(second.content.toString()).toContain('B1-SVC-VERSION-BBB');
+  });
+});

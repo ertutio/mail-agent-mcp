@@ -2,13 +2,14 @@ import {MAX_MESSAGE_BYTES,MAX_BODY_CHARS,MAX_ATTACHMENT_COUNT,boundedSource,asse
 import {extractPdfPreview} from '../utils/pdf-preview.js';
 import { ImapFlow } from 'imapflow';
 import { simpleParser } from 'mailparser';
-import { ImapAccount, EmailMessage, EmailContent, EmailBodyFormat, EmailLocation, Folder, SearchCriteria, SearchOptions, SentSaveResult, DEFAULT_BODY_MAX_LENGTH, DEFAULT_BODY_FORMAT, isSystemFlag } from '../types/index.js';
+import { ImapAccount, EmailMessage, EmailContent, EmailBodyFormat, EmailLocation, Folder, SearchCriteria, SearchOptions, SentSaveResult, DraftAppendResult, DEFAULT_BODY_MAX_LENGTH, DEFAULT_BODY_FORMAT, isSystemFlag } from '../types/index.js';
 import type { AccountManager } from './account-manager.js';
 import { htmlToMarkdown, normalizeWhitespace } from './html-to-markdown.js';
 import { assertCredentialsResolved } from '../utils/env-credentials.js';
 import { AccountAuthResolver, buildImapAuth } from '../credentials/account-auth.js';
 import { resolveMailProxy } from '../utils/mail-proxy.js';
 import { accountRevision } from '../utils/account-revision.js';
+import { attachmentMatchesKey } from '../utils/attachment-part-match.js';
 
 /**
  * Providers that require IMAP access to be manually enabled in account settings.
@@ -1177,10 +1178,11 @@ export class ImapService {
       // T25 / MAIL-11: multiple attachments may share a filename. Collect all
       // matches and disambiguate by part index when provided; otherwise
       // report the ambiguity instead of silently returning the first.
-      // CID matching normalizes angle brackets (mailparser keeps <cid>).
-      const normalizeCid = (v: string) => v.replace(/^<|>$/g, '');
+      // CID matching normalizes angle brackets (mailparser keeps <cid>); the shared
+      // predicate (B1) is the exact rule the forward caller counts occurrence
+      // positions by.
       const matches = (parsed.attachments ?? []).filter(
-        (att: any) => att.filename === filename || normalizeCid(att.contentId ?? '') === normalizeCid(filename)
+        (att: any) => attachmentMatchesKey(att, filename)
       );
 
       if (matches.length === 0) {
@@ -2075,17 +2077,96 @@ export class ImapService {
     ];
     return this.findSpecialUseFolder(accountId, '\\Drafts', draftsFolderNames);
   }
-
-  async appendMessage(accountId: string, folder: string, rawMessage: Buffer | string, flags?: string[]): Promise<boolean> {
-    const client = await this.ensureConnected(accountId);
+  /**
+   * Append a raw message to an arbitrary folder (drafts).
+   *
+   * B5: the result distinguishes a confirmed save from a definite failure
+   * and from an UNKNOWN outcome. A disconnect or timeout after the APPEND
+   * was submitted leaves the server state indeterminate — the draft may
+   * already exist, so the caller must not invite a blind retry. A server
+   * explicit APPEND rejection or missing result is a definite failure,
+   * and a failure before submission (connect/auth) is definite too.
+   */
+  async appendMessage(
+    accountId: string,
+    folder: string,
+    rawMessage: Buffer | string,
+    flags?: string[],
+    timeoutMs = 10_000,
+  ): Promise<DraftAppendResult> {
+    const deadlineMs = Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 10_000;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let cancelled=false;
+    let appendStarted=false;
     try {
-      // T30 / N-03: false (server NO) or undefined (preconditions unconfirmed)
-      // resolves instead of throwing — only a confirmed append is success.
+      return await Promise.race([
+        this.appendMessageInternal(accountId, folder, rawMessage, flags, ()=>cancelled, ()=>{appendStarted=true;}),
+        new Promise<DraftAppendResult>((resolve) => {
+          timer = setTimeout(() => {
+            cancelled=true;
+            resolve({
+              saved: false,
+              folder,
+              errorCategory: 'timeout',
+              ...(appendStarted?{outcomeUnknown:true}:{}),
+              error: appendStarted ? `Draft APPEND timed out after starting; the draft may have been saved to "${folder}". Check the folder before retrying.` : 'Draft APPEND timed out',
+            });
+          }, deadlineMs);
+        }),
+      ]);
+    } finally {
+      cancelled=true;
+      if (timer !== undefined) clearTimeout(timer);
+    }
+  }
+
+  private async appendMessageInternal(
+    accountId: string,
+    folder: string,
+    rawMessage: Buffer | string,
+    flags: string[] | undefined,
+    isCancelled:()=>boolean,
+    onAppendStarted:()=>void,
+  ): Promise<DraftAppendResult> {
+    let submitted = false;
+    try {
+      const client = await this.ensureConnected(accountId);
+      if(isCancelled())return {saved:false,folder,errorCategory:'timeout',error:'Draft APPEND timed out'};
+      onAppendStarted();
+      submitted = true;
+      // ImapFlow returns false for unmet preconditions; only a confirmed
+      // append is success. Tagged server NO/BAD responses throw.
       const outcome = await client.append(folder, rawMessage, flags ?? []);
-      return Boolean(outcome);
+      if (!outcome) {
+        const error = `Draft APPEND to "${folder}" was not confirmed by the server (no result); treating the draft as not saved`;
+        console.error(`[IMAP] ${error}`);
+        return { saved: false, folder, errorCategory: 'append_failed', error };
+      }
+      return { saved: true, folder };
     } catch (err) {
-      console.error(`[IMAP] Failed to append to ${folder}:`, err instanceof Error ? err.message : err);
-      return false;
+      const reason = err instanceof Error ? err.message : String(err);
+      console.error(`[IMAP] Failed to append draft to "${folder}": ${reason}`);
+      // ImapFlow marks tagged command rejections with responseStatus and
+      // executedCommand. Only an APPEND rejection proves APPEND failed;
+      // a later or unidentified command failure can leave the outcome unknown.
+      const response = err as { responseStatus?: unknown; executedCommand?: unknown; serverResponseCode?: unknown };
+      const status = response?.responseStatus;
+      const command = response?.executedCommand;
+      const rejectedAppend = (status === 'NO' || status === 'BAD')
+        && typeof command === 'string' && /^\S+\s+APPEND(?:\s|$)/i.test(command);
+      // The installed ImapFlow raises this local limit before calling exec.
+      const localAppendLimit = response?.serverResponseCode === 'APPENDLIMIT'
+        && status === undefined && command === undefined;
+      const outcomeUnknown = submitted && !rejectedAppend && !localAppendLimit;
+      return {
+        saved: false,
+        folder,
+        errorCategory: 'append_failed',
+        ...(outcomeUnknown?{outcomeUnknown:true}:{}),
+        error: outcomeUnknown
+          ? `Draft APPEND failed after submission to "${folder}": ${reason}. The draft may have been saved; check the folder before retrying.`
+          : `Failed to append draft to "${folder}": ${reason}`,
+      };
     }
   }
 
@@ -2343,7 +2424,18 @@ export class ImapService {
   /**
    * Locate a message by its RFC822 Message-ID across folders and return its
    * current { folder, uid }. Robust to the message having been moved/archived
-   * (IMAP UIDs are folder-relative). Returns found:false if nowhere located.
+   * (IMAP UIDs are folder-relative).
+   *
+   * B3: the result states its coverage explicitly. `found:false` used to
+   * conflate three situations — genuinely searched everywhere without a
+   * match, folder searches that failed (skipped silently), and folders past
+   * the 25-folder cap (silently truncated). `status` now distinguishes
+   * found / not_found (full coverage, no match) / partial (coverage holes),
+   * `complete` summarizes whether every requested folder was really
+   * searched, `foldersFailed` lists per-folder errors and `foldersPending`
+   * lists requested folders that were never searched (cap or early exit).
+   * The exact Message-ID verification is unchanged — server HEADER search
+   * is substring-based, so a candidate only counts on normalized equality.
    */
   async findEmailByMessageId(
     accountId: string,
@@ -2351,29 +2443,39 @@ export class ImapService {
     folders?: string[],
   ): Promise<EmailLocation> {
     const target = this.normalizeMessageId(messageId);
-    if (!target) return { found: false, foldersSearched: [] };
+    if (!target) throw new Error('Message-ID must not be empty');
 
     const MAX_FOLDERS = 25;
     const order = (folders && folders.length > 0
       ? folders
       : await this.resolveFolderSearchOrder(accountId)
-    ).slice(0, MAX_FOLDERS);
+    );
+    const withinCap = order.slice(0, MAX_FOLDERS);
+    const pending = order.slice(MAX_FOLDERS);
 
     const foldersSearched: string[] = [];
-    for (const folder of order) {
-      foldersSearched.push(folder);
+    const foldersFailed: Array<{ folder: string; error: string }> = [];
+    for (let index = 0; index < withinCap.length; index++) {
+      const folder = withinCap[index]!;
       let candidates: EmailMessage[];
       try {
         candidates = await this.searchEmails(accountId, folder, { messageId });
-      } catch {
-        // Unselectable (\Noselect) or vanished folder — skip.
+      } catch (err) {
+        // Unselectable (\Noselect) or vanished folder: the folder was
+        // requested but NOT covered — record it instead of treating the
+        // failure as a completed empty search.
+        foldersFailed.push({ folder, error: err instanceof Error ? err.message : String(err) });
         continue;
       }
+      foldersSearched.push(folder);
       for (const msg of candidates) {
         // HEADER search is substring-matched; reject false-positives.
         if (this.normalizeMessageId(msg.messageId) === target) {
+          const unsearched = [...pending, ...withinCap.slice(index + 1)];
           return {
             found: true,
+            status: 'found',
+            complete: foldersFailed.length === 0 && unsearched.length === 0,
             folder,
             uid: msg.uid,
             messageId: msg.messageId,
@@ -2383,10 +2485,20 @@ export class ImapService {
             flags: msg.flags,
             customKeywords: msg.customKeywords,
             foldersSearched,
+            ...(foldersFailed.length ? { foldersFailed } : {}),
+            ...(unsearched.length ? { foldersPending: unsearched } : {}),
           };
         }
       }
     }
-    return { found: false, foldersSearched };
+    const complete = foldersFailed.length === 0 && pending.length === 0;
+    return {
+      found: false,
+      status: complete ? 'not_found' : 'partial',
+      complete,
+      foldersSearched,
+      ...(foldersFailed.length ? { foldersFailed } : {}),
+      ...(pending.length ? { foldersPending: pending } : {}),
+    };
   }
 }
