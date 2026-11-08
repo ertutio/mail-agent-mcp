@@ -9,7 +9,9 @@ import { AccountManager } from '../services/account-manager.js';
 import { ImapService } from '../services/imap-service.js';
 import { SmtpService } from '../services/smtp-service.js';
 import { resolveMailProxy } from '../utils/mail-proxy.js';
-import { rotateCredential, CredentialGateRejection } from '../credentials/credential-rotation.js';
+import { rotateCredential, CredentialGateRejection, CredentialRollbackError } from '../credentials/credential-rotation.js';
+import { accountRevision } from '../utils/account-revision.js';
+import { withAccountStoreLock, accountStoreDirectory } from '../utils/account-store-lock.js';
 import { emailProviders, getProviderByEmail } from '../providers/email-providers.js';
 import { AccountAuthResolver } from '../credentials/account-auth.js';
 import { createGmailAccessTokenExchange } from '../credentials/gmail-token-exchange.js';
@@ -39,6 +41,10 @@ function stripAccountSecrets<T extends Record<string, any>>(account: T): Omit<T,
   }
   return safe as Omit<T, 'password'>;
 }
+
+// F2: raised when the login verified against an identity that changed
+// mid-flight — the rotation has already restored the previous secret.
+class StaleIdentityError extends Error {}
 
 // F2 diagnostics helpers — fixed guidance crosses the boundary; provider
 // details are reduced to a stage plus a sanitized excerpt.
@@ -83,7 +89,12 @@ function diagnosticsNextSteps(state: {
   proxy: { applied: boolean; source?: string };
 }): string[] {
   const steps: string[] = [];
-  if (state.imap.status === 'ok' && state.smtp.status === 'ok') return ['诊断通过，收发状态正常。'];
+  if (state.imap.status === 'ok' && state.smtp.status === 'ok') {
+    return [
+      '诊断通过，收发状态正常。',
+      ...(state.authKind === 'oauth' ? ['Gmail 授权失效时，使用 mail-agent-enroll gmail-repair 重新授权。'] : []),
+    ];
+  }
   switch (state.imap.stage) {
     case 'authenticate':
       steps.push('登录验证失败：请在邮箱设置中重新生成客户端授权码，然后使用本页的“修复凭据”更新。');
@@ -101,7 +112,7 @@ function diagnosticsNextSteps(state: {
       if (state.imap.status === 'failed') steps.push('登录成功但读取邮箱失败：请稍后重试；持续失败时检查账号的文件夹权限。');
       break;
   }
-  if (state.smtp.status === 'not_configured') steps.push('未配置 SMTP：该账号目前无法发送邮件；可在编辑账号时补充 SMTP 服务器。');
+  if (state.smtp.status === 'failed') steps.push('SMTP 验证失败：发送功能暂不可用；请核对 SMTP 服务器与凭据后重试。');
   if (state.smtp.status === 'failed') steps.push('SMTP 验证失败：发送功能暂不可用；请核对 SMTP 服务器与凭据后重试。');
   if (state.authKind === 'oauth') steps.push('Gmail 授权失效时，使用 mail-agent-enroll gmail-repair 重新授权。');
   if (state.authKind === 'missing') steps.push('账号缺少凭据：请使用“修复凭据”更新，或移除后重新添加。');
@@ -543,18 +554,21 @@ export class WebUIServer {
         diagnostics.imap = { status: 'failed', stage: imapStage, detail: sanitizeDetail(message) };
       }
 
+      // P2: reuse the send service's effective config resolution — a valid
+      // account without an explicit smtp block still has a derivable
+      // endpoint, so diagnostics verify it instead of reporting not_configured.
+      const effectiveSmtp = this.smtpService.resolveEffectiveSmtpConfig(account);
+      const smtpEndpoint = { host: effectiveSmtp.host, port: effectiveSmtp.port };
       let smtpStage: string | undefined;
-      if (account.smtp) {
-        try {
-          const ok = await this.smtpService.verifySmtpConnection(account);
-          diagnostics.smtp = ok ? { status: 'ok' } : { status: 'failed', stage: 'smtp_connect' };
-        } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
-          smtpStage = classifyConnectionStage(message);
-          diagnostics.smtp = { status: 'failed', stage: smtpStage, detail: sanitizeDetail(message) };
-        }
-      } else {
-        diagnostics.smtp = { status: 'not_configured' };
+      try {
+        const ok = await this.smtpService.verifySmtpConnection(account);
+        diagnostics.smtp = ok
+          ? { status: 'ok', ...smtpEndpoint, ...(account.smtp ? {} : { derived: true }) }
+          : { status: 'failed', stage: 'smtp_connect', ...smtpEndpoint, ...(account.smtp ? {} : { derived: true }) };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        smtpStage = classifyConnectionStage(message);
+        diagnostics.smtp = { status: 'failed', stage: smtpStage, ...smtpEndpoint, ...(account.smtp ? {} : { derived: true }), ...(message ? { detail: sanitizeDetail(message) } : {}) };
       }
 
       diagnostics.nextSteps = diagnosticsNextSteps({
@@ -566,10 +580,13 @@ export class WebUIServer {
       res.json(diagnostics);
     });
 
-    // F2: repair entry for password/vault accounts — verify the replacement
-    // credential BEFORE any write (a failing login leaves the stored
-    // credential untouched); vault rotation rides the T17 transaction with
-    // rollback. Gmail re-authorization stays a separate capability (CLI).
+    // F2: repair entry for password/vault accounts, carrying the CLI's T17
+    // transaction semantics (review P1): the vault write and rollback run
+    // under the cross-process account-store lock, the identity gate pins
+    // the account revision at the write boundary, a failed restore is
+    // reported as an inconsistent state instead of "restored", and a
+    // commit whose verification targeted an older identity is rejected.
+    // Gmail re-authorization stays a separate capability (CLI).
     this.app.post('/api/accounts/:id/repair', async (req, res) => {
       const input = z.object({ authorizationCode: z.string().trim().min(1).max(4096) }).strict().safeParse(req.body);
       if (!input.success) {
@@ -591,35 +608,112 @@ export class WebUIServer {
       }
       this.repairBusy = true;
       try {
+        // P2: pin the identity the verification targets — an account edit
+        // landing during the authenticate await must not inherit the
+        // verified secret (the commit re-checks this revision).
+        const expectedRevision = accountRevision(account);
         const candidate = { ...account, password: input.data.authorizationCode };
         const credentialTarget = account.auth?.credentialTarget;
         if (credentialTarget) {
-          // Vault-backed account (QQ / NetEase): rotate through the T17
-          // transaction — verify first, roll back on failure, never leave a
-          // half-written credential behind.
+          // T17 pre-check outside the transaction: a removal or identity
+          // change before the rotation is not a rollback scenario.
+          const recheck = this.accountManager.getAccount(account.id);
+          if (!recheck || recheck.auth?.credentialTarget !== credentialTarget) {
+            throw new CredentialGateRejection('账号在修复开始前被移除或凭据目标变化');
+          }
+          if (accountRevision(recheck) !== expectedRevision) {
+            throw new CredentialGateRejection('账号身份在修复开始前变化');
+          }
           await rotateCredential({
             credentials: this.credentialBackend,
             target: credentialTarget,
             expectedTarget: credentialTarget,
             replacement: input.data.authorizationCode,
-            verify: () => this.imapService.authenticateOnly(candidate),
-            reverify: async () => {
+            verify: async () => {
+              await this.imapService.authenticateOnly(candidate);
+              // T17 is a write-first transaction: the replacement is
+              // already in the vault while the login runs. A concurrent
+              // removal must not leave it behind — undo our own write
+              // (value-owned) under the store lock before gating.
               const live = this.accountManager.getAccount(account.id);
               if (!live || live.auth?.credentialTarget !== credentialTarget) {
-                throw new CredentialGateRejection('账号在修复期间被移除或凭据目标发生变化');
+                await withAccountStoreLock(accountStoreDirectory(), async () => {
+                  const handle = this.credentialBackend.read(credentialTarget);
+                  const current = handle ? handle.read() : undefined;
+                  handle?.dispose();
+                  if (current === input.data.authorizationCode) {
+                    this.credentialBackend.delete(credentialTarget);
+                  }
+                });
+                throw new CredentialGateRejection('账号在验证期间被移除；已撤销本次写入的凭据');
+              }
+              if (accountRevision(live) !== expectedRevision) {
+                // Metadata edited mid-login: the verified secret belongs to
+                // the old identity — a plain error (not a gate) lets the
+                // rotation rollback restore the previous secret.
+                throw new StaleIdentityError('账号身份在验证期间变化');
+              }
+            },
+            // P1: exclusive guard around the identity re-check, the vault
+            // write AND the rollback — same as the CLI repair.
+            writeGuard: (action: () => Promise<void>) => withAccountStoreLock(accountStoreDirectory(), action),
+            reverify: async () => {
+              // Write/rollback boundary: gate only on removal — an existing
+              // account metadata edit must still let the rollback undo
+              // our write so the stale repair never overwrites new state.
+              const live = this.accountManager.getAccount(account.id);
+              if (!live || live.auth?.credentialTarget !== credentialTarget) {
+                throw new CredentialGateRejection('账号在修复期间被移除；保留删除状态');
               }
             },
           });
-        } else {
-          // Local-encrypted account: verify the login BEFORE the update so a
-          // failing credential writes nothing (T16 shape).
-          await this.imapService.authenticateOnly(candidate);
-          const updated = await this.accountManager.updateAccount(account.id, { password: input.data.authorizationCode });
-          res.json({ success: true, accountId: account.id, account: stripAccountSecrets(updated) });
+          res.json({ success: true, accountId: account.id });
           return;
         }
-        res.json({ success: true, accountId: account.id });
+        // Local-encrypted account: verify the login BEFORE the update so a
+        // failing credential writes nothing (T16 shape).
+        await this.imapService.authenticateOnly(candidate);
+        // P2 stale-commit gate: the verified secret belongs to the pinned
+        // identity; a concurrent edit (host/user change) must re-repair.
+        const live = this.accountManager.getAccount(account.id);
+        if (!live) {
+          throw new CredentialGateRejection('账号在验证期间被移除');
+        }
+        if (accountRevision(live) !== expectedRevision) {
+          throw new CredentialGateRejection('账号身份在验证期间变化；请基于新身份重新修复');
+        }
+        // P2 SMTP consistency: when SMTP shares the IMAP identity (its
+        // stored secret equals the IMAP one, as the setup form writes it),
+        // rotate both — the SMTP resolver would otherwise keep answering
+        // with the retired code. Independently configured SMTP secrets
+        // keep their existing binding.
+        const updates: { password: string; smtp?: { host: string; port: number; secure: boolean; user?: string; password: string } } = { password: input.data.authorizationCode };
+        if (live.smtp && account.smtp && live.smtp.password !== undefined
+          && live.smtp.password !== '' && live.smtp.password === account.password) {
+          updates.smtp = { ...live.smtp, password: input.data.authorizationCode };
+        }
+        const updated = await this.accountManager.updateAccount(account.id, updates);
+        res.json({ success: true, accountId: account.id, account: stripAccountSecrets(updated) });
       } catch (error) {
+        if (error instanceof CredentialRollbackError) {
+          // P2 honesty: the restore failed — the backend may hold neither
+          // the old nor the new secret. Never claim "restored".
+          res.status(500).json({
+            success: false,
+            outcomeUnknown: true,
+            error: '凭据验证失败且旧凭据恢复失败：凭据库当前状态可能不一致。请核对凭据库中的实际值，并重新执行修复。',
+          });
+          return;
+        }
+        if (error instanceof StaleIdentityError) {
+          // The rollback already restored the previous secret.
+          res.status(409).json({ success: false, error: '账号身份在验证期间变化，已恢复原凭据；请基于新身份重新修复。' });
+          return;
+        }
+        if (error instanceof CredentialGateRejection) {
+          res.status(409).json({ success: false, error: '账号在修复期间被移除或身份变化，凭据未更新。' });
+          return;
+        }
         res.status(400).json({ success: false, error: '凭据验证失败，原凭据保持不变。请确认已在邮箱设置中开启 IMAP 且授权码正确后再试。' });
       } finally {
         this.repairBusy = false;
