@@ -71,7 +71,8 @@ describe('B2: imap_save_draft stores explicit and default BCC recipients', () =>
     findDraftsFolder: vi.fn(async () => 'Drafts'),
     appendMessage: vi.fn(async (_accountId: string, folder: string, raw: Buffer, flags: string[]) => {
       appended.push({ folder, raw, flags });
-      return true;
+      // B5 contract: the handler reads the structured append result.
+      return { saved: true, folder };
     }),
   };
   const manager: any = {
