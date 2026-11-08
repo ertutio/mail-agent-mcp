@@ -119,11 +119,25 @@ export function savedSearchTools(
       criteria = { ...saved.criteria, limit };
     } else {
       const since = new Date(Date.now() - sinceHours * 3_600_000);
+      // IMAP SINCE filters whole days; the exact hour cutoff is applied below.
       criteria = { since: since.toISOString().slice(0, 10), limit };
     }
     // A digest is a summary: duplicate copies across mailboxes are noise, so
     // dedupe defaults on unless the criteria explicitly disable it.
     const result = await runUnifiedSearch({ ...criteria, dedupe: (criteria as { dedupe?: boolean }).dedupe ?? true } as UnifiedSearchArgs);
+      if (!savedSearch) {
+        // P2: enforce the precise hour window on the returned items and
+        // stats — the IMAP-level date filter is only a superset.
+        const cutoff = Date.now() - sinceHours * 3_600_000;
+        const scoped = ((result as { messages?: Array<{ date?: unknown }> }).messages ?? []).filter(message => {
+          const value = new Date(message.date as unknown as string).getTime();
+          return Number.isFinite(value) && value >= cutoff;
+        });
+        (result as Record<string, unknown>).messages = scoped;
+        (result as Record<string, unknown>).returned = scoped.length;
+        (result as Record<string, unknown>).totalFoundInWindow = scoped.length;
+        (result as Record<string, unknown>).windowStart = new Date(cutoff).toISOString();
+      }
     return json({ success: true, windowHours: savedSearch ? undefined : sinceHours, savedSearch, ...(result as Record<string, unknown>) });
   });
 
@@ -150,6 +164,7 @@ export function savedSearchTools(
     const lookback = Math.min(lookbackDays ?? Math.min(threshold * 2, 90), 365);
     const since = new Date(Date.now() - lookback * 86_400_000).toISOString().slice(0, 10);
 
+    const scanFailures: Array<{ accountName: string; folder: string; error: string }> = [];
     const messages: ReminderMessage[] = [];
     const sentFolders: string[] = [];
     for (const account of accounts) {
@@ -164,17 +179,29 @@ export function savedSearchTools(
           for (const message of found) {
             messages.push({ ...message, accountId: account.id, accountName: account.name, folder });
           }
-        } catch {
-          // A folder that cannot be searched simply contributes nothing; the
-          // response reports which sent folders were included.
+        } catch (error) {
+          // P2: a failed folder search must not silently shrink the scan —
+          // the response reports the hole and marks the result incomplete.
+          scanFailures.push({
+            accountName: account.name,
+            folder,
+            error: error instanceof Error ? error.message : String(error),
+          });
         }
       }
     }
 
-    const identities = accounts.flatMap(account => [account.email, account.user].filter(Boolean) as string[]);
+    const allAccounts = accountManager.getAllAccounts();
+    // P2: identity recognition spans EVERY configured account — accountNames
+    // only limits the scan, so an unscanned own mailbox is never mistaken
+    // for an external replier.
+    const identities = allAccounts.flatMap(account => [account.email, account.user].filter(Boolean) as string[]);
     const reminders = findUnansweredReminders(messages, identities, threshold);
     return json({
       success: true,
+      complete: scanFailures.length === 0,
+      ...(scanFailures.length ? { failures: scanFailures } : {}),
+      ...(scanFailures.length ? { incompleteNote: '部分文件夹搜索失败，结果不完整：受影响的会话可能被高估或遗漏；修复后请重新运行。' } : {}),
       thresholdDays: threshold,
       lookbackDays: lookback,
       scannedAccounts: accounts.map(account => account.name),

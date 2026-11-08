@@ -127,7 +127,7 @@ describe('F5: saved-search tools', () => {
       listFolders: vi.fn(async () => [{ name: 'INBOX', delimiter: '/', attributes: [] }]),
       searchEmailPage: vi.fn(async (id: string) => ({
         messages: [{
-          uid: 1, date: new Date('2026-01-01T02:00:00Z'), subject: 'F5 digest item', from: 's@t', to: [],
+          uid: 1, date: new Date(Date.now() - 3_600_000), subject: 'F5 digest item', from: 's@t', to: [],
           messageId: '<digest@t>', flags: [], customKeywords: [],
         }],
         matched: 1,
@@ -206,5 +206,106 @@ describe('F5: saved-search tools', () => {
     }));
     const result = JSON.parse((await handlers.get('imap_unanswered_reminders')!({ thresholdDays: 3 })).content[0].text);
     expect(result.reminderCount).toBe(0);
+  });
+});
+
+// F5 review regressions.
+describe('F5 review: coverage, identities, hour window, corrupt entries', () => {
+  let dir: string;
+  beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'f5-review-')); });
+  afterEach(() => { rmSync(dir, { recursive: true, force: true }); });
+
+  it('F5-STORE-CORRUPT-ENTRY: a structurally broken entry fails explicitly and keeps the bytes', async () => {
+    const path = join(dir, 'saved-searches.json');
+    const broken = JSON.stringify([{ name: 'broken' }, null]);
+    writeFileSync(path, broken, 'utf8');
+    expect(() => listSavedSearches(dir)).toThrow(/corrupt/i);
+    expect(() => upsertSavedSearch({ name: 'x', criteria: {} }, dir)).toThrow(/corrupt/i);
+    expect(readFileSync(path, 'utf8')).toBe(broken);
+  });
+
+  it('F5-STORE-CORRUPT-CRITERIA: an entry without a criteria object is corrupt, not filtered', async () => {
+    const path = join(dir, 'saved-searches.json');
+    const broken = JSON.stringify([{ name: 'ok', criteria: {} }, { name: 'broken', criteria: 'nope' }]);
+    writeFileSync(path, broken, 'utf8');
+    expect(() => listSavedSearches(dir)).toThrow(/criteria/);
+  });
+
+  it('F5-REMINDERS-SCAN-FAIL: a failed folder search marks the result incomplete with the failure listed', async () => {
+    const handlers = new Map<string, Function>();
+    const accounts = [
+      { id: 'a1', name: 'A1', host: 'imap.a.synth.test', email: 'me@a.synth.test', user: 'me@a.synth.test' },
+    ];
+    const imap = {
+      findSpecialUseFolder: vi.fn(async () => 'Sent'),
+      searchEmails: vi.fn(async (_id: string, folder: string) => {
+        if (folder === 'INBOX') throw new Error('connection dropped');
+        return [message({ accountId: 'a1', folder: 'Sent', uid: 7, from: 'me@a.synth.test', messageId: '<s1@t>', subject: 'Quote', date: new Date(Date.now() - 10 * 86_400_000) })];
+      }),
+    };
+    const manager = { getAllAccounts: () => accounts, resolveAccountId: (id?: string) => id };
+    savedSearchTools(
+      { registerTool: (name: string, _def: unknown, handler: Function) => handlers.set(name, handler) } as any,
+      imap as any, manager as any, {}, { directory: dir },
+    );
+    const result = JSON.parse((await handlers.get('imap_unanswered_reminders')!({ thresholdDays: 3 })).content[0].text);
+    expect(result.success).toBe(true);
+    expect(result.complete).toBe(false);
+    expect(result.failures).toEqual([{ accountName: 'A1', folder: 'INBOX', error: 'connection dropped' }]);
+    expect(result.incompleteNote).toContain('不完整');
+    expect(result.reminderCount).toBe(1); // the Sent-side reminder still surfaces
+  });
+
+  it('F5-REMINDERS-IDENTITIES: an unscanned own identity is never treated as an external replier', async () => {
+    const handlers = new Map<string, Function>();
+    const accounts = [
+      { id: 'a1', name: 'A1', host: 'imap.a.synth.test', email: 'me@a.synth.test', user: 'me@a.synth.test' },
+      { id: 'a2', name: 'A2', host: 'imap.b.synth.test', email: 'other-id@b.synth.test', user: 'other-id@b.synth.test' },
+    ];
+    const imap = {
+      findSpecialUseFolder: vi.fn(async () => 'Sent'),
+      searchEmails: vi.fn(async (id: string, folder: string) => {
+        if (id !== 'a1' || folder !== 'INBOX') return []; // only A1/INBOX is scanned
+        return [
+          message({ accountId: 'a1', folder: 'INBOX', uid: 5, from: 'me@a.synth.test', messageId: '<s1@t>', subject: 'Quote', date: new Date(Date.now() - 10 * 86_400_000) }),
+          message({ accountId: 'a1', folder: 'INBOX', uid: 6, from: 'other-id@b.synth.test', messageId: '<m2@t>', subject: 'Quote', date: new Date(Date.now() - 9 * 86_400_000) }),
+        ];
+      }),
+    };
+    const manager = { getAllAccounts: () => accounts, resolveAccountId: (id?: string) => id };
+    savedSearchTools(
+      { registerTool: (name: string, _def: unknown, handler: Function) => handlers.set(name, handler) } as any,
+      imap as any, manager as any, {}, { directory: dir },
+    );
+    const result = JSON.parse((await handlers.get('imap_unanswered_reminders')!({ thresholdDays: 3, accountNames: ['A1'] })).content[0].text);
+    // A2's identity is OWN even though A2 was not scanned — the mail it
+    // sent must not suppress the reminder.
+    expect(result.reminders.some((r: any) => r.subject === 'Quote')).toBe(true);
+  });
+
+  it('F5-DIGEST-HOUR-WINDOW: a one-hour digest excludes older same-day mail and reports the exact window', async () => {
+    const handlers = new Map<string, Function>();
+    const accounts = [
+      { id: 'a1', name: 'A1', host: 'imap.a.synth.test', email: 'me@a.synth.test', user: 'me@a.synth.test' },
+    ];
+    const imap = {
+      listFolders: vi.fn(async () => [{ name: 'INBOX', delimiter: '/', attributes: [] }]),
+      searchEmailPage: vi.fn(async () => ({
+        messages: [
+          { uid: 1, date: new Date(Date.now() - 30 * 60_000), subject: 'inside', from: 's@t', to: [], messageId: '<in@t>', flags: [], customKeywords: [] },
+          { uid: 2, date: new Date(Date.now() - 6 * 3_600_000), subject: 'older same-day', from: 's@t', to: [], messageId: '<out@t>', flags: [], customKeywords: [] },
+        ],
+        matched: 2,
+      })),
+    };
+    const manager = { getAllAccounts: () => accounts, resolveAccountId: (id?: string) => id };
+    savedSearchTools(
+      { registerTool: (name: string, _def: unknown, handler: Function) => handlers.set(name, handler) } as any,
+      imap as any, manager as any, {}, { directory: dir },
+    );
+    const result = JSON.parse((await handlers.get('imap_mail_digest')!({ sinceHours: 1, limit: 50 })).content[0].text);
+    expect(result.messages.map((m: any) => m.subject)).toEqual(['inside']);
+    expect(result.totalFoundInWindow).toBe(1);
+    expect(typeof result.windowStart).toBe('string');
   });
 });

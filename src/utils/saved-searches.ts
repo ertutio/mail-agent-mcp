@@ -58,7 +58,20 @@ function loadEntries(directory: string): SavedSearch[] {
   try {
     const parsed = JSON.parse(raw) as unknown;
     if (!Array.isArray(parsed)) throw new Error('saved searches store must be a JSON array');
-    return parsed.filter((entry): entry is SavedSearch => !!entry && typeof entry === 'object' && typeof (entry as SavedSearch).name === 'string');
+    for (const entry of parsed) {
+      // F5 review: validate the whole structure — a corrupt entry fails
+      // explicitly (bytes preserved) instead of being silently filtered
+      // out and overwritten by the next upsert.
+      if (!entry || typeof entry !== 'object' || Array.isArray(entry)) throw new Error('saved search entry must be an object');
+      const candidate = entry as Record<string, unknown>;
+      if (typeof candidate.name !== 'string' || !candidate.name.trim() || candidate.name.length > 120) throw new Error('saved search entry name must be a 1-120 character string');
+      if (!candidate.criteria || typeof candidate.criteria !== 'object' || Array.isArray(candidate.criteria)) throw new Error(`saved search "${candidate.name}" has no criteria object`);
+      for (const field of ['digestThresholdHours', 'reminderThresholdDays'] as const) {
+        const value = candidate[field];
+        if (value !== undefined && (!Number.isInteger(value) || (value as number) < 1)) throw new Error(`saved search "${candidate.name}" has an invalid ${field}`);
+      }
+    }
+    return parsed as SavedSearch[];
   } catch (error) {
     // Corrupt store: surface it — the caller must not silently replace the
     // user's saved searches with an empty set.
