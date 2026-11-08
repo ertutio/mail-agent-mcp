@@ -9,6 +9,7 @@ import { folderTools } from './folder-tools.js';
 import { spamTools } from './spam-tools.js';
 import { safeSendTools } from './safe-send-tools.js';
 import { unifiedSearchTools } from './unified-search-tools.js';
+import { savedSearchTools } from './saved-search-tools.js';
 import { guardedDeletion } from './guarded-delete-tools.js';
 
 const BLOCKED_DIRECT_SEND_TOOLS = new Set([
@@ -43,6 +44,11 @@ export const READ_ONLY_TOOLS: readonly string[] = [
   'imap_list_folders',
   'imap_folder_status',
   'imap_get_unread_count',
+  // Saved searches (read; save/delete mutate local config and stay out)
+  'imap_list_saved_searches',
+  'imap_run_saved_search',
+  'imap_mail_digest',
+  'imap_unanswered_reminders',
   // Spam (read / analysis only)
   'imap_check_spam',
   'imap_domain_stats',
@@ -156,6 +162,7 @@ export function registerTools(
   // Register email operation tools
   emailTools(deletion.server, deletion.imap, accountManager, smtpService);
   unifiedSearchTools(target, imapService, accountManager);
+  savedSearchTools(target, imapService, accountManager);
 
   safeSendTools(target, imapService, accountManager, smtpService);
 

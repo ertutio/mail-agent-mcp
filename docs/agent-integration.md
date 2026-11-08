@@ -47,6 +47,7 @@ Full mode exposes 40 tools. `tools/list` is authoritative for JSON Schema; the i
 | Delete | `imap_delete_email`, `imap_bulk_delete`, `imap_bulk_delete_by_search` | Destructive mailbox operations. Use available dry-run/guard inputs where exposed by `tools/list`, show the selection to the user, and require explicit user intent. |
 | Attachment/local file | `imap_upload_file`, `imap_download_attachment` | Upload decodes MCP-provided base64 and writes inside the attachment root. Download reads an attachment and may return it inline or write inside that root. |
 | Draft | `imap_save_draft` | Writes a message to the provider's Drafts folder; it does not send. When the APPEND outcome is unknown (connection dropped after submission) the result sets `outcomeUnknown` and directs you to check the Drafts folder before any retry — saving again could duplicate the draft. |
+| Saved search / scheduler | `imap_save_search`, `imap_list_saved_searches`, `imap_delete_saved_search`, `imap_run_saved_search`, `imap_mail_digest`, `imap_unanswered_reminders` | Save/update/delete named search criteria in the local config directory; run them through the unified-search pipeline. The digest and reminder tools are the entries a HOST scheduler calls — nothing schedules by itself. Metadata only, scoped to the user's stored criteria. |
 | Safe send | `imap_preview_send_email`, `imap_preview_reply_to_email`, `imap_preview_forward_email`, `imap_confirm_send` | Preview materializes and freezes content without SMTP. Confirm with literal `confirmed: true` starts at most one SMTP attempt for that in-memory draft. |
 | Spam read | `imap_check_spam`, `imap_domain_stats`, `imap_list_spam_domains` | Reads messages or local spam-domain state. |
 | Spam write/delete | `imap_delete_spam`, `imap_add_spam_domain`, `imap_remove_spam_domain`, `imap_add_whitelist_domain`, `imap_delete_by_domain` | Changes mailbox messages or local spam-domain state. Deletion requires explicit user intent. |
@@ -113,13 +114,48 @@ Use `imap_search_all_accounts` to search all configured mailboxes in one call. O
 
 Returned `messages` contain metadata and `accountId`, `accountName`, `folder`, `uid`. Full summaries require follow-up reads at those exact locations. Do not mistake equal UIDs across accounts for the same message. Each `accounts` item reports folder coverage and `ok`, `partial`, `failed` or `timeout`. Never summarize a partial search as complete: `totalFound` covers completed UID pages for the current pass, and `truncated` reports a result limit separately. Accounts are processed with at most three workers, a 15-second per-account deadline and a 40-second overall deadline. Queued accounts that cannot run in time are explicitly reported as timeout. No mail mutation is performed.
 
-The tool is part of the 17-tool read-only subset and must be added to explicit allowlists. Full mode now exposes 40 tools.
+The tool is part of the 17-tool read-only subset and must be added to explicit allowlists. Full mode now exposes 46 tools.
 
 On Windows, register additional accounts with `node dist/enroll.js 163`, `126`, `yeah`, or `netease-enterprise`, once per account, using unique names and hidden local authorization-code input. These accounts use Windows Credential Manager, not the legacy AES password store. The enterprise preset is IMAP `imaphz.qiye.163.com:993` and SMTP `smtphz.qiye.163.com:994`, both SSL. Endpoint changes require local re-enrollment. Gmail continues using its existing OAuth enrollment and token-refresh path.
 
 ## Generic provider compatibility
 
 Other IMAP/SMTP providers use the inherited password/app-password path. Build the clone, run `node dist/setup.js --skip-claude --no-open`, open the printed localhost URL, configure IMAP/SMTP, then stop the setup process. Do not expose its port. This path may store a password encrypted in `~/.imap-mcp/accounts.json` beside a local key and is not equivalent to an OS credential vault. Gmail and QQ Mail should use `node dist/enroll.js gmail` or `node dist/enroll.js qq` instead.
+
+## Saved searches and scheduler entries (F5)
+
+Saved searches persist to `saved-searches.json` in the account config directory (`IMAP_MCP_CONFIG_DIR`, default `~/.imap-mcp`) with the same safe-write discipline as the account store: only a missing file initializes, a corrupt file fails explicitly without being overwritten, and updates replace the file atomically.
+
+The server never schedules anything by itself. The user saves criteria once and the HOST calls the entries on its own schedule. A complete daily-digest + weekly-reminder configuration:
+```jsonc
+// One-time setup (tool calls, e.g. from the chat client):
+// imap_save_search {
+//   name: "每日摘要",
+//   query: "报价 OR 合同",            // scope the digest to project mail
+//   accountNames: ["work-mailbox"],   // optional account restriction
+//   dedupe: true,                     // collapse cross-mailbox copies
+//   digestThresholdHours: 24,         // hint for the host schedule
+//   reminderThresholdDays: 3          // unanswered-reply threshold
+// }
+```
+
+```yaml
+# Host scheduler example (cron): the MCP client exposes the tools;
+# the host invokes them on its own clock.
+schedules:
+  daily-digest:
+    cron: "0 9 * * *"            # every morning at 09:00 local time
+    prompt: >-
+      Call imap_mail_digest with savedSearch "每日摘要" and summarize
+      the returned items (subject/from/date/location) for me.
+  weekly-reminders:
+    cron: "0 10 * * 1"           # every Monday at 10:00
+    prompt: >-
+      Call imap_unanswered_reminders with thresholdDays 3 and list the
+      conversations still waiting for a reply.
+```
+
+Reminder rule: a conversation needs a reminder when the user sent mail from any configured identity, the newest own message is older than the threshold, and no one else replied after it. Own follow-ups reset the clock; duplicate outbound copies collapse into one reminder listing every location.
 
 ## Known limitations
 
