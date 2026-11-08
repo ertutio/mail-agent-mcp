@@ -50,7 +50,8 @@ describe('F1: preview exposes the frozen content completely', () => {
     expect(preview.summary.replyTo).toBe('replies@synth.test');
     expect(preview.summary.text).toBe('F1 frozen body');
     expect(preview.summary.html).toBe('<p>F1 frozen body</p>');
-    expect(preview.summary.bodyTruncated).toBeUndefined();
+    expect(preview.summary.textTruncated).toBeUndefined();
+    expect(preview.summary.htmlTruncated).toBeUndefined();
     expect(preview.summary.attachments).toHaveLength(2);
     expect(preview.summary.attachments![0]).toMatchObject({ filename: 'a.bin', contentType: 'application/octet-stream', size: contentA.length });
     expect(preview.summary.attachments![0].sha256).toBe(sha256(contentA));
@@ -65,9 +66,9 @@ describe('F1: preview exposes the frozen content completely', () => {
       accountRevision: '0123456789abcdef',
       composer: { from: 'me@synth.test', to: 'you@synth.test', subject: 'long', text: longBody },
     });
-    expect(preview.summary.bodyTruncated).toBe(true);
-    expect(preview.summary.bodyTotalChars).toBe(longBody.length);
-    expect(preview.summary.bodyShownChars).toBe(preview.summary.text!.length);
+    expect(preview.summary.textTruncated).toBe(true);
+    expect(preview.summary.textTotalChars).toBe(longBody.length);
+    expect(preview.summary.textShownChars).toBe(preview.summary.text!.length);
     expect(preview.summary.text!.length).toBeLessThan(longBody.length);
     expect(longBody.startsWith(preview.summary.text!)).toBe(true);
   });
@@ -114,7 +115,7 @@ describe('F1: preview exposes the frozen content completely', () => {
     // The frozen body the preview displayed is the submitted body's prefix;
     // the full body matches the frozen total length.
     expect(longBody.startsWith(preview.summary.text)).toBe(true);
-    expect(preview.summary.bodyTotalChars).toBe(sent.text.length);
+    expect(preview.summary.textTotalChars).toBe(sent.text.length);
     expect(preview.summary.to).toEqual([sent.to].flat());
     expect(preview.summary.cc).toEqual([sent.cc].flat());
     expect(preview.summary.bcc).toEqual([sent.bcc].flat());
@@ -128,3 +129,36 @@ describe('F1: preview exposes the frozen content completely', () => {
 class ImapServiceStub {
   getAccountRevision(): string { return '0123456789abcdef'; }
 }
+
+describe('F1 review: per-view truncation ranges', () => {
+  const svc = () => new SafeSendService({ executor: () => ({}), clock: () => 1_000, ttlMs: 60_000, id: () => 'draft-f1r' });
+
+  it('F1-REVIEW-SHORT-TEXT-LONG-HTML: the HTML range never borrows the text metadata', () => {
+    const longHtml = '<p>' + 'x'.repeat(3000) + '</p>'; // 3006 chars
+    const preview = svc().preview({
+      accountId: 'acc-1', accountRevision: '0123456789abcdef',
+      composer: { from: 'me@synth.test', to: 'you@synth.test', subject: 'mixed', text: 'OK', html: longHtml },
+    });
+    expect(preview.summary.text).toBe('OK');
+    expect(preview.summary.textTruncated).toBeUndefined();
+    expect(preview.summary.htmlTruncated).toBe(true);
+    expect(preview.summary.htmlShownChars).toBe(2000);
+    expect(preview.summary.htmlTotalChars).toBe(longHtml.length);
+    expect(longHtml.startsWith(preview.summary.html!)).toBe(true);
+  });
+
+  it('F1-REVIEW-BOTH-LONG: both views carry independent full ranges', () => {
+    const longText = 'y'.repeat(2500);
+    const longHtml = '<p>' + 'z'.repeat(3100) + '</p>';
+    const preview = svc().preview({
+      accountId: 'acc-1', accountRevision: '0123456789abcdef',
+      composer: { from: 'me@synth.test', to: 'you@synth.test', subject: 'both', text: longText, html: longHtml },
+    });
+    expect(preview.summary.textTruncated).toBe(true);
+    expect(preview.summary.textShownChars).toBe(2000);
+    expect(preview.summary.textTotalChars).toBe(2500);
+    expect(preview.summary.htmlTruncated).toBe(true);
+    expect(preview.summary.htmlShownChars).toBe(2000);
+    expect(preview.summary.htmlTotalChars).toBe(longHtml.length);
+  });
+});

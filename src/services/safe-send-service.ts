@@ -50,10 +50,13 @@ export interface SafeSendPreview {
     /** F1: the frozen body (display view; truncated with an explicit range when over the cap). */
     readonly text?: string;
     readonly html?: string;
-    /** F1: present when the displayed body view was cut. */
-    readonly bodyTruncated?: boolean;
-    readonly bodyShownChars?: number;
-    readonly bodyTotalChars?: number;
+    /** F1 (review): each view carries its own truncation range. */
+    readonly textTruncated?: boolean;
+    readonly textShownChars?: number;
+    readonly textTotalChars?: number;
+    readonly htmlTruncated?: boolean;
+    readonly htmlShownChars?: number;
+    readonly htmlTotalChars?: number;
     /** F1: per-attachment name, type, size and content digest of the frozen bytes. */
     readonly attachments?: readonly {
       readonly filename: string;
@@ -104,35 +107,28 @@ function summaryList(value: string | string[] | undefined): readonly string[] {
 // gets submitted; the preview shows a prefix and marks the cut range.
 const PREVIEW_BODY_DISPLAY_CHARS = 2000;
 
-function displayBody(value: string | undefined): {
-  text?: string; html?: string; bodyTruncated?: boolean; bodyShownChars?: number; bodyTotalChars?: number;
-} {
+function displayBody(value: string | undefined): { view?: string; truncated?: boolean; shownChars?: number; totalChars?: number } {
   if (value === undefined) return {};
-  if (value.length <= PREVIEW_BODY_DISPLAY_CHARS) return { text: value };
+  if (value.length <= PREVIEW_BODY_DISPLAY_CHARS) return { view: value };
   return {
-    text: value.slice(0, PREVIEW_BODY_DISPLAY_CHARS),
-    bodyTruncated: true,
-    bodyShownChars: PREVIEW_BODY_DISPLAY_CHARS,
-    bodyTotalChars: value.length,
+    view: value.slice(0, PREVIEW_BODY_DISPLAY_CHARS),
+    truncated: true,
+    shownChars: PREVIEW_BODY_DISPLAY_CHARS,
+    totalChars: value.length,
   };
 }
 
 function buildCompletenessView(composer: Readonly<EmailComposer>): {
   bcc?: readonly string[]; replyTo?: string; text?: string; html?: string;
-  bodyTruncated?: boolean; bodyShownChars?: number; bodyTotalChars?: number;
+  textTruncated?: boolean; textShownChars?: number; textTotalChars?: number;
+  htmlTruncated?: boolean; htmlShownChars?: number; htmlTotalChars?: number;
   attachments?: readonly { filename: string; contentType?: string; size: number; sha256: string }[];
 } {
   const bcc = summaryList(composer.bcc);
   const textView = displayBody(composer.text);
   const htmlView = displayBody(composer.html);
-  // The truncation metadata describes the shown/total range of the cut body
-  // view — the text body when present, otherwise the HTML view.
-  const truncated = textView.bodyTruncated || htmlView.bodyTruncated;
-  const metadata = truncated ? {
-    bodyTruncated: true,
-    bodyShownChars: textView.bodyShownChars ?? textView.text?.length ?? htmlView.bodyShownChars!,
-    bodyTotalChars: textView.bodyTotalChars ?? htmlView.bodyTotalChars!,
-  } : {};
+  // F1 (review): each body view carries its own truncation range — the
+  // text metadata never describes the HTML view or vice versa.
   const attachments = composer.attachments?.length
     ? Object.freeze(composer.attachments.map((a) => {
       const content = Buffer.isBuffer(a.content) ? a.content : Buffer.from(a.content ?? '');
@@ -147,9 +143,8 @@ function buildCompletenessView(composer: Readonly<EmailComposer>): {
   return {
     ...(bcc.length ? { bcc } : {}),
     ...(composer.replyTo !== undefined ? { replyTo: composer.replyTo } : {}),
-    ...textView,
-    ...(composer.html !== undefined ? { html: htmlView.text } : {}),
-    ...metadata,
+    ...(composer.text !== undefined ? { text: textView.view, ...(textView.truncated ? { textTruncated: true, textShownChars: textView.shownChars, textTotalChars: textView.totalChars } : {}) } : {}),
+    ...(composer.html !== undefined ? { html: htmlView.view, ...(htmlView.truncated ? { htmlTruncated: true, htmlShownChars: htmlView.shownChars, htmlTotalChars: htmlView.totalChars } : {}) } : {}),
     ...(attachments ? { attachments } : {}),
   };
 }
