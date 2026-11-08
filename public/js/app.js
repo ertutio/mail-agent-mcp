@@ -53,6 +53,7 @@ function updateProvider() {
   $('gmail-fields').hidden = !gmail;
   $('password-fields').hidden = gmail;
   $('generic-fields').hidden = !other;
+  $('smtp-advanced').hidden = !other || !$('smtp-host').value.trim();
   $('enterprise-hint').hidden = provider !== 'netease-enterprise';
   $('authorization-code').required = !gmail;
   $('imap-host').required = other;
@@ -61,6 +62,28 @@ function updateProvider() {
   $('privacy-text').textContent = other ? '密码加密保存在本机账号目录，不发送给聊天模型。' : '凭据保存在本机系统凭据库，不发送给聊天模型。';
   $('password-hint').textContent = other ? '填写服务商提供的应用密码或客户端授权码。' : '在邮箱设置中开启 IMAP，并生成客户端授权码。';
   $('submit-button').disabled = !secureAvailable && !other;
+}
+
+// F3: the generic-mailbox form exposes IMAP/SMTP ports and encryption.
+// Validation mirrors the backend candidate rules (integer 1..65535); the
+// encryption selects fill the standard port only when the field still
+// holds a standard or empty value, so a provider-specific port survives.
+const STANDARD_PORTS = { imap: [993, 143], smtp: [465, 587] };
+function parsePortField(input, label) {
+  const raw = String(input.value).trim();
+  if (!/^\d{1,5}$/.test(raw)) throw new Error(label + '端口必须是 1-65535 的整数。');
+  const port = Number(raw);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error(label + '端口必须是 1-65535 的整数。');
+  return port;
+}
+function syncStandardPort(kind) {
+  const portInput = $(kind + '-port');
+  const current = Number(portInput.value);
+  if (portInput.value.trim() === '' || STANDARD_PORTS[kind].includes(current)) {
+    portInput.value = $(kind + '-encryption').value === 'tls'
+      ? (kind === 'imap' ? 993 : 465)
+      : (kind === 'imap' ? 143 : 587);
+  }
 }
 async function viewAccounts() {
   const accounts = await setupFetch('/api/accounts');
@@ -161,8 +184,15 @@ async function submit(event) {
       const host = $('imap-host').value.trim();
       const smtpHost = $('smtp-host').value.trim();
       if (!host || /[\s/:]/.test(host) || (smtpHost && /[\s/:]/.test(smtpHost))) throw new Error('请填写服务器主机名，不包含协议、路径或端口。');
-      const account = { ...identity, name: identity.name || identity.email, host, port: 993, tls: true, password: $('authorization-code').value,
-        ...(smtpHost ? { smtp: { host: smtpHost, port: 465, secure: true, user: identity.email, password: $('authorization-code').value } } : {}) };
+      // F3: ports and encryption come from the form; the integer 1..65535
+      // rule mirrors the backend candidate validation.
+      const imapPort = parsePortField($('imap-port'), 'IMAP');
+      const imapTls = $('imap-encryption').value === 'tls';
+      const account = { ...identity, name: identity.name || identity.email, host, port: imapPort, tls: imapTls, password: $('authorization-code').value };
+      if (smtpHost) {
+        const smtpPort = parsePortField($('smtp-port'), 'SMTP');
+        account.smtp = { host: smtpHost, port: smtpPort, secure: $('smtp-encryption').value === 'tls', user: identity.email, password: $('authorization-code').value };
+      }
       const test = await setupFetch('/api/test-connection', { method: 'POST', body: JSON.stringify({ ...account, user: identity.email }) });
       if (!test.success) throw new Error('连接验证失败，请检查服务器和应用密码。');
       await setupFetch('/api/accounts', { method: 'POST', body: JSON.stringify(account) });
@@ -193,6 +223,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('cancel-remove').addEventListener('click', () => { if (!busy) { $('remove-dialog').close(); selectedRemoval = undefined; } });
   $('remove-dialog').addEventListener('cancel', event => { if (busy) event.preventDefault(); else selectedRemoval = undefined; });
   $('provider').addEventListener('change', updateProvider);
+  $('smtp-host').addEventListener('input', () => { $('smtp-advanced').hidden = !$('smtp-host').value.trim(); });
+  $('imap-encryption').addEventListener('change', () => syncStandardPort('imap'));
+  $('smtp-encryption').addEventListener('change', () => syncStandardPort('smtp'));
   $('enrollment-form').addEventListener('submit', submit);
   $('client-id').addEventListener('input', manualOAuthChanged);
   $('client-secret').addEventListener('input', manualOAuthChanged);

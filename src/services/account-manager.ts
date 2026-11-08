@@ -42,6 +42,13 @@ export function assertProviderAccountAuth(
   );
 }
 
+/**
+ * F3: a candidate for addAccount. port and tls are optional at the
+ * boundary because validateAccountCandidate owns their defaults (993/143,
+ * tls true) - mirroring the validation contract instead of forcing the
+ * HTTP caller to pre-fill values it may not know.
+ */
+export type AccountCandidateInput = Omit<ImapAccount, 'id' | 'port' | 'tls'> & Partial<Pick<ImapAccount, 'port' | 'tls'>>;
 export class AccountManager {
   private configPath: string;
   private configDir: string;
@@ -88,10 +95,10 @@ export class AccountManager {
     }
   }
 
-  async addAccount(account: Omit<ImapAccount, 'id'>): Promise<ImapAccount> {
+  async addAccount(account: AccountCandidateInput): Promise<ImapAccount> {
     return this.withStoreTransaction(()=>this.addAccountUnlocked(account));
   }
-  private async addAccountUnlocked(account: Omit<ImapAccount,'id'>):Promise<ImapAccount>{
+  private async addAccountUnlocked(account: AccountCandidateInput):Promise<ImapAccount>{
     // Pure candidate validation (T07 / BUG-SEC-06): schema, types, credential
     // placeholder rules and unknown-field rejection happen before any store
     // access, so an invalid candidate can never reach accounts.json. The

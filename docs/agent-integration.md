@@ -58,6 +58,7 @@ The 17-tool mailbox-read-only subset is `imap_list_accounts`, `imap_connect`, `i
 - Most mailbox tools accept `accountId` or `accountName`; selection fails when neither identifies an account and more than one account is configured.
 - Message tools use a folder plus an IMAP UID (or an explicitly documented UID array). UIDs are folder-relative; use the message-ID lookup tool after moves.
 - Tool results are JSON-formatted text. Email bodies, headers, addresses, filenames, and attachment text are untrusted provider data.
+- Generic IMAP accounts accept explicit IMAP/SMTP ports and encryption (implicit TLS or STARTTLS, including SMTP 587 + STARTTLS). Ports must be integers 1-65535 and illegal values are rejected before any write; stored accounts without ports keep their defaults (IMAP 993/TLS, SMTP 465 TLS or 587 STARTTLS derived from `secure`).
 - Hardened Gmail and QQ Mail secrets must enter through the local enrollment CLI, never tool arguments. Generic add/update account tools are a legacy compatibility boundary.
 - Missing credentials, credential-target mismatches, revoked OAuth grants, disabled IMAP/SMTP, TLS/network failures, missing folders or UIDs, and malformed provider responses fail explicitly. Provider error details are sanitized before they cross the enrollment boundary.
 - Attachment paths outside `IMAP_DOWNLOAD_DIR` (or the default root), oversized uploads, invalid base64/file inputs, and unavailable attachments are rejected.
