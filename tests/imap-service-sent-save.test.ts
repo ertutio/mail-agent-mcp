@@ -138,18 +138,24 @@ describe('T30: APPEND result contract', () => {
     expect(result.saved).toBe(true);
   });
 
-  it('T30-DRAFT-FALSE: appendMessage returns false when the server says no', async () => {
+  it('T30-DRAFT-FALSE: appendMessage reports a definite failure when the server says no', async () => {
     append.mockResolvedValueOnce(false);
-    await expect(service.appendMessage('acc1', 'Drafts', 'raw', ['\Draft'])).resolves.toBe(false);
+    const result = await service.appendMessage('acc1', 'Drafts', 'raw', ['\Draft']);
+    expect(result.saved).toBe(false);
+    expect(result.outcomeUnknown).toBeUndefined();
+    expect(result.errorCategory).toBe('append_failed');
   });
 
-  it('T30-DRAFT-UNDEFINED: appendMessage returns false when the outcome is unconfirmed', async () => {
+  it('T30-DRAFT-UNDEFINED: appendMessage reports a definite failure when the outcome is unconfirmed', async () => {
     append.mockResolvedValueOnce(undefined);
-    await expect(service.appendMessage('acc1', 'Drafts', 'raw', ['\Draft'])).resolves.toBe(false);
+    const result = await service.appendMessage('acc1', 'Drafts', 'raw', ['\Draft']);
+    expect(result.saved).toBe(false);
+    expect(result.outcomeUnknown).toBeUndefined();
   });
 
-  it('T30-DRAFT-CONFIRMED: a real append result still returns true', async () => {
+  it('T30-DRAFT-CONFIRMED: a real append result still reports saved', async () => {
     append.mockResolvedValueOnce({ uid: 12, uidValidity: 1n });
-    await expect(service.appendMessage('acc1', 'Drafts', 'raw', ['\Draft'])).resolves.toBe(true);
+    const result = await service.appendMessage('acc1', 'Drafts', 'raw', ['\Draft']);
+    expect(result.saved).toBe(true);
   });
 });

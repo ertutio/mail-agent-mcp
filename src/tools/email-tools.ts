@@ -1085,7 +1085,7 @@ export function emailTools(
 
   // Save draft tool — composes a message and appends it to the Drafts folder with the \Draft flag
   server.registerTool('imap_save_draft', {
-    description: 'Save an email as a draft in the Drafts folder (no send). Takes the same fields as imap_send_email (including account defaultBcc when configured).',
+    description: 'Save an email as a draft in the Drafts folder (no send). Takes the same fields as imap_send_email (including account defaultBcc when configured; the stored MIME keeps Bcc so the recipients survive reopening). If the APPEND outcome is unknown the result sets outcomeUnknown and asks you to check the Drafts folder first — saving again without checking could duplicate the draft.',
     inputSchema: {
       ...accountSelector,
       to: addressList('to', 'Recipient email address(es). Either an array of addresses or a single comma-separated string.').optional(),
@@ -1130,20 +1130,36 @@ export function emailTools(
     }
 
     const appended = await imapService.appendMessage(accountId, draftsFolder, rawMessage, ['\\Draft', '\\Seen']);
-    if (!appended) {
-      throw new Error(`Failed to append draft to folder "${draftsFolder}"`);
+    if (appended.saved) {
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            success: true,
+            folder: draftsFolder,
+            message: `Draft saved to "${draftsFolder}"`,
+          }, null, 2)
+        }]
+      };
     }
-
-    return {
-      content: [{
-        type: 'text',
-        text: JSON.stringify({
-          success: true,
-          folder: draftsFolder,
-          message: `Draft saved to "${draftsFolder}"`,
-        }, null, 2)
-      }]
-    };
+    // B5: the APPEND was submitted but its result was never confirmed — the
+    // server may already hold the draft. Report the indeterminate state and
+    // let the user check the folder; retrying is their explicit decision.
+    if (appended.outcomeUnknown) {
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            success: false,
+            outcomeUnknown: true,
+            folder: draftsFolder,
+            error: appended.error,
+            message: `Draft APPEND outcome is unknown; the draft may have been saved to "${draftsFolder}". Check the folder before retrying — saving again could duplicate the draft.`,
+          }, null, 2)
+        }]
+      };
+    }
+    throw new Error(appended.error ?? `Failed to append draft to folder "${draftsFolder}"`);
   });
 
   // Reply to email tool

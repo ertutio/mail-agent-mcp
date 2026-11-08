@@ -2,7 +2,7 @@ import {MAX_MESSAGE_BYTES,MAX_BODY_CHARS,MAX_ATTACHMENT_COUNT,boundedSource,asse
 import {extractPdfPreview} from '../utils/pdf-preview.js';
 import { ImapFlow } from 'imapflow';
 import { simpleParser } from 'mailparser';
-import { ImapAccount, EmailMessage, EmailContent, EmailBodyFormat, EmailLocation, Folder, SearchCriteria, SearchOptions, SentSaveResult, DEFAULT_BODY_MAX_LENGTH, DEFAULT_BODY_FORMAT, isSystemFlag } from '../types/index.js';
+import { ImapAccount, EmailMessage, EmailContent, EmailBodyFormat, EmailLocation, Folder, SearchCriteria, SearchOptions, SentSaveResult, DraftAppendResult, DEFAULT_BODY_MAX_LENGTH, DEFAULT_BODY_FORMAT, isSystemFlag } from '../types/index.js';
 import type { AccountManager } from './account-manager.js';
 import { htmlToMarkdown, normalizeWhitespace } from './html-to-markdown.js';
 import { assertCredentialsResolved } from '../utils/env-credentials.js';
@@ -2075,17 +2075,89 @@ export class ImapService {
     ];
     return this.findSpecialUseFolder(accountId, '\\Drafts', draftsFolderNames);
   }
-
-  async appendMessage(accountId: string, folder: string, rawMessage: Buffer | string, flags?: string[]): Promise<boolean> {
-    const client = await this.ensureConnected(accountId);
+  /**
+   * Append a raw message to an arbitrary folder (drafts).
+   *
+   * B5: the result distinguishes a confirmed save from a definite failure
+   * and from an UNKNOWN outcome. A disconnect or timeout after the APPEND
+   * was submitted leaves the server state indeterminate — the draft may
+   * already exist, so the caller must not invite a blind retry. A server
+   * NO (imapflow resolves false) or missing result stays a definite
+   * failure, and a failure before submission (connect/auth) is definite
+   * too.
+   */
+  async appendMessage(
+    accountId: string,
+    folder: string,
+    rawMessage: Buffer | string,
+    flags?: string[],
+    timeoutMs = 10_000,
+  ): Promise<DraftAppendResult> {
+    const deadlineMs = Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 10_000;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let cancelled=false;
+    let appendStarted=false;
     try {
-      // T30 / N-03: false (server NO) or undefined (preconditions unconfirmed)
-      // resolves instead of throwing — only a confirmed append is success.
+      return await Promise.race([
+        this.appendMessageInternal(accountId, folder, rawMessage, flags, ()=>cancelled, ()=>{appendStarted=true;}),
+        new Promise<DraftAppendResult>((resolve) => {
+          timer = setTimeout(() => {
+            cancelled=true;
+            resolve({
+              saved: false,
+              folder,
+              errorCategory: 'timeout',
+              ...(appendStarted?{outcomeUnknown:true}:{}),
+              error: appendStarted ? `Draft APPEND timed out after starting; the draft may have been saved to "${folder}". Check the folder before retrying.` : 'Draft APPEND timed out',
+            });
+          }, deadlineMs);
+        }),
+      ]);
+    } finally {
+      cancelled=true;
+      if (timer !== undefined) clearTimeout(timer);
+    }
+  }
+
+  private async appendMessageInternal(
+    accountId: string,
+    folder: string,
+    rawMessage: Buffer | string,
+    flags: string[] | undefined,
+    isCancelled:()=>boolean,
+    onAppendStarted:()=>void,
+  ): Promise<DraftAppendResult> {
+    let submitted = false;
+    try {
+      const client = await this.ensureConnected(accountId);
+      if(isCancelled())return {saved:false,folder,errorCategory:'timeout',error:'Draft APPEND timed out'};
+      onAppendStarted();
+      submitted = true;
+      // T30 / N-03: imapflow resolves append with false (server NO) or
+      // undefined (preconditions unmet) instead of throwing — only a
+      // confirmed append is success.
       const outcome = await client.append(folder, rawMessage, flags ?? []);
-      return Boolean(outcome);
+      if (!outcome) {
+        const error = `Draft APPEND to "${folder}" was not confirmed by the server (no result); treating the draft as not saved`;
+        console.error(`[IMAP] ${error}`);
+        return { saved: false, folder, errorCategory: 'append_failed', error };
+      }
+      return { saved: true, folder };
     } catch (err) {
-      console.error(`[IMAP] Failed to append to ${folder}:`, err instanceof Error ? err.message : err);
-      return false;
+      const reason = err instanceof Error ? err.message : String(err);
+      console.error(`[IMAP] Failed to append draft to "${folder}": ${reason}`);
+      // B5: any failure AFTER the append was submitted leaves the outcome
+      // unknown — the bytes may have reached the server and the draft may
+      // exist. Failures before submission are definite.
+      return {
+        saved: false,
+        folder,
+        errorCategory: 'append_failed',
+        ...(submitted?{outcomeUnknown:true}:{}),
+        error: submitted
+          ? `Draft APPEND failed after submission to "${folder}": ${reason}. The draft may have been saved; check the folder before retrying.`
+          : `Failed to append draft to "${folder}": ${reason}`,
+      };
     }
   }
 
