@@ -1310,7 +1310,10 @@ export function emailTools(
       'Locate an email by its RFC822 Message-ID across folders and return its current { folder, uid } plus basic envelope. ' +
       'Robust to the message having been moved or archived (IMAP UIDs are folder-relative). ' +
       'Pass the returned folder + uid to imap_reply_to_email or imap_get_email. ' +
-      'Without `folders`, searches Gmail \\All Mail when present, else INBOX → Archive → Sent → remaining folders.',
+      'Without `folders`, searches Gmail \\All Mail when present, else INBOX → Archive → Sent → remaining folders. ' +
+      'Coverage is explicit: status found/not_found/partial, complete flags full coverage, foldersFailed lists per-folder ' +
+      'errors, foldersPending lists requested folders past the 25-folder cap or after the match — a false result with ' +
+      'complete:false was NOT searched everywhere.',
     inputSchema: {
       accountId: z.string().describe('Account ID'),
       messageId: z.string().describe('RFC822 Message-ID, with or without angle brackets'),

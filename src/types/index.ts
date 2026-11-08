@@ -174,6 +174,14 @@ export interface EmailLocation {
   flags?: string[];
   customKeywords?: string[];
   foldersSearched?: string[];
+  /** B3: explicit outcome — found | not_found (full coverage, no match) | partial (coverage holes). */
+  status?: 'found' | 'not_found' | 'partial';
+  /** B3: true only when every requested folder was searched without an error. */
+  complete?: boolean;
+  /** B3: folders whose search failed; they were requested but NOT covered. */
+  foldersFailed?: Array<{ folder: string; error: string }>;
+  /** B3: requested folders never searched — past the folder cap or after the match. */
+  foldersPending?: string[];
 }
 
 export interface ConnectionPool {

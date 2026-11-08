@@ -2343,7 +2343,18 @@ export class ImapService {
   /**
    * Locate a message by its RFC822 Message-ID across folders and return its
    * current { folder, uid }. Robust to the message having been moved/archived
-   * (IMAP UIDs are folder-relative). Returns found:false if nowhere located.
+   * (IMAP UIDs are folder-relative).
+   *
+   * B3: the result states its coverage explicitly. `found:false` used to
+   * conflate three situations — genuinely searched everywhere without a
+   * match, folder searches that failed (skipped silently), and folders past
+   * the 25-folder cap (silently truncated). `status` now distinguishes
+   * found / not_found (full coverage, no match) / partial (coverage holes),
+   * `complete` summarizes whether every requested folder was really
+   * searched, `foldersFailed` lists per-folder errors and `foldersPending`
+   * lists requested folders that were never searched (cap or early exit).
+   * The exact Message-ID verification is unchanged — server HEADER search
+   * is substring-based, so a candidate only counts on normalized equality.
    */
   async findEmailByMessageId(
     accountId: string,
@@ -2351,29 +2362,39 @@ export class ImapService {
     folders?: string[],
   ): Promise<EmailLocation> {
     const target = this.normalizeMessageId(messageId);
-    if (!target) return { found: false, foldersSearched: [] };
+    if (!target) return { found: false, status: 'not_found', complete: true, foldersSearched: [] };
 
     const MAX_FOLDERS = 25;
     const order = (folders && folders.length > 0
       ? folders
       : await this.resolveFolderSearchOrder(accountId)
-    ).slice(0, MAX_FOLDERS);
+    );
+    const withinCap = order.slice(0, MAX_FOLDERS);
+    const pending = order.slice(MAX_FOLDERS);
 
     const foldersSearched: string[] = [];
-    for (const folder of order) {
-      foldersSearched.push(folder);
+    const foldersFailed: Array<{ folder: string; error: string }> = [];
+    for (let index = 0; index < withinCap.length; index++) {
+      const folder = withinCap[index]!;
       let candidates: EmailMessage[];
       try {
         candidates = await this.searchEmails(accountId, folder, { messageId });
-      } catch {
-        // Unselectable (\Noselect) or vanished folder — skip.
+      } catch (err) {
+        // Unselectable (\Noselect) or vanished folder: the folder was
+        // requested but NOT covered — record it instead of treating the
+        // failure as a completed empty search.
+        foldersFailed.push({ folder, error: err instanceof Error ? err.message : String(err) });
         continue;
       }
+      foldersSearched.push(folder);
       for (const msg of candidates) {
         // HEADER search is substring-matched; reject false-positives.
         if (this.normalizeMessageId(msg.messageId) === target) {
+          const unsearched = [...pending, ...withinCap.slice(index + 1)];
           return {
             found: true,
+            status: 'found',
+            complete: foldersFailed.length === 0 && unsearched.length === 0,
             folder,
             uid: msg.uid,
             messageId: msg.messageId,
@@ -2383,10 +2404,20 @@ export class ImapService {
             flags: msg.flags,
             customKeywords: msg.customKeywords,
             foldersSearched,
+            ...(foldersFailed.length ? { foldersFailed } : {}),
+            ...(unsearched.length ? { foldersPending: unsearched } : {}),
           };
         }
       }
     }
-    return { found: false, foldersSearched };
+    const complete = foldersFailed.length === 0 && pending.length === 0;
+    return {
+      found: false,
+      status: complete ? 'not_found' : 'partial',
+      complete,
+      foldersSearched,
+      ...(foldersFailed.length ? { foldersFailed } : {}),
+      ...(pending.length ? { foldersPending: pending } : {}),
+    };
   }
 }
