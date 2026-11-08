@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import type { EmailAttachment, EmailComposer, EmailDeliveryReceipt } from '../types/index.js';
 import {MAX_BODY_CHARS,MAX_ATTACHMENT_COUNT} from '../utils/mail-resource-limits.js';
 import { composerRecipients, deliveryReceipt, normalizeAddressList } from '../utils/mail-compose.js';
@@ -43,6 +43,24 @@ export interface SafeSendPreview {
     readonly bccCount: number;
     readonly subject: string;
     readonly attachmentNames: readonly string[];
+    /** F1: the full Bcc list — the preview is the sender's confirmation surface. */
+    readonly bcc?: readonly string[];
+    /** F1: the frozen Reply-To the confirmed send will use. */
+    readonly replyTo?: string;
+    /** F1: the frozen body (display view; truncated with an explicit range when over the cap). */
+    readonly text?: string;
+    readonly html?: string;
+    /** F1: present when the displayed body view was cut. */
+    readonly bodyTruncated?: boolean;
+    readonly bodyShownChars?: number;
+    readonly bodyTotalChars?: number;
+    /** F1: per-attachment name, type, size and content digest of the frozen bytes. */
+    readonly attachments?: readonly {
+      readonly filename: string;
+      readonly contentType?: string;
+      readonly size: number;
+      readonly sha256: string;
+    }[];
   };
 }
 
@@ -80,6 +98,60 @@ function copyList(value: string | string[] | undefined): string | string[] | und
 function summaryList(value: string | string[] | undefined): readonly string[] {
   if (value === undefined) return Object.freeze([]);
   return Object.freeze(Array.isArray(value) ? [...value] : [value]);
+}
+
+// F1: display cap for the preview body view — the frozen body itself is what
+// gets submitted; the preview shows a prefix and marks the cut range.
+const PREVIEW_BODY_DISPLAY_CHARS = 2000;
+
+function displayBody(value: string | undefined): {
+  text?: string; html?: string; bodyTruncated?: boolean; bodyShownChars?: number; bodyTotalChars?: number;
+} {
+  if (value === undefined) return {};
+  if (value.length <= PREVIEW_BODY_DISPLAY_CHARS) return { text: value };
+  return {
+    text: value.slice(0, PREVIEW_BODY_DISPLAY_CHARS),
+    bodyTruncated: true,
+    bodyShownChars: PREVIEW_BODY_DISPLAY_CHARS,
+    bodyTotalChars: value.length,
+  };
+}
+
+function buildCompletenessView(composer: Readonly<EmailComposer>): {
+  bcc?: readonly string[]; replyTo?: string; text?: string; html?: string;
+  bodyTruncated?: boolean; bodyShownChars?: number; bodyTotalChars?: number;
+  attachments?: readonly { filename: string; contentType?: string; size: number; sha256: string }[];
+} {
+  const bcc = summaryList(composer.bcc);
+  const textView = displayBody(composer.text);
+  const htmlView = displayBody(composer.html);
+  // The truncation metadata describes the shown/total range of the cut body
+  // view — the text body when present, otherwise the HTML view.
+  const truncated = textView.bodyTruncated || htmlView.bodyTruncated;
+  const metadata = truncated ? {
+    bodyTruncated: true,
+    bodyShownChars: textView.bodyShownChars ?? textView.text?.length ?? htmlView.bodyShownChars!,
+    bodyTotalChars: textView.bodyTotalChars ?? htmlView.bodyTotalChars!,
+  } : {};
+  const attachments = composer.attachments?.length
+    ? Object.freeze(composer.attachments.map((a) => {
+      const content = Buffer.isBuffer(a.content) ? a.content : Buffer.from(a.content ?? '');
+      return Object.freeze({
+        filename: a.filename,
+        ...(a.contentType !== undefined ? { contentType: a.contentType } : {}),
+        size: content.length,
+        sha256: createHash('sha256').update(content).digest('hex'),
+      });
+    }))
+    : undefined;
+  return {
+    ...(bcc.length ? { bcc } : {}),
+    ...(composer.replyTo !== undefined ? { replyTo: composer.replyTo } : {}),
+    ...textView,
+    ...(composer.html !== undefined ? { html: htmlView.text } : {}),
+    ...metadata,
+    ...(attachments ? { attachments } : {}),
+  };
 }
 
 function copyAttachment(attachment: EmailAttachment): EmailAttachment {
@@ -174,6 +246,10 @@ export class SafeSendService {
       bccCount: summaryList(payload.composer.bcc).length,
       subject: payload.composer.subject,
       attachmentNames: Object.freeze((payload.composer.attachments ?? []).map((a) => a.filename)),
+      // F1: the confirmation surface shows the frozen content the send will
+      // submit — full recipient lists (including Bcc), Reply-To, the actual
+      // body (display view marked when truncated) and attachment digests.
+      ...buildCompletenessView(payload.composer),
     });
     return Object.freeze({ draftId, expiresAt, summary });
   }
