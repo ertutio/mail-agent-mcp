@@ -170,13 +170,21 @@ export function savedSearchTools(
     const sentFolders: string[] = [];
     for (const account of accounts) {
       const folders = new Set<string>(['INBOX']);
-      const sent = account.sentFolder
-        ?? await imap.findSpecialUseFolder(account.id, '\\Sent', ['Sent', 'Sent Items', 'Sent Messages', 'INBOX.Sent'])
-        ?? '';
-      if (sent) { folders.add(sent); sentFolders.push(`${account.name}:${sent}`); }
-        else {
-          // R7: a mailbox without a discoverable Sent folder is a coverage
-          // hole — outbound mail there is invisible to the reminder scan.
+        let sent: string | undefined;
+        try {
+          sent = account.sentFolder
+            ?? await imap.findSpecialUseFolder(account.id, '\\Sent', ['Sent', 'Sent Items', 'Sent Messages', 'INBOX.Sent'])
+            ?? '';
+        } catch (error) {
+          // R7: a discovery failure is a coverage hole — the INBOX scan
+          // continues but the response reports the failed phase.
+          sentMissing.push({
+            accountName: account.name,
+            reason: `Sent 文件夹发现失败：${error instanceof Error ? error.message : String(error)}` + '；该账号的发件不计入本扫描。',
+          });
+        }
+        if (sent) { folders.add(sent); sentFolders.push(`${account.name}:${sent}`); }
+        else if (!sentMissing.some(m => m.accountName === account.name)) {
           sentMissing.push({ accountName: account.name, reason: '未发现 Sent 文件夹（无 SPECIAL-USE 标记且未配置 sentFolder）；该账号的发件不计入本扫描。' });
         }
       for (const folder of folders) {

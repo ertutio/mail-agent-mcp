@@ -488,6 +488,86 @@ describe('F5-R7: missing Sent folder is a coverage hole', () => {
     expect(result.reminderCount).toBe(1);
   });
 
+
+  it('F5-R7-DISCOVERY-FAIL: findSpecialUseFolder throwing marks coverage incomplete without crashing', async () => {
+    const handlers = new Map<string, Function>();
+    const accounts = [
+      { id: 'a1', name: 'A1', host: 'imap.a.synth.test', email: 'me@a.synth.test', user: 'me@a.synth.test' },
+    ];
+    const imap = {
+      findSpecialUseFolder: vi.fn(async () => { throw new Error('LIST connection reset'); }),
+      searchEmails: vi.fn(async (_id: string, folder: string) => {
+        if (folder === 'INBOX') return [r5Message({ accountId: 'a1', folder: 'INBOX', uid: 9, from: 'me@a.synth.test', messageId: '<s9@t>', subject: 'No Sent Discovery', date: new Date(Date.now() - 10 * 86_400_000) })];
+        return [];
+      }),
+    };
+    const manager = { getAllAccounts: () => accounts, resolveAccountId: (id?: string) => id };
+    savedSearchTools(
+      { registerTool: (name: string, _def: unknown, handler: Function) => handlers.set(name, handler) } as any,
+      imap as any, manager as any, {}, {},
+    );
+    const result = JSON.parse((await handlers.get('imap_unanswered_reminders')!({ thresholdDays: 3 })).content[0].text);
+    expect(result.success).toBe(true);
+    expect(result.complete).toBe(false);
+    expect(result.missingSent).toEqual([{ accountName: 'A1', reason: expect.stringContaining('LIST connection reset') }]);
+    expect(result.incompleteNote).toContain('不完整');
+    // The INBOX scan still ran and produced its reminder.
+    expect(result.reminderCount).toBe(1);
+  });
+
+  it('F5-R7-MULTI-ACCOUNT: previous account results survive a later account discovery failure', async () => {
+    const handlers = new Map<string, Function>();
+    const accounts = [
+      { id: 'a1', name: 'A1', host: 'imap.a.synth.test', email: 'me@a.synth.test', user: 'me@a.synth.test' },
+      { id: 'a2', name: 'A2', host: 'imap.b.synth.test', email: 'me@b.synth.test', user: 'me@b.synth.test' },
+    ];
+    const imap = {
+      findSpecialUseFolder: vi.fn(async (id: string) => {
+        if (id === 'a2') throw new Error('a2 connection refused');
+        return 'Sent';
+      }),
+      searchEmails: vi.fn(async (id: string, folder: string) => {
+        if (id === 'a1' && folder === 'Sent') {
+          return [r5Message({ accountId: 'a1', folder: 'Sent', uid: 7, from: 'me@a.synth.test', messageId: '<s1@t>', subject: 'Quote', date: new Date(Date.now() - 10 * 86_400_000) })];
+        }
+        return [];
+      }),
+    };
+    const manager = { getAllAccounts: () => accounts, resolveAccountId: (id?: string) => id };
+    savedSearchTools(
+      { registerTool: (name: string, _def: unknown, handler: Function) => handlers.set(name, handler) } as any,
+      imap as any, manager as any, {}, {},
+    );
+    const result = JSON.parse((await handlers.get('imap_unanswered_reminders')!({ thresholdDays: 3 })).content[0].text);
+    expect(result.complete).toBe(false);
+    expect(result.missingSent.some((m: any) => m.accountName === 'A2')).toBe(true);
+    // A1's reminder still surfaces despite A2's discovery failure.
+    expect(result.reminderCount).toBe(1);
+  });
+
+  it('F5-R7-CONFIGURED-SENT-FAIL: a configured sentFolder search failure is a scan failure', async () => {
+    const handlers = new Map<string, Function>();
+    const accounts = [
+      { id: 'a1', name: 'A1', host: 'imap.a.synth.test', email: 'me@a.synth.test', user: 'me@a.synth.test', sentFolder: 'Sent' },
+    ];
+    const imap = {
+      findSpecialUseFolder: vi.fn(async () => { throw new Error('should not be called'); }),
+      searchEmails: vi.fn(async (_id: string, folder: string) => {
+        if (folder === 'Sent') throw new Error('search failed on Sent');
+        return [];
+      }),
+    };
+    const manager = { getAllAccounts: () => accounts, resolveAccountId: (id?: string) => id };
+    savedSearchTools(
+      { registerTool: (name: string, _def: unknown, handler: Function) => handlers.set(name, handler) } as any,
+      imap as any, manager as any, {}, {},
+    );
+    const result = JSON.parse((await handlers.get('imap_unanswered_reminders')!({ thresholdDays: 3 })).content[0].text);
+    expect(result.complete).toBe(false);
+    expect(result.failures).toEqual([{ accountName: 'A1', folder: 'Sent', error: 'search failed on Sent' }]);
+    expect(result.missingSent).toBeUndefined(); // the folder WAS discovered, only the search failed
+  });
+
   it('F5-R7-SENT-FOUND: normal success stays complete', async () => {
     const handlers = new Map<string, Function>();
     const accounts = [
@@ -505,5 +585,120 @@ describe('F5-R7: missing Sent folder is a coverage hole', () => {
     const result = JSON.parse((await handlers.get('imap_unanswered_reminders')!({ thresholdDays: 3 })).content[0].text);
     expect(result.complete).toBe(true);
     expect(result.missingSent).toBeUndefined();
+  });
+});
+
+// F5 review round 3 / R5-test: Sent root mail + INBOX References-only external
+// reply through the REAL registered handler and REAL ImapService.searchEmails,
+// only the IMAP server is mocked. Asserts the FETCH includes thread headers
+// and that the reply correctly closes the reminder. Control case: removing
+// the References header produces a reminder (captures association regression).
+describe('F5-R5-test: Sent root + References-only reply through the real chain', () => {
+  const imapflowHarness = (sentMessages: any[], inboxMessages: any[]) => {
+    const svc = new ImapService();
+    let currentFolder = '';
+    const fetchQueries: any[] = [];
+    const client = {
+      usable: true,
+      mailbox: { uidValidity: 111n, uidNext: 100 },
+      getMailboxLock: vi.fn(async (name: string) => { currentFolder = name; return { release: vi.fn() }; }),
+      search: vi.fn(async (query: any) => {
+        const source = currentFolder === 'Sent' ? sentMessages : inboxMessages;
+        return source.map(m => m.uid);
+      }),
+      fetch: vi.fn((uids: any, query: any, _opts: any) => {
+        fetchQueries.push({ folder: currentFolder, query: { ...query } });
+        const source = currentFolder === 'Sent' ? sentMessages : inboxMessages;
+        const items = source.filter(m => (Array.isArray(uids) ? uids : [uids]).includes(m.uid));
+        return {
+          [Symbol.asyncIterator]: () => {
+            let i = 0;
+            return { next: async () => (i < items.length ? { done: false as const, value: items[i++] } : { done: true as const, value: undefined }) };
+          },
+        };
+      }),
+    };
+    vi.spyOn(svc as any, 'ensureConnected').mockResolvedValue(client);
+    return { svc, client, fetchQueries };
+  };
+
+  const sentRoot = {
+    uid: 1,
+    internalDate: new Date(Date.now() - 10 * 86_400_000),
+    envelope: { subject: 'Quote', messageId: '<s1@t>', from: [{ address: 'me@a.synth.test' }], to: [{ address: 'them@synth.test' }] },
+    flags: new Set<string>(['\\Seen', '\\Draft']),
+  };
+  const inboxReplyWithRefs = {
+    uid: 7,
+    internalDate: new Date(Date.now() - 2 * 86_400_000),
+    envelope: { subject: 'Re: Quote', messageId: '<re@t>', inReplyTo: '<s1@t>', from: [{ address: 'them@synth.test' }], to: [{ address: 'me@a.synth.test' }] },
+    flags: new Set<string>(),
+    headers: 'References: <s1@t>\r\nIn-Reply-To: <s1@t>\r\n',
+  };
+  const inboxReplyNoRefs = {
+    uid: 7,
+    internalDate: new Date(Date.now() - 2 * 86_400_000),
+    envelope: { subject: 'Re: Quote', messageId: '<re@t>', from: [{ address: 'them@synth.test' }], to: [{ address: 'me@a.synth.test' }] },
+    flags: new Set<string>(),
+    headers: '',
+  };
+
+  it('F5-R5-TEST-WITH-REFS: Sent root + References-only reply through real handler and real searchEmails — reminder closed, FETCH carries headers', async () => {
+    const { svc, fetchQueries } = imapflowHarness([sentRoot], [inboxReplyWithRefs]);
+    const imap = {
+      findSpecialUseFolder: vi.fn(async () => 'Sent'),
+      searchEmails: vi.fn(async (id: string, folder: string, criteria: any, options: any) => {
+        void criteria; void folder; void id;
+        return svc.searchEmails(id, folder, criteria, options);
+      }),
+    };
+    const manager = { getAllAccounts: () => [{ id: 'a1', name: 'A1', host: 'imap.a.synth.test', email: 'me@a.synth.test', user: 'me@a.synth.test' }], resolveAccountId: (id?: string) => id };
+    const handlers = new Map<string, Function>();
+    savedSearchTools(
+      { registerTool: (name: string, _def: unknown, handler: Function) => handlers.set(name, handler) } as any,
+      imap as any, manager as any, {}, {},
+    );
+    const dir = mkdtempSync(join(tmpdir(), 'f5-r5t-'));
+    process.env.IMAP_MCP_CONFIG_DIR = dir;
+    try {
+      const result = JSON.parse((await handlers.get('imap_unanswered_reminders')!({ thresholdDays: 3 })).content[0].text);
+      // The References-only reply closes the thread — no reminder needed.
+      expect(result.reminderCount).toBe(0);
+      // The real FETCH request includes the header block for thread correlation.
+      const headerFetch = fetchQueries.find(q => q.query.headers === true);
+      expect(headerFetch).toBeDefined();
+      expect(headerFetch.folder).toBe('INBOX');
+    } finally {
+      delete process.env.IMAP_MCP_CONFIG_DIR;
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('F5-R5-TEST-NO-REFS: removing the References header produces a reminder (association regression)', async () => {
+    const { svc } = imapflowHarness([sentRoot], [inboxReplyNoRefs]);
+    const imap = {
+      findSpecialUseFolder: vi.fn(async () => 'Sent'),
+      searchEmails: vi.fn(async (id: string, folder: string, criteria: any, options: any) => {
+        void criteria; void folder; void id;
+        return svc.searchEmails(id, folder, criteria, options);
+      }),
+    };
+    const manager = { getAllAccounts: () => [{ id: 'a1', name: 'A1', host: 'imap.a.synth.test', email: 'me@a.synth.test', user: 'me@a.synth.test' }], resolveAccountId: (id?: string) => id };
+    const handlers = new Map<string, Function>();
+    savedSearchTools(
+      { registerTool: (name: string, _def: unknown, handler: Function) => handlers.set(name, handler) } as any,
+      imap as any, manager as any, {}, {},
+    );
+    const dir = mkdtempSync(join(tmpdir(), 'f5-r5t-'));
+    process.env.IMAP_MCP_CONFIG_DIR = dir;
+    try {
+      const result = JSON.parse((await handlers.get('imap_unanswered_reminders')!({ thresholdDays: 3 })).content[0].text);
+      // Without References, the reply is unlinked — the reminder surfaces.
+      expect(result.reminderCount).toBe(1);
+      expect(result.reminders[0]).toMatchObject({ subject: 'Quote' });
+    } finally {
+      delete process.env.IMAP_MCP_CONFIG_DIR;
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
