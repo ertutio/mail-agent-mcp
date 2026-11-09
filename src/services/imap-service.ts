@@ -623,6 +623,7 @@ export class ImapService {
   ): Promise<EmailMessage[]> {
     const client = await this.ensureConnected(accountId);
     const includeBody = options?.includeBody === true;
+    const threadHeaders = options?.includeThreadHeaders === true;
     const bodyMaxLength = options?.bodyMaxLength ?? DEFAULT_BODY_MAX_LENGTH;
 
     let lock;
@@ -647,6 +648,7 @@ export class ImapService {
         flags: true,
         internalDate: true,
         ...(includeBody ? { source: boundedSource, size: true } : {}),
+        ...(threadHeaders ? { headers: true } : {}),
       };
 
       const messages: EmailMessage[] = [];
@@ -661,6 +663,7 @@ export class ImapService {
           subject: msg.envelope?.subject || '',
           messageId: msg.envelope?.messageId || '',
           inReplyTo: msg.envelope?.inReplyTo,
+          ...(threadHeaders && msg.headers ? { references: parseRawHeaders(msg.headers)['references'] } : {}),
           flags,
           customKeywords: flags.filter(f => !isSystemFlag(f)),
         };

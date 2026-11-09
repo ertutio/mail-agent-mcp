@@ -165,6 +165,7 @@ export function savedSearchTools(
     const since = new Date(Date.now() - lookback * 86_400_000).toISOString().slice(0, 10);
 
     const scanFailures: Array<{ accountName: string; folder: string; error: string }> = [];
+    const sentMissing: Array<{ accountName: string; reason: string }> = [];
     const messages: ReminderMessage[] = [];
     const sentFolders: string[] = [];
     for (const account of accounts) {
@@ -173,9 +174,14 @@ export function savedSearchTools(
         ?? await imap.findSpecialUseFolder(account.id, '\\Sent', ['Sent', 'Sent Items', 'Sent Messages', 'INBOX.Sent'])
         ?? '';
       if (sent) { folders.add(sent); sentFolders.push(`${account.name}:${sent}`); }
+        else {
+          // R7: a mailbox without a discoverable Sent folder is a coverage
+          // hole — outbound mail there is invisible to the reminder scan.
+          sentMissing.push({ accountName: account.name, reason: '未发现 Sent 文件夹（无 SPECIAL-USE 标记且未配置 sentFolder）；该账号的发件不计入本扫描。' });
+        }
       for (const folder of folders) {
         try {
-          const found = await imap.searchEmails(account.id, folder, { since: new Date(since) });
+          const found = await imap.searchEmails(account.id, folder, { since: new Date(since) }, { includeThreadHeaders: true });
           for (const message of found) {
             messages.push({ ...message, accountId: account.id, accountName: account.name, folder });
           }
@@ -199,9 +205,10 @@ export function savedSearchTools(
     const reminders = findUnansweredReminders(messages, identities, threshold);
     return json({
       success: true,
-      complete: scanFailures.length === 0,
+      complete: scanFailures.length === 0 && sentMissing.length === 0,
       ...(scanFailures.length ? { failures: scanFailures } : {}),
-      ...(scanFailures.length ? { incompleteNote: '部分文件夹搜索失败，结果不完整：受影响的会话可能被高估或遗漏；修复后请重新运行。' } : {}),
+      ...(sentMissing.length ? { missingSent: sentMissing } : {}),
+      ...(scanFailures.length || sentMissing.length ? { incompleteNote: '部分文件夹搜索失败或未发现 Sent 文件夹，结果不完整：受影响的会话可能被高估或遗漏；修复后请重新运行。' } : {}),
       thresholdDays: threshold,
       lookbackDays: lookback,
       scannedAccounts: accounts.map(account => account.name),

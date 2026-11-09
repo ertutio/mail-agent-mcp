@@ -7,6 +7,7 @@ import {
 } from '../src/utils/saved-searches.js';
 import { findUnansweredReminders, type ReminderMessage } from '../src/utils/mail-reminders.js';
 import { savedSearchTools } from '../src/tools/saved-search-tools.js';
+import { ImapService } from '../src/services/imap-service.js';
 
 // F5: saved searches persist in the local config directory with the T31
 // write discipline; the scheduler entries (digest, unanswered reminders)
@@ -307,5 +308,134 @@ describe('F5 review: coverage, identities, hour window, corrupt entries', () => 
     expect(result.messages.map((m: any) => m.subject)).toEqual(['inside']);
     expect(result.totalFoundInWindow).toBe(1);
     expect(typeof result.windowStart).toBe('string');
+  });
+});
+// F5 review round 2: R5 real-chain References, R6 criteria members, R7 Sent coverage.
+
+const r5Message = (overrides: Record<string, unknown>) => ({
+  accountId: 'a1', accountName: 'A1', folder: 'INBOX', uid: 1,
+  date: new Date('2026-01-01T00:00:00Z'), subject: 'F5-R5', flags: [], customKeywords: [],
+  ...overrides,
+});
+
+describe('F5-R5: real read chain delivers References into the reminder scan', () => {
+  it('F5-R5-REFERENCES-REPLY: a References-only external reply closes the reminder', async () => {
+    const svc = new ImapService();
+    vi.spyOn(svc as any, 'ensureConnected').mockResolvedValue({
+      usable: true,
+      getMailboxLock: vi.fn(async () => ({ release: vi.fn() })),
+      search: vi.fn(async () => [7]),
+      fetch: vi.fn(() => ({
+        [Symbol.asyncIterator]: () => {
+          let used = false;
+          return {
+            next: async () => {
+              if (used) return { done: true as const };
+              used = true;
+              return { done: false as const, value: {
+                uid: 7,
+                internalDate: new Date(Date.now() - 2 * 86_400_000),
+                envelope: { subject: 'F5-R5', messageId: '<re@t>', from: [{ address: 'them@synth.test' }], to: [] },
+                flags: new Set<string>(),
+                headers: 'References: <s1@t>\r\n',
+              } };
+            },
+          };
+        },
+      })),
+    });
+    const dir = mkdtempSync(join(tmpdir(), 'f5-r5-'));
+    process.env.IMAP_MCP_CONFIG_DIR = dir;
+    try {
+      // R5: the reminders scan delegates to the REAL searchEmails with the
+      // thread-header flag — References-only replies must be visible.
+      const imap = {
+        findSpecialUseFolder: vi.fn(async () => 'Sent'),
+        searchEmails: vi.fn(async (id: string, folder: string, criteria: any, options: any) => {
+          void criteria; void folder;
+          return svc.searchEmails(id, folder, criteria, options);
+        }),
+      };
+      const manager = { getAllAccounts: () => [{ id: 'a1', name: 'A1', host: 'imap.a.synth.test', email: 'me@a.synth.test', user: 'me@a.synth.test' }], resolveAccountId: (id?: string) => id };
+      const handlers = new Map<string, Function>();
+      savedSearchTools(
+        { registerTool: (name: string, _def: unknown, handler: Function) => handlers.set(name, handler) } as any,
+        imap as any, manager as any, {}, {},
+      );
+      const result = JSON.parse((await handlers.get('imap_unanswered_reminders')!({ thresholdDays: 3 })).content[0].text);
+      // The References-only reply from them@synth.test closes the thread.
+      expect(result.reminderCount).toBe(0);
+      expect(result.complete).toBe(true);
+    } finally {
+      delete process.env.IMAP_MCP_CONFIG_DIR;
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('F5-R6: persisted criteria member validation', () => {
+  let dir: string;
+  beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'f5-r6-')); });
+  afterEach(() => { rmSync(dir, { recursive: true, force: true }); });
+  const cases: Array<{ label: string; criteria: Record<string, unknown> }> = [
+    { label: 'accountNames is a string', criteria: { accountNames: 'A1' } },
+    { label: 'seen is a string', criteria: { seen: 'yes' } },
+    { label: 'limit out of range', criteria: { limit: 500 } },
+    { label: 'since not a real date', criteria: { since: '2026-02-30' } },
+    { label: 'unknown member', criteria: { sneaky: true } },
+  ];
+  for (const { label, criteria } of cases) {
+    it(`F5-R6-${label.replace(/ /g, '-')}: list/upsert/get/delete fail explicitly and bytes stay`, () => {
+      const path = join(dir, 'saved-searches.json');
+      const broken = JSON.stringify([{ name: 'ok', criteria: { query: 'x' } }, { name: 'bad', criteria }]);
+      writeFileSync(path, broken, 'utf8');
+      expect(() => listSavedSearches(dir)).toThrow(/criteria/);
+      expect(() => upsertSavedSearch({ name: 'x', criteria: {} }, dir)).toThrow(/criteria/);
+      expect(() => getSavedSearch('ok', dir)).toThrow(/criteria/);
+      expect(() => deleteSavedSearch('ok', dir)).toThrow(/criteria/);
+      expect(readFileSync(path, 'utf8')).toBe(broken);
+    });
+  }
+});
+
+describe('F5-R7: missing Sent folder is a coverage hole', () => {
+  it('F5-R7-SENT-MISSING: no Sent folder marks the result incomplete with the reason', async () => {
+    const handlers = new Map<string, Function>();
+    const accounts = [
+      { id: 'a1', name: 'A1', host: 'imap.a.synth.test', email: 'me@a.synth.test', user: 'me@a.synth.test' },
+    ];
+    const imap = {
+      findSpecialUseFolder: vi.fn(async () => undefined),
+      searchEmails: vi.fn(async () => [r5Message({ accountId: 'a1', folder: 'INBOX', uid: 9, from: 'me@a.synth.test', messageId: '<s9@t>', subject: 'No Sent', date: new Date(Date.now() - 10 * 86_400_000) })]),
+    };
+    const manager = { getAllAccounts: () => accounts, resolveAccountId: (id?: string) => id };
+    savedSearchTools(
+      { registerTool: (name: string, _def: unknown, handler: Function) => handlers.set(name, handler) } as any,
+      imap as any, manager as any, {}, {},
+    );
+    const result = JSON.parse((await handlers.get('imap_unanswered_reminders')!({ thresholdDays: 3 })).content[0].text);
+    expect(result.complete).toBe(false);
+    expect(result.missingSent).toEqual([{ accountName: 'A1', reason: expect.stringContaining('Sent') }]);
+    expect(result.incompleteNote).toContain('不完整');
+    expect(result.reminderCount).toBe(1);
+  });
+
+  it('F5-R7-SENT-FOUND: normal success stays complete', async () => {
+    const handlers = new Map<string, Function>();
+    const accounts = [
+      { id: 'a1', name: 'A1', host: 'imap.a.synth.test', email: 'me@a.synth.test', user: 'me@a.synth.test' },
+    ];
+    const imap = {
+      findSpecialUseFolder: vi.fn(async () => 'Sent'),
+      searchEmails: vi.fn(async () => []),
+    };
+    const manager = { getAllAccounts: () => accounts, resolveAccountId: (id?: string) => id };
+    savedSearchTools(
+      { registerTool: (name: string, _def: unknown, handler: Function) => handlers.set(name, handler) } as any,
+      imap as any, manager as any, {}, {},
+    );
+    const result = JSON.parse((await handlers.get('imap_unanswered_reminders')!({ thresholdDays: 3 })).content[0].text);
+    expect(result.complete).toBe(true);
+    expect(result.missingSent).toBeUndefined();
   });
 });

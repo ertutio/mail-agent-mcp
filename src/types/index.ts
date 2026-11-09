@@ -164,6 +164,10 @@ export interface SearchOptions {
   /** When true, also fetch the RFC822 source for each matched UID, parse it
    * with mailparser, and attach body fields to each returned `EmailMessage`.
    * Defaults to false to preserve the existing lightweight-header behavior. */
+  /** F5: also fetch the raw header block and project the References header
+   * (In-Reply-To already comes from the envelope). Needed by consumers that
+   * correlate conversations across mailboxes. */
+  includeThreadHeaders?: boolean;
   includeBody?: boolean;
   /** Body rendering mode when `includeBody` is true. Mirrors `imap_get_email`'s
    * `bodyFormat` parameter. Defaults to 'markdown' so a single raw HTML part

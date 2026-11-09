@@ -1,6 +1,30 @@
 import { readFileSync, writeFileSync, renameSync, unlinkSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { accountStoreDirectory } from './account-store-lock.js';
+import { parseSearchDateBound } from './search-input.js';
+
+/** R6: persisted criteria contract — mirrors the imap_save_search schema.
+ * Dates follow the shared calendar rules (strict YYYY-MM-DD). */
+const SAVED_CRITERIA_SPEC: Record<string, { kind: string; max?: number }> = {
+  accountNames: { kind: 'string[]' },
+  query: { kind: 'string', max: 2000 },
+  from: { kind: 'string', max: 2000 },
+  to: { kind: 'string', max: 2000 },
+  subject: { kind: 'string', max: 2000 },
+  since: { kind: 'date' },
+  before: { kind: 'date' },
+  seen: { kind: 'boolean' },
+  flagged: { kind: 'boolean' },
+  limit: { kind: 'int', max: 200 },
+  searchAllFolders: { kind: 'boolean' },
+  folder: { kind: 'string', max: 500 },
+  includeTrash: { kind: 'boolean' },
+  includeSpam: { kind: 'boolean' },
+  includeDrafts: { kind: 'boolean' },
+  dedupe: { kind: 'boolean' },
+  groupByConversation: { kind: 'boolean' },
+};
+
 
 /**
  * F5: persisted saved searches, following the local config conventions —
@@ -66,6 +90,30 @@ function loadEntries(directory: string): SavedSearch[] {
       const candidate = entry as Record<string, unknown>;
       if (typeof candidate.name !== 'string' || !candidate.name.trim() || candidate.name.length > 120) throw new Error('saved search entry name must be a 1-120 character string');
       if (!candidate.criteria || typeof candidate.criteria !== 'object' || Array.isArray(candidate.criteria)) throw new Error(`saved search "${candidate.name}" has no criteria object`);
+      // R6: every criteria member is validated — types, ranges and dates —
+      // so a corrupted entry fails here instead of silently rewriting the
+      // store on the next upsert.
+      const criteria = candidate.criteria as Record<string, unknown>;
+      for (const key of Object.keys(criteria)) {
+        if (!(key in SAVED_CRITERIA_SPEC)) throw new Error(`saved search "${candidate.name}" criteria has an unknown member "${key}"`);
+      }
+      const spec = SAVED_CRITERIA_SPEC as Record<string, { kind: string; max?: number }>;
+      for (const [key, rule] of Object.entries(spec)) {
+        const value = criteria[key];
+        if (value === undefined) continue;
+        if (rule.kind === 'string[]') {
+          if (!Array.isArray(value) || value.some(v => typeof v !== 'string' || !v.trim())) throw new Error(`saved search "${candidate.name}" criteria.${key} must be an array of non-empty strings`);
+        } else if (rule.kind === 'string') {
+          if (typeof value !== 'string' || !value.trim() || value.length > (rule.max ?? 2000)) throw new Error(`saved search "${candidate.name}" criteria.${key} must be a 1-${rule.max ?? 2000} character string`);
+        } else if (rule.kind === 'boolean') {
+          if (typeof value !== 'boolean') throw new Error(`saved search "${candidate.name}" criteria.${key} must be a boolean`);
+        } else if (rule.kind === 'date') {
+          if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new Error(`saved search "${candidate.name}" criteria.${key} must be a YYYY-MM-DD date`);
+          try { parseSearchDateBound(value); } catch (cause) { throw new Error(`saved search "${candidate.name}" criteria.${key} is not a valid calendar date: ${(cause as Error).message}`); }
+        } else if (rule.kind === 'int') {
+          if (!Number.isInteger(value) || (value as number) < 1 || (value as number) > (rule.max ?? 200)) throw new Error(`saved search "${candidate.name}" criteria.${key} must be an integer 1-${rule.max ?? 200}`);
+        }
+      }
       for (const field of ['digestThresholdHours', 'reminderThresholdDays'] as const) {
         const value = candidate[field];
         if (value !== undefined && (!Number.isInteger(value) || (value as number) < 1)) throw new Error(`saved search "${candidate.name}" has an invalid ${field}`);
