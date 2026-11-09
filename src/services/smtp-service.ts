@@ -296,17 +296,24 @@ export class SmtpService {
     }
   }
 
-  async verifySmtpConnection(account: ImapAccount): Promise<boolean> {
+  // R3: the detailed result keeps the real failure message so diagnostics
+  // can classify the stage (connect / authenticate / tls / proxy). The
+  // boolean wrapper stays for existing callers.
+  async verifySmtpConnectionDetailed(account: ImapAccount): Promise<{ ok: boolean; error?: string }> {
     let transporter: Transporter | undefined;
     try {
       // createTransporter already verifies the newly resolved credentials.
       transporter = await this.createTransporter(account);
-      return true;
+      return { ok: true };
     } catch (error) {
-      return false;
+      return { ok: false, error: error instanceof Error ? error.message : String(error) };
     } finally {
       if (transporter) this.releaseTransporter(account.id, transporter);
     }
+  }
+
+  async verifySmtpConnection(account: ImapAccount): Promise<boolean> {
+    return (await this.verifySmtpConnectionDetailed(account)).ok;
   }
 
   disconnect(accountId: string): void {

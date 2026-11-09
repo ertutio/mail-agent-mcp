@@ -8,6 +8,7 @@ import { accountForPersistence, assertCredentialTarget } from '../credentials/ac
 import type { CredentialBackend } from '../credentials/credential-backend.js';
 import {AsyncLocalStorage} from 'node:async_hooks';
 import {withAccountStoreLock, accountStoreDirectory} from '../utils/account-store-lock.js';
+import { accountRevision } from '../utils/account-revision.js';
 import {validateAccountCandidate, type AccountCandidate} from '../utils/account-candidate.js';
 
 
@@ -41,6 +42,11 @@ export function assertProviderAccountAuth(
       : 'QQ Mail password fallback is disabled. Run node dist/enroll.js qq in a trusted local terminal.',
   );
 }
+
+/** R2: raised inside the store transaction when the account revision no
+ * longer matches the one the caller verified against — the update is
+ * rejected before any write. */
+export class AccountRevisionMismatchError extends Error {}
 
 export class AccountManager {
   private configPath: string;
@@ -205,13 +211,19 @@ export class AccountManager {
     }
   }
 
-  async updateAccount(id: string, updates: Partial<Omit<ImapAccount, 'id'>>): Promise<ImapAccount> {
-    return this.withStoreTransaction(()=>this.updateAccountUnlocked(id,updates));
+  async updateAccount(id: string, updates: Partial<Omit<ImapAccount, 'id'>>, options?: { expectedRevision?: string }): Promise<ImapAccount> {
+    return this.withStoreTransaction(()=>this.updateAccountUnlocked(id,updates,options));
   }
-  private async updateAccountUnlocked(id:string,updates:Partial<Omit<ImapAccount,'id'>>):Promise<ImapAccount>{
+  private async updateAccountUnlocked(id:string,updates:Partial<Omit<ImapAccount,'id'>>,options?:{expectedRevision?:string}):Promise<ImapAccount>{
     const existingAccount = this.accounts.get(id);
     if (!existingAccount) {
       throw new Error(`Account with id ${id} not found`);
+    }
+    // R2: the authoritative revision gate — checked under the same store
+    // transaction as the update, so a concurrent identity change landing
+    // after the caller's own check still rejects the stale commit.
+    if (options?.expectedRevision !== undefined && accountRevision(existingAccount) !== options.expectedRevision) {
+      throw new AccountRevisionMismatchError('Account identity changed since the caller verified it; the update was rejected without any write. Re-run the repair against the new identity.');
     }
 
     // The merged result is a candidate too: schema and unknown-field rules

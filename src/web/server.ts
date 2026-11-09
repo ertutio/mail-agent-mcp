@@ -11,6 +11,7 @@ import { SmtpService } from '../services/smtp-service.js';
 import { resolveMailProxy } from '../utils/mail-proxy.js';
 import { rotateCredential, CredentialGateRejection, CredentialRollbackError } from '../credentials/credential-rotation.js';
 import { accountRevision } from '../utils/account-revision.js';
+import { AccountRevisionMismatchError } from '../services/account-manager.js';
 import { withAccountStoreLock, accountStoreDirectory } from '../utils/account-store-lock.js';
 import { emailProviders, getProviderByEmail } from '../providers/email-providers.js';
 import { AccountAuthResolver } from '../credentials/account-auth.js';
@@ -561,10 +562,15 @@ export class WebUIServer {
       const smtpEndpoint = { host: effectiveSmtp.host, port: effectiveSmtp.port };
       let smtpStage: string | undefined;
       try {
-        const ok = await this.smtpService.verifySmtpConnection(account);
-        diagnostics.smtp = ok
-          ? { status: 'ok', ...smtpEndpoint, ...(account.smtp ? {} : { derived: true }) }
-          : { status: 'failed', stage: 'smtp_connect', ...smtpEndpoint, ...(account.smtp ? {} : { derived: true }) };
+        const verification = await this.smtpService.verifySmtpConnectionDetailed(account);
+        if (verification.ok) {
+          diagnostics.smtp = { status: 'ok', ...smtpEndpoint, ...(account.smtp ? {} : { derived: true }) };
+        } else {
+          // R3: classify the REAL verification failure — connect/auth/tls/proxy.
+          const failure = verification.error ?? '';
+          smtpStage = classifyConnectionStage(failure);
+          diagnostics.smtp = { status: 'failed', stage: smtpStage, ...smtpEndpoint, ...(account.smtp ? {} : { derived: true }), ...(failure ? { detail: sanitizeDetail(failure) } : {}) };
+        }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         smtpStage = classifyConnectionStage(message);
@@ -631,26 +637,17 @@ export class WebUIServer {
             replacement: input.data.authorizationCode,
             verify: async () => {
               await this.imapService.authenticateOnly(candidate);
-              // T17 is a write-first transaction: the replacement is
-              // already in the vault while the login runs. A concurrent
-              // removal must not leave it behind — undo our own write
-              // (value-owned) under the store lock before gating.
+              // R1: ownership is decided by the transaction (generation
+              // journal + gate), never by value-matching cleanup — a
+              // remove+re-add with the same authorization code owns its
+              // credential, and an older repair deleting "its" value would
+              // destroy the newer account's valid secret. The gate alone
+              // leaves whatever the newer operation wrote untouched.
               const live = this.accountManager.getAccount(account.id);
               if (!live || live.auth?.credentialTarget !== credentialTarget) {
-                await withAccountStoreLock(accountStoreDirectory(), async () => {
-                  const handle = this.credentialBackend.read(credentialTarget);
-                  const current = handle ? handle.read() : undefined;
-                  handle?.dispose();
-                  if (current === input.data.authorizationCode) {
-                    this.credentialBackend.delete(credentialTarget);
-                  }
-                });
-                throw new CredentialGateRejection('账号在验证期间被移除；已撤销本次写入的凭据');
+                throw new CredentialGateRejection('账号在验证期间被移除；凭据保持当前状态');
               }
               if (accountRevision(live) !== expectedRevision) {
-                // Metadata edited mid-login: the verified secret belongs to
-                // the old identity — a plain error (not a gate) lets the
-                // rotation rollback restore the previous secret.
                 throw new StaleIdentityError('账号身份在验证期间变化');
               }
             },
@@ -667,6 +664,14 @@ export class WebUIServer {
               }
             },
           });
+          // R1: the rotation may complete after a concurrent remove+re-add —
+          // the vault then holds whatever the newer operation wrote. Report
+          // the situation instead of claiming a repair of a gone account.
+          const postCheck = this.accountManager.getAccount(account.id);
+          if (!postCheck || postCheck.auth?.credentialTarget !== credentialTarget) {
+            res.status(409).json({ success: false, error: "账号在修复期间被移除或重建，凭据保持当前状态（本次修复未改动它）。" });
+            return;
+          }
           res.json({ success: true, accountId: account.id });
           return;
         }
@@ -692,7 +697,7 @@ export class WebUIServer {
           && live.smtp.password !== '' && live.smtp.password === account.password) {
           updates.smtp = { ...live.smtp, password: input.data.authorizationCode };
         }
-        const updated = await this.accountManager.updateAccount(account.id, updates);
+        const updated = await this.accountManager.updateAccount(account.id, updates, { expectedRevision });
         res.json({ success: true, accountId: account.id, account: stripAccountSecrets(updated) });
       } catch (error) {
         if (error instanceof CredentialRollbackError) {
@@ -703,6 +708,12 @@ export class WebUIServer {
             outcomeUnknown: true,
             error: '凭据验证失败且旧凭据恢复失败：凭据库当前状态可能不一致。请核对凭据库中的实际值，并重新执行修复。',
           });
+          return;
+        }
+        if (error instanceof AccountRevisionMismatchError || (error as { name?: string }).name === 'AccountRevisionMismatchError') {
+          // R2: the transactional gate rejected a stale commit — nothing was
+          // written; the caller must re-repair against the new identity.
+          res.status(409).json({ success: false, error: '账号身份在验证期间变化，已拒绝本次提交（未写入任何内容）；请基于新身份重新修复。' });
           return;
         }
         if (error instanceof StaleIdentityError) {
