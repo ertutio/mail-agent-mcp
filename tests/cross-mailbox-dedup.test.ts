@@ -284,3 +284,53 @@ describe('F4 review: real read chain carries threading headers into aggregation'
     expect((result.conversations as any[])[0].messages).toHaveLength(2);
   });
 });
+
+// F4 review round 2 / R8: a missing common ancestor must not promote a reply.
+describe('F4-R8: missing common ancestor omits the root identity', () => {
+  it('F4-R8-SIBLING-REPLIES-MISSING-ROOT: two replies referencing the same missing ancestor merge, rootMessageId omitted', () => {
+    const messages = [
+      { accountId: 'a1', accountName: 'A1', folder: 'INBOX', uid: 1, messageId: '<re1@t>', inReplyTo: '<missing@t>', references: '<missing@t>', subject: 'Re: Missing', date: new Date('2026-01-02T00:00:00Z'), flags: [], customKeywords: [] },
+      { accountId: 'a2', accountName: 'A2', folder: 'INBOX', uid: 2, messageId: '<re2@t>', inReplyTo: '<missing@t>', references: '<missing@t>', subject: 'Re: Missing', date: new Date('2026-01-03T00:00:00Z'), flags: [], customKeywords: [] },
+    ];
+    const conversations = aggregateConversations(messages);
+    expect(conversations).toHaveLength(1);
+    expect(conversations[0].messages).toHaveLength(2);
+    expect(conversations[0].rootMessageId).toBeUndefined();
+  });
+
+  it('F4-R8-REAL-CHAIN-SIBLINGS: the real read chain merges missing-root siblings without a root identity', async () => {
+    const replyA: F4Msg = { uid: 9, messageId: '<re1@t>', inReplyTo: '<missing@t>', references: '<missing@t>', subject: 'Re: Missing', date: '2026-01-02T00:00:00Z' };
+    const replyB: F4Msg = { uid: 4, messageId: '<re2@t>', inReplyTo: '<missing@t>', references: '<missing@t>', subject: 'Re: Missing', date: '2026-01-03T00:00:00Z' };
+    const { svc } = f4Imap([[9, 4]], new Map([[9, replyA], [4, replyB]]));
+    const run = f4Runner(svc, [f4Accounts[0]!]);
+    const result = await run({ groupByConversation: true, limit: 50 });
+    expect(result.conversations).toHaveLength(1);
+    expect((result.conversations as any[])[0].messages).toHaveLength(2);
+    expect((result.conversations as any[])[0].rootMessageId).toBeUndefined();
+  });
+
+  it('F4-R8-CHAIN-WITH-MISSING-HEAD: a chain whose visible head is itself a reply omits the root identity', () => {
+    const messages = [
+      { accountId: 'a1', accountName: 'A1', folder: 'INBOX', uid: 1, messageId: '<mid@t>', inReplyTo: '<missing@t>', subject: 'Re: Missing', date: new Date('2026-01-02T00:00:00Z'), flags: [], customKeywords: [] },
+      { accountId: 'a2', accountName: 'A2', folder: 'INBOX', uid: 2, messageId: '<leaf@t>', inReplyTo: '<mid@t>', references: '<missing@t> <mid@t>', subject: 'Re: Missing', date: new Date('2026-01-03T00:00:00Z'), flags: [], customKeywords: [] },
+    ];
+    const conversations = aggregateConversations(messages);
+    expect(conversations).toHaveLength(1);
+    expect(conversations[0].messages).toHaveLength(2);
+    expect(conversations[0].rootMessageId).toBeUndefined();
+  });
+
+  it('F4-R8-REAL-ROOT-STILL-WINS: a genuine no-references root in the group is still reported', () => {
+    const messages = [
+      { accountId: 'a1', accountName: 'A1', folder: 'INBOX', uid: 1, messageId: '<re1@t>', inReplyTo: '<missing@t>', subject: 'Re: Missing', date: new Date('2026-01-02T00:00:00Z'), flags: [], customKeywords: [] },
+      { accountId: 'a2', accountName: 'A2', folder: 'INBOX', uid: 2, messageId: '<root@t>', subject: 'Root', date: new Date('2026-01-01T00:00:00Z'), flags: [], customKeywords: [] },
+    ];
+    const conversations = aggregateConversations(messages);
+    // re1 references missing@t (outside), root has no refs. re1 and root are
+    // not connected (re1 does not reference root), so they stay separate —
+    // root keeps its identity.
+    expect(conversations).toHaveLength(2);
+    const rootConv = conversations.find(c => c.rootMessageId === 'root@t');
+    expect(rootConv).toBeDefined();
+  });
+});

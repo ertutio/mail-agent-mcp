@@ -156,15 +156,14 @@ export function aggregateConversations<T extends DedupableMessage>(messages: T[]
     const members = group
       .map(index => messages[index]!)
       .sort((a, b) => timeOf(b) - timeOf(a));
-    // F4 (review): the root is determined by header relations — the member
-    // that no other member replies to (earliest when several). Taking the
-    // first input message mislabeled the newest reply as the root under the
-    // newest-first input order.
-    const memberIds = new Set(group.map(index => messageIdOf.get(index)!).filter(Boolean));
-    const candidates = members.filter(member => {
-      const own = normalizeMessageIdKey(member.messageId);
-      return !referenceKeys(member).some(id => memberIds.has(id) && id !== own);
-    });
+    // F4 (review round 2 / R8): the root is a member that is not a reply
+    // at all — no In-Reply-To and no References — so it can never
+    // masquerade as the head of a thread whose real ancestor is missing
+    // from the result. Two replies referencing a missing common ancestor
+    // still merge into one conversation, and rootMessageId is omitted
+    // instead of promoting one of the replies. Earliest wins when several
+    // pure roots exist.
+    const candidates = members.filter(member => referenceKeys(member).length === 0);
     const earliest = candidates.length
       ? [...candidates].sort((a, b) => timeOf(a) - timeOf(b))[0]!
       : undefined;
