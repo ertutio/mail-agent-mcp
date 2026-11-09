@@ -70,6 +70,35 @@ export function savedSearchesPath(directory: string = accountStoreDirectory()): 
   return join(directory, STORE_FILE);
 }
 
+/** R6 round 3: shared criteria member validation — the exact same rules
+ * run at tool entry, upsert, and persisted-store read, so save and read
+ * stay consistent. Empty optional strings are valid (they mean "no
+ * filter applied"), matching the tool schema (z.string().optional()).
+ * Over-long strings, wrong types, invalid dates, and unknown members
+ * fail explicitly. */
+function validateSavedCriteria(name: string, criteria: Record<string, unknown>): void {
+  for (const key of Object.keys(criteria)) {
+    if (!(key in SAVED_CRITERIA_SPEC)) throw new Error(`saved search "${name}" criteria has an unknown member "${key}"`);
+  }
+  const spec = SAVED_CRITERIA_SPEC as Record<string, { kind: string; max?: number }>;
+  for (const [key, rule] of Object.entries(spec)) {
+    const value = criteria[key];
+    if (value === undefined) continue;
+    if (rule.kind === 'string[]') {
+      if (!Array.isArray(value) || value.some(v => typeof v !== 'string')) throw new Error(`saved search "${name}" criteria.${key} must be an array of strings`);
+    } else if (rule.kind === 'string') {
+      if (typeof value !== 'string' || value.length > (rule.max ?? 2000)) throw new Error(`saved search "${name}" criteria.${key} must be a string of at most ${rule.max ?? 2000} characters`);
+    } else if (rule.kind === 'boolean') {
+      if (typeof value !== 'boolean') throw new Error(`saved search "${name}" criteria.${key} must be a boolean`);
+    } else if (rule.kind === 'date') {
+      if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new Error(`saved search "${name}" criteria.${key} must be a YYYY-MM-DD date`);
+      try { parseSearchDateBound(value); } catch (cause) { throw new Error(`saved search "${name}" criteria.${key} is not a valid calendar date: ${(cause as Error).message}`); }
+    } else if (rule.kind === 'int') {
+      if (!Number.isInteger(value) || (value as number) < 1 || (value as number) > (rule.max ?? 200)) throw new Error(`saved search "${name}" criteria.${key} must be an integer 1-${rule.max ?? 200}`);
+    }
+  }
+}
+
 function loadEntries(directory: string): SavedSearch[] {
   let raw: string;
   try {
@@ -92,28 +121,10 @@ function loadEntries(directory: string): SavedSearch[] {
       if (!candidate.criteria || typeof candidate.criteria !== 'object' || Array.isArray(candidate.criteria)) throw new Error(`saved search "${candidate.name}" has no criteria object`);
       // R6: every criteria member is validated — types, ranges and dates —
       // so a corrupted entry fails here instead of silently rewriting the
-      // store on the next upsert.
+      // store on the next upsert. Empty optional strings are valid values
+      // meaning "no filter applied" — the same rule the tool schema enforces
       const criteria = candidate.criteria as Record<string, unknown>;
-      for (const key of Object.keys(criteria)) {
-        if (!(key in SAVED_CRITERIA_SPEC)) throw new Error(`saved search "${candidate.name}" criteria has an unknown member "${key}"`);
-      }
-      const spec = SAVED_CRITERIA_SPEC as Record<string, { kind: string; max?: number }>;
-      for (const [key, rule] of Object.entries(spec)) {
-        const value = criteria[key];
-        if (value === undefined) continue;
-        if (rule.kind === 'string[]') {
-          if (!Array.isArray(value) || value.some(v => typeof v !== 'string' || !v.trim())) throw new Error(`saved search "${candidate.name}" criteria.${key} must be an array of non-empty strings`);
-        } else if (rule.kind === 'string') {
-          if (typeof value !== 'string' || !value.trim() || value.length > (rule.max ?? 2000)) throw new Error(`saved search "${candidate.name}" criteria.${key} must be a 1-${rule.max ?? 2000} character string`);
-        } else if (rule.kind === 'boolean') {
-          if (typeof value !== 'boolean') throw new Error(`saved search "${candidate.name}" criteria.${key} must be a boolean`);
-        } else if (rule.kind === 'date') {
-          if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new Error(`saved search "${candidate.name}" criteria.${key} must be a YYYY-MM-DD date`);
-          try { parseSearchDateBound(value); } catch (cause) { throw new Error(`saved search "${candidate.name}" criteria.${key} is not a valid calendar date: ${(cause as Error).message}`); }
-        } else if (rule.kind === 'int') {
-          if (!Number.isInteger(value) || (value as number) < 1 || (value as number) > (rule.max ?? 200)) throw new Error(`saved search "${candidate.name}" criteria.${key} must be an integer 1-${rule.max ?? 200}`);
-        }
-      }
+      validateSavedCriteria(candidate.name as string, criteria);
       for (const field of ['digestThresholdHours', 'reminderThresholdDays'] as const) {
         const value = candidate[field];
         if (value !== undefined && (!Number.isInteger(value) || (value as number) < 1)) throw new Error(`saved search "${candidate.name}" has an invalid ${field}`);
@@ -155,6 +166,9 @@ export function upsertSavedSearch(
   const name = input.name.trim();
   if (!name || name.length > 120) throw new Error('Saved-search name must be 1-120 characters');
   const entries = loadEntries(directory);
+  // R6 round 3: the same validation runs at write time — invalid input
+  // fails before the store is touched.
+  validateSavedCriteria(name, input.criteria as Record<string, unknown>);
   const key = name.toLowerCase();
   const existing = entries.find(entry => entry.name.trim().toLowerCase() === key);
   const now = new Date().toISOString();

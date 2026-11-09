@@ -398,6 +398,74 @@ describe('F5-R6: persisted criteria member validation', () => {
   }
 });
 
+
+// R6 round 3: empty optional strings are valid and round-trip; update
+// failure leaves the original search usable.
+describe('F5-R6-round3: empty optional strings and update failure', () => {
+  let dir: string;
+  beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'f5-r6r3-')); });
+  afterEach(() => { rmSync(dir, { recursive: true, force: true }); });
+
+  it('F5-R6-EMPTY-ROUNDTRIP: {query: \'\'} saves, lists, runs and deletes without corruption', async () => {
+    const handlers = new Map<string, Function>();
+    const imap = {
+      listFolders: vi.fn(async () => [{ name: 'INBOX', delimiter: '/', attributes: [] }]),
+      searchEmailPage: vi.fn(async () => ({ messages: [], matched: 0 })),
+    };
+    const manager = { getAllAccounts: () => [{ id: 'a1', name: 'A1', host: 'imap.a.synth.test' }], resolveAccountId: (id?: string) => id ?? 'a1' };
+    savedSearchTools(
+      { registerTool: (name: string, _def: unknown, handler: Function) => handlers.set(name, handler) } as any,
+      imap as any, manager as any, {}, { directory: dir },
+    );
+
+    // Save with empty query — must succeed and read back cleanly.
+    const saved = JSON.parse((await handlers.get('imap_save_search')!({ name: 'empty', query: '' })).content[0].text);
+    expect(saved.success).toBe(true);
+
+    const list = JSON.parse((await handlers.get('imap_list_saved_searches')!({})).content[0].text);
+    expect(list.savedSearches).toHaveLength(1);
+    expect(list.savedSearches[0].criteria.query).toBe('');
+
+    const run = JSON.parse((await handlers.get('imap_run_saved_search')!({ name: 'empty' })).content[0].text);
+    expect(run.success).toBe(true);
+
+    const del = JSON.parse((await handlers.get('imap_delete_saved_search')!({ name: 'empty' })).content[0].text);
+    expect(del.success).toBe(true);
+  });
+
+  it('F5-R6-OLD-STORE-EMPTY-FIELDS: previously saved empty optional fields load cleanly', () => {
+    const path = join(dir, 'saved-searches.json');
+    // Data written by the pre-validation implementation — empty optional
+    // string fields, empty arrays — must read back without corruption.
+    const old = JSON.stringify([{ name: 'legacy', criteria: { query: '', from: '', to: '', accountNames: [], subject: 'real' } }]);
+    writeFileSync(path, old, 'utf8');
+    const list = listSavedSearches(dir);
+    expect(list).toHaveLength(1);
+    expect(list[0].criteria.query).toBe('');
+    expect(list[0].criteria.subject).toBe('real');
+  });
+
+  it('F5-R6-OVERLONG: a criteria string past the max length fails before write', () => {
+    const path = join(dir, 'saved-searches.json');
+    const good = JSON.stringify([{ name: 'good', criteria: { query: 'real' } }]);
+    writeFileSync(path, good, 'utf8');
+    const long = 'x'.repeat(2001);
+    expect(() => upsertSavedSearch({ name: 'overlong', criteria: { query: long } }, dir)).toThrow(/characters/);
+    expect(readFileSync(path, 'utf8')).toBe(good);
+    // The original search is still usable.
+    expect(getSavedSearch('good', dir)?.criteria.query).toBe('real');
+  });
+
+  it('F5-R6-WRONG-TYPE: a numeric seen fails before write', () => {
+    const path = join(dir, 'saved-searches.json');
+    const good = JSON.stringify([{ name: 'good', criteria: { query: 'real' } }]);
+    writeFileSync(path, good, 'utf8');
+    expect(() => upsertSavedSearch({ name: 'badtype', criteria: { seen: 1 as unknown as boolean } }, dir)).toThrow(/boolean/);
+    expect(readFileSync(path, 'utf8')).toBe(good);
+    expect(getSavedSearch('good', dir)?.criteria.query).toBe('real');
+  });
+});
+
 describe('F5-R7: missing Sent folder is a coverage hole', () => {
   it('F5-R7-SENT-MISSING: no Sent folder marks the result incomplete with the reason', async () => {
     const handlers = new Map<string, Function>();
