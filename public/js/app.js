@@ -56,8 +56,11 @@ function updateProvider() {
   // Hidden containers still run constraint validation — disable the fields
   // that are not in play so a stale invalid port can never block submit.
   for (const id of ['imap-host', 'imap-port', 'imap-encryption']) $(id).disabled = !other;
-  const smtpInPlay = other && !!$('smtp-host').value.trim();
-  for (const id of ['smtp-host', 'smtp-port', 'smtp-encryption']) $(id).disabled = !smtpInPlay;
+  // R4: the SMTP host input itself stays EDITABLE while the generic provider
+  // is selected — disabling it while empty made the server field impossible
+  // to fill. Only the advanced port/encryption fields gate on the host.
+  $('smtp-host').disabled = !other;
+  for (const id of ['smtp-port', 'smtp-encryption']) $(id).disabled = !other || !$('smtp-host').value.trim();
   $('smtp-advanced').hidden = !other || !$('smtp-host').value.trim();
   $('enterprise-hint').hidden = provider !== 'netease-enterprise';
   $('authorization-code').required = !gmail;
@@ -228,7 +231,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('cancel-remove').addEventListener('click', () => { if (!busy) { $('remove-dialog').close(); selectedRemoval = undefined; } });
   $('remove-dialog').addEventListener('cancel', event => { if (busy) event.preventDefault(); else selectedRemoval = undefined; });
   $('provider').addEventListener('change', updateProvider);
-  $('smtp-host').addEventListener('input', () => { $('smtp-advanced').hidden = !$('smtp-host').value.trim(); });
+  $('smtp-host').addEventListener('input', () => {
+    $('smtp-advanced').hidden = !$('smtp-host').value.trim();
+    for (const id of ['smtp-port', 'smtp-encryption']) $(id).disabled = !$('smtp-host').value.trim();
+  });
   $('imap-encryption').addEventListener('change', () => syncStandardPort('imap'));
   $('smtp-encryption').addEventListener('change', () => syncStandardPort('smtp'));
   $('enrollment-form').addEventListener('submit', submit);
