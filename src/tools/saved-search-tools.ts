@@ -99,7 +99,12 @@ export function savedSearchTools(
   }, async ({ name }: { name: string }) => {
     const saved = getSavedSearch(name, dir);
     if (!saved) throw new Error(`No saved search named "${name}"`);
-    const result = await runUnifiedSearch({ ...saved.criteria, pass: 1 } as UnifiedSearchArgs);
+    // R6 round 4: empty since/before are "unset" — the unified search
+    // rejects empty dates, so drop them before delegating.
+    const criteria = { ...saved.criteria } as Record<string, unknown>;
+    if (criteria.since === '') delete criteria.since;
+    if (criteria.before === '') delete criteria.before;
+    const result = await runUnifiedSearch({ ...criteria, pass: 1 } as UnifiedSearchArgs);
     return json({ success: true, savedSearch: saved.name, ...result });
   });
 

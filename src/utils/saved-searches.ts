@@ -91,6 +91,10 @@ function validateSavedCriteria(name: string, criteria: Record<string, unknown>):
     } else if (rule.kind === 'boolean') {
       if (typeof value !== 'boolean') throw new Error(`saved search "${name}" criteria.${key} must be a boolean`);
     } else if (rule.kind === 'date') {
+      // R6 round 4: an empty string is treated as unset — the same rule the
+      // tool schema enforces (z.string().optional() allows ''). Non-empty
+      // values still go through strict format + real-calendar validation.
+      if (value === '') continue;
       if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new Error(`saved search "${name}" criteria.${key} must be a YYYY-MM-DD date`);
       try { parseSearchDateBound(value); } catch (cause) { throw new Error(`saved search "${name}" criteria.${key} is not a valid calendar date: ${(cause as Error).message}`); }
     } else if (rule.kind === 'int') {
