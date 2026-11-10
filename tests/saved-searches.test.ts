@@ -624,16 +624,20 @@ describe('F5-R5-test: Sent root + References-only reply through the real chain',
 
   const sentRoot = {
     uid: 1,
-    internalDate: new Date(Date.now() - 10 * 86_400_000),
+    internalDate: new Date(Date.now() - 5 * 86_400_000),
     envelope: { subject: 'Quote', messageId: '<s1@t>', from: [{ address: 'me@a.synth.test' }], to: [{ address: 'them@synth.test' }] },
     flags: new Set<string>(['\\Seen', '\\Draft']),
   };
+  // R5-test round 4: single-variable control. Both replies have NO
+  // envelope.inReplyTo and NO raw In-Reply-To — the ONLY difference is
+  // the raw References header. The root is 5 days old (within the 6-day
+  // lookback window, exceeding the 3-day threshold).
   const inboxReplyWithRefs = {
     uid: 7,
     internalDate: new Date(Date.now() - 2 * 86_400_000),
-    envelope: { subject: 'Re: Quote', messageId: '<re@t>', inReplyTo: '<s1@t>', from: [{ address: 'them@synth.test' }], to: [{ address: 'me@a.synth.test' }] },
+    envelope: { subject: 'Re: Quote', messageId: '<re@t>', from: [{ address: 'them@synth.test' }], to: [{ address: 'me@a.synth.test' }] },
     flags: new Set<string>(),
-    headers: 'References: <s1@t>\r\nIn-Reply-To: <s1@t>\r\n',
+    headers: 'References: <s1@t>\r\n',
   };
   const inboxReplyNoRefs = {
     uid: 7,
