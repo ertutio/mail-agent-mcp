@@ -7,10 +7,10 @@ QQ、网易和 Gmail 的安全账号注册目前要求 Windows 10/11 的凭据�
 
 ## Windows
 
-1. 从 [v0.1.0 Release](https://github.com/ertutio/mail-agent-mcp/releases/tag/v0.1.0)
-   下载 `mail-agent-mcp-0.1.0.zip` 和 `SHA256SUMS.txt`。
-   用 `Get-FileHash .\mail-agent-mcp-0.1.0.zip -Algorithm SHA256` 核对校验值，
-   然后解压到固定目录，例如 `C:\Tools\mail-agent-mcp-0.1.0`。
+1. 从 [v0.2.0 Release](https://github.com/ertutio/mail-agent-mcp/releases/tag/v0.2.0)
+   下载 `mail-agent-mcp-0.2.0.zip` 和 `SHA256SUMS.txt`。
+   用 `Get-FileHash .\mail-agent-mcp-0.2.0.zip -Algorithm SHA256` 核对校验值，
+   然后解压到固定目录，例如 `C:\Tools\mail-agent-mcp-0.2.0`。
 2. 在解压后的、含有 `package.json` 的目录打开 PowerShell，运行：
 
    ```powershell
@@ -28,7 +28,7 @@ QQ、网易和 Gmail 的安全账号注册目前要求 Windows 10/11 的凭据�
      "mcpServers": {
        "mail-agent-mcp": {
          "command": "node",
-         "args": ["C:/Tools/mail-agent-mcp-0.1.0/dist/index.js"]
+         "args": ["C:/Tools/mail-agent-mcp-0.2.0/dist/index.js"]
        }
      }
    }
@@ -44,7 +44,7 @@ QQ、网易和 Gmail 的安全账号注册目前要求 Windows 10/11 的凭据�
 ## English
 
 Install Node.js **22.12+** and npm. Download the ZIP and `SHA256SUMS.txt` from the
-[GitHub release](https://github.com/ertutio/mail-agent-mcp/releases/tag/v0.1.0),
+[GitHub release](https://github.com/ertutio/mail-agent-mcp/releases/tag/v0.2.0),
 verify the ZIP with `Get-FileHash` (or `sha256sum`), and extract it to a permanent
 directory. In the directory containing `package.json`, run:
 

@@ -27,7 +27,7 @@ describe('unified mailbox search', () => {
     expect(result.messages[0]).toMatchObject({ accountName: 'work', folder: 'INBOX', uid: 1 });
     expect(result.partial).toBe(false); expect(result.totalFound).toBe(3); expect(result.truncated).toBe(true);
     expect(result.accounts).toHaveLength(3);
-    expect(imap.searchEmailPage).toHaveBeenCalledWith('qq', 'INBOX', expect.objectContaining({ text: '项目' }),undefined);
+    expect(imap.searchEmailPage).toHaveBeenCalledWith('qq', 'INBOX', expect.objectContaining({ text: '项目' }), undefined, { includeThreadHeaders: false });
     expect(imap.searchEmailPage.mock.calls.every(call=>call[1]!=='草稿箱')).toBe(true);
   });
   it('returns healthy accounts when one account fails, without exposing provider errors', async () => {

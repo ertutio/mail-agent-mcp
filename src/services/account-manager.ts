@@ -8,6 +8,7 @@ import { accountForPersistence, assertCredentialTarget } from '../credentials/ac
 import type { CredentialBackend } from '../credentials/credential-backend.js';
 import {AsyncLocalStorage} from 'node:async_hooks';
 import {withAccountStoreLock, accountStoreDirectory} from '../utils/account-store-lock.js';
+import { accountRevision } from '../utils/account-revision.js';
 import {validateAccountCandidate, type AccountCandidate} from '../utils/account-candidate.js';
 
 
@@ -41,6 +42,19 @@ export function assertProviderAccountAuth(
       : 'QQ Mail password fallback is disabled. Run node dist/enroll.js qq in a trusted local terminal.',
   );
 }
+
+/**
+ * F3: a candidate for addAccount. port and tls are optional at the
+ * boundary because validateAccountCandidate owns their defaults (993/143,
+ * tls true) - mirroring the validation contract instead of forcing the
+ * HTTP caller to pre-fill values it may not know.
+ */
+export type AccountCandidateInput = Omit<ImapAccount, 'id' | 'port' | 'tls'> & Partial<Pick<ImapAccount, 'port' | 'tls'>>;
+
+/** R2: raised inside the store transaction when the account revision no
+ * longer matches the one the caller verified against — the update is
+ * rejected before any write. */
+export class AccountRevisionMismatchError extends Error {}
 
 export class AccountManager {
   private configPath: string;
@@ -88,10 +102,10 @@ export class AccountManager {
     }
   }
 
-  async addAccount(account: Omit<ImapAccount, 'id'>): Promise<ImapAccount> {
+  async addAccount(account: AccountCandidateInput): Promise<ImapAccount> {
     return this.withStoreTransaction(()=>this.addAccountUnlocked(account));
   }
-  private async addAccountUnlocked(account: Omit<ImapAccount,'id'>):Promise<ImapAccount>{
+  private async addAccountUnlocked(account: AccountCandidateInput):Promise<ImapAccount>{
     // Pure candidate validation (T07 / BUG-SEC-06): schema, types, credential
     // placeholder rules and unknown-field rejection happen before any store
     // access, so an invalid candidate can never reach accounts.json. The
@@ -205,13 +219,35 @@ export class AccountManager {
     }
   }
 
-  async updateAccount(id: string, updates: Partial<Omit<ImapAccount, 'id'>>): Promise<ImapAccount> {
-    return this.withStoreTransaction(()=>this.updateAccountUnlocked(id,updates));
+  async updateAccount(id: string, updates: Partial<Omit<ImapAccount, 'id'>>, options?: { expectedRevision?: string; rotateSharedSmtpSecret?: boolean }): Promise<ImapAccount> {
+    return this.withStoreTransaction(()=>this.updateAccountUnlocked(id,updates,options));
   }
-  private async updateAccountUnlocked(id:string,updates:Partial<Omit<ImapAccount,'id'>>):Promise<ImapAccount>{
+  private async updateAccountUnlocked(id:string,updates:Partial<Omit<ImapAccount,'id'>>,options?:{expectedRevision?:string;rotateSharedSmtpSecret?:boolean}):Promise<ImapAccount>{
     const existingAccount = this.accounts.get(id);
     if (!existingAccount) {
       throw new Error(`Account with id ${id} not found`);
+    }
+    // R2: the authoritative revision gate — checked under the same store
+    // transaction as the update, so a concurrent identity change landing
+    // after the caller's own check still rejects the stale commit.
+    // R2a: the gate computes the revision on the SAME effective account
+    // representation the caller saw (env overrides applied), so a legal
+    // repair is not falsely rejected when IMAP_USERNAME or SMTP_USERNAME
+    // env overrides differ from the disk record.
+    if (options?.expectedRevision !== undefined) {
+      const effective = this.applyEnvOverrides(existingAccount);
+      if (accountRevision(effective) !== options.expectedRevision) {
+        throw new AccountRevisionMismatchError('Account identity changed since the caller verified it; the update was rejected without any write. Re-run the repair against the new identity.');
+      }
+    }
+    // R2b: the SMTP linkage decision runs INSIDE the transaction, based on
+    // the CURRENT record — a concurrent smtp-only password change between
+    // the caller's snapshot and this commit cannot be overwritten.
+    if (options?.rotateSharedSmtpSecret && updates.password !== undefined
+      && existingAccount.smtp && existingAccount.smtp.password !== undefined
+      && existingAccount.smtp.password !== ''
+      && this.decryptField(existingAccount.smtp.password) === this.decryptField(existingAccount.password)) {
+      updates = { ...updates, smtp: { ...existingAccount.smtp, password: updates.password } };
     }
 
     // The merged result is a candidate too: schema and unknown-field rules

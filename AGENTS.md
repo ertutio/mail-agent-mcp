@@ -4,7 +4,7 @@ Repository instructions for human and AI contributors.
 
 ## Project
 
-Mail Agent MCP is a local-first TypeScript stdio MCP server for Gmail and QQ Mail. It provides IMAP search/read/organization, controlled attachments, and preview-confirmed SMTP sending. The independent project identity is ertutio/mail-agent-mcp at version 0.1.0; npm and MCP Registry publication remain separately controlled.
+Mail Agent MCP is a local-first TypeScript stdio MCP server for Gmail and QQ Mail. It provides IMAP search/read/organization, controlled attachments, and preview-confirmed SMTP sending. The independent project identity is ertutio/mail-agent-mcp, currently at version 0.2.0; 0.1.0 was the first release under this fork identity. npm and MCP Registry publication remain separately controlled.
 
 ## Continuous development entry
 

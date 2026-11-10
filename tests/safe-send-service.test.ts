@@ -105,10 +105,17 @@ describe('SafeSendService', () => {
         bccCount: 0,
         subject: 'Quarterly update',
         attachmentNames: ['note.txt'],
+        // F1: the completeness view — both body views fit the display cap;
+        // Reply-To and the attachment digest of the frozen bytes are shown.
+        text: 'private plain-text body',
+        html: '<p>private HTML body</p>',
+        replyTo: 'reply@example.test',
+        attachments: [expect.objectContaining({ filename: 'note.txt', contentType: 'text/plain', size: 'attachment-fixture'.length })],
       },
     });
-    expect(JSON.stringify(preview)).not.toContain('private plain-text body');
-    expect(JSON.stringify(preview)).not.toContain('private HTML body');
+    // F1: the preview exposes the frozen body view (truncation-marked when over the display cap).
+    expect(JSON.stringify(preview)).toContain('private plain-text body');
+    expect(JSON.stringify(preview)).toContain('private HTML body');
     expect(service.getState(preview.draftId)).toBe('pending');
 
     await expect(service.confirm(preview.draftId, true)).resolves.toMatchObject({ status: 'sent' });

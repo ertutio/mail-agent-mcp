@@ -53,6 +53,15 @@ function updateProvider() {
   $('gmail-fields').hidden = !gmail;
   $('password-fields').hidden = gmail;
   $('generic-fields').hidden = !other;
+  // Hidden containers still run constraint validation — disable the fields
+  // that are not in play so a stale invalid port can never block submit.
+  for (const id of ['imap-host', 'imap-port', 'imap-encryption']) $(id).disabled = !other;
+  // R4: the SMTP host input itself stays EDITABLE while the generic provider
+  // is selected — disabling it while empty made the server field impossible
+  // to fill. Only the advanced port/encryption fields gate on the host.
+  $('smtp-host').disabled = !other;
+  for (const id of ['smtp-port', 'smtp-encryption']) $(id).disabled = !other || !$('smtp-host').value.trim();
+  $('smtp-advanced').hidden = !other || !$('smtp-host').value.trim();
   $('enterprise-hint').hidden = provider !== 'netease-enterprise';
   $('authorization-code').required = !gmail;
   $('imap-host').required = other;
@@ -61,6 +70,28 @@ function updateProvider() {
   $('privacy-text').textContent = other ? '密码加密保存在本机账号目录，不发送给聊天模型。' : '凭据保存在本机系统凭据库，不发送给聊天模型。';
   $('password-hint').textContent = other ? '填写服务商提供的应用密码或客户端授权码。' : '在邮箱设置中开启 IMAP，并生成客户端授权码。';
   $('submit-button').disabled = !secureAvailable && !other;
+}
+
+// F3: the generic-mailbox form exposes IMAP/SMTP ports and encryption.
+// Validation mirrors the backend candidate rules (integer 1..65535); the
+// encryption selects fill the standard port only when the field still
+// holds a standard or empty value, so a provider-specific port survives.
+const STANDARD_PORTS = { imap: [993, 143], smtp: [465, 587] };
+function parsePortField(input, label) {
+  const raw = String(input.value).trim();
+  if (!/^\d{1,5}$/.test(raw)) throw new Error(label + '端口必须是 1-65535 的整数。');
+  const port = Number(raw);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error(label + '端口必须是 1-65535 的整数。');
+  return port;
+}
+function syncStandardPort(kind) {
+  const portInput = $(kind + '-port');
+  const current = Number(portInput.value);
+  if (portInput.value.trim() === '' || STANDARD_PORTS[kind].includes(current)) {
+    portInput.value = $(kind + '-encryption').value === 'tls'
+      ? (kind === 'imap' ? 993 : 465)
+      : (kind === 'imap' ? 143 : 587);
+  }
 }
 async function viewAccounts() {
   const accounts = await setupFetch('/api/accounts');
@@ -79,12 +110,92 @@ async function viewAccounts() {
     const copy = document.createElement('div'); copy.className = 'account-copy';
     const name = document.createElement('p'); name.className = 'account-name'; name.textContent = account.name; name.title = account.name;
     const email = document.createElement('p'); email.className = 'account-email'; email.textContent = account.email || account.user; email.title = email.textContent;
+    const diagnose = document.createElement('button'); diagnose.type = 'button'; diagnose.className = 'remove-account';
+    diagnose.textContent = '诊断'; diagnose.setAttribute('aria-label', '诊断邮箱连接：' + account.name);
+    diagnose.disabled = busy || sessionExpired;
+    diagnose.addEventListener('click', () => showDiagnostics(account));
     const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'remove-account';
     remove.textContent = '移除'; remove.setAttribute('aria-label', '移除邮箱连接：' + account.name);
     remove.disabled = busy || sessionExpired;
     remove.addEventListener('click', () => showRemoval(account));
-    copy.append(name, email); row.append(avatar, copy, remove); list.append(row);
+    copy.append(name, email); row.append(avatar, copy, diagnose, remove); list.append(row);
   }
+}
+
+// F2: per-account diagnostics — IMAP / SMTP / proxy / authorization status
+// with the failing stage and an actionable next step. All content is
+// rendered with textContent only; provider data never becomes markup.
+const DIAGNOSIS_LABELS = {
+  imap: 'IMAP 收信', smtp: 'SMTP 发信', proxy: '代理', auth: '授权',
+};
+function statusLine(label, status, detail) {
+  const line = document.createElement('p'); line.className = 'diagnosis-line';
+  const mark = document.createElement('span');
+  mark.className = 'diagnosis-mark ' + (status === 'ok' ? 'ok' : status === 'skipped' || status === 'not_configured' ? 'muted' : 'bad');
+  mark.textContent = status === 'ok' ? '✓' : status === 'failed' ? '✕' : '—';
+  const text = document.createElement('span');
+  text.textContent = label + '：' + ({ ok: '正常', failed: '失败', not_configured: '未配置', skipped: '未启用' }[status] || status);
+  line.append(mark, text);
+  if (detail) { const extra = document.createElement('span'); extra.className = 'diagnosis-detail'; extra.textContent = '（' + detail + '）'; line.append(extra); }
+  return line;
+}
+const STAGE_LABELS = { proxy: '代理配置', tls: 'TLS/证书', authenticate: '登录验证', connect: '连接服务器', session: '邮箱会话', smtp_connect: '连接服务器' };
+let diagnosticsAccount;
+async function showDiagnostics(account) {
+  if (busy || sessionExpired) return;
+  diagnosticsAccount = account;
+  $('diagnostics-name').textContent = account.name;
+  $('diagnostics-email').textContent = account.email || account.user;
+  const body = $('diagnostics-body'); body.replaceChildren();
+  const steps = $('diagnostics-steps'); steps.hidden = true; steps.textContent = '';
+  $('start-repair').hidden = true;
+  $('diagnostics-dialog').showModal();
+  try {
+    const d = await setupFetch('/api/accounts/' + encodeURIComponent(account.id) + '/diagnostics');
+    body.replaceChildren();
+    const imap = d.imap || { status: 'unknown' };
+    const smtp = d.smtp || { status: 'unknown' };
+    const proxy = d.proxy || { applied: false };
+    const auth = d.auth || {};
+    body.append(statusLine(DIAGNOSIS_LABELS.imap, imap.status, imap.stage ? STAGE_LABELS[imap.stage] || imap.stage : undefined));
+    body.append(statusLine(DIAGNOSIS_LABELS.smtp, smtp.status, smtp.stage ? STAGE_LABELS[smtp.stage] || smtp.stage : undefined));
+    body.append(statusLine(DIAGNOSIS_LABELS.proxy, proxy.applied ? 'ok' : 'not_configured', proxy.applied ? (proxy.source === 'gmail-policy' ? 'Gmail 专用代理' : proxy.source === 'IMAP_MCP_MAIL_PROXY' ? '本机代理配置' : proxy.source === 'invalid-config' ? '配置无效' : '系统代理') : '直连'));
+    body.append(statusLine(DIAGNOSIS_LABELS.auth, auth.kind === 'oauth' || auth.kind === 'vault' || auth.kind === 'password' ? 'ok' : 'failed',
+      auth.kind === 'oauth' ? 'Google 授权' : auth.kind === 'vault' ? '系统凭据库' : auth.kind === 'password' ? '授权码' : '缺少凭据'));
+    if (Array.isArray(d.nextSteps) && d.nextSteps.length) {
+      steps.textContent = '下一步：' + d.nextSteps.join(' ');
+      steps.hidden = false;
+    }
+    const repairable = (auth.kind === 'vault' || auth.kind === 'password') && (imap.status === 'failed' || smtp.status === 'failed' || smtp.status === 'not_configured');
+    $('start-repair').hidden = !repairable;
+    $('start-repair').setAttribute('aria-label', '修复邮箱凭据：' + account.name);
+  } catch (error) {
+    body.replaceChildren();
+    const fail = document.createElement('p'); fail.className = 'hint'; fail.textContent = error.message;
+    body.append(fail);
+  }
+}
+function startRepair() {
+  if (!diagnosticsAccount || busy) return;
+  $('repair-code').value = '';
+  $('repair-error').hidden = true;
+  $('repair-dialog').showModal();
+}
+async function confirmRepair() {
+  if (!diagnosticsAccount || busy) return;
+  const code = $('repair-code').value;
+  if (!code) { $('repair-error').textContent = '请填写新的客户端授权码。'; $('repair-error').hidden = false; return; }
+  const account = diagnosticsAccount;
+  busy = true; $('confirm-repair').textContent = '正在验证…';
+  $('repair-error').hidden = true;
+  try {
+    await setupFetch('/api/accounts/' + encodeURIComponent(account.id) + '/repair', { method: 'POST', body: JSON.stringify({ authorizationCode: code }) });
+    $('repair-dialog').close(); $('diagnostics-dialog').close(); diagnosticsAccount = undefined;
+    feedback('凭据已验证并更新。旧授权码已失效，请在聊天中重新使用该邮箱。', 'success');
+  } catch (error) {
+    $('repair-error').textContent = error.message;
+    $('repair-error').hidden = false;
+  } finally { busy = false; $('confirm-repair').textContent = '验证并更新'; }
 }
 function showRemoval(account) {
   if (busy || sessionExpired) return;
@@ -161,8 +272,15 @@ async function submit(event) {
       const host = $('imap-host').value.trim();
       const smtpHost = $('smtp-host').value.trim();
       if (!host || /[\s/:]/.test(host) || (smtpHost && /[\s/:]/.test(smtpHost))) throw new Error('请填写服务器主机名，不包含协议、路径或端口。');
-      const account = { ...identity, name: identity.name || identity.email, host, port: 993, tls: true, password: $('authorization-code').value,
-        ...(smtpHost ? { smtp: { host: smtpHost, port: 465, secure: true, user: identity.email, password: $('authorization-code').value } } : {}) };
+      // F3: ports and encryption come from the form; the integer 1..65535
+      // rule mirrors the backend candidate validation.
+      const imapPort = parsePortField($('imap-port'), 'IMAP');
+      const imapTls = $('imap-encryption').value === 'tls';
+      const account = { ...identity, name: identity.name || identity.email, host, port: imapPort, tls: imapTls, password: $('authorization-code').value };
+      if (smtpHost) {
+        const smtpPort = parsePortField($('smtp-port'), 'SMTP');
+        account.smtp = { host: smtpHost, port: smtpPort, secure: $('smtp-encryption').value === 'tls', user: identity.email, password: $('authorization-code').value };
+      }
       const test = await setupFetch('/api/test-connection', { method: 'POST', body: JSON.stringify({ ...account, user: identity.email }) });
       if (!test.success) throw new Error('连接验证失败，请检查服务器和应用密码。');
       await setupFetch('/api/accounts', { method: 'POST', body: JSON.stringify(account) });
@@ -192,7 +310,26 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('confirm-remove').addEventListener('click', confirmRemoval);
   $('cancel-remove').addEventListener('click', () => { if (!busy) { $('remove-dialog').close(); selectedRemoval = undefined; } });
   $('remove-dialog').addEventListener('cancel', event => { if (busy) event.preventDefault(); else selectedRemoval = undefined; });
+  $('close-diagnostics').addEventListener('click', () => { if (!busy) { $('diagnostics-dialog').close(); diagnosticsAccount = undefined; } });
+  $('diagnostics-dialog').addEventListener('cancel', event => { if (busy) event.preventDefault(); else diagnosticsAccount = undefined; });
+  $('start-repair').addEventListener('click', startRepair);
+  $('confirm-repair').addEventListener('click', confirmRepair);
+  $('cancel-repair').addEventListener('click', () => { if (!busy) $('repair-dialog').close(); });
+  $('repair-dialog').addEventListener('cancel', event => { if (busy) event.preventDefault(); });
+  $('show-repair-secret').addEventListener('click', () => {
+    const visible = $('repair-code').type === 'password';
+    $('repair-code').type = visible ? 'text' : 'password';
+    $('show-repair-secret').textContent = visible ? '隐藏' : '显示';
+    $('show-repair-secret').setAttribute('aria-label', visible ? '隐藏授权码' : '显示授权码');
+    $('show-repair-secret').setAttribute('aria-pressed', String(visible));
+  });
   $('provider').addEventListener('change', updateProvider);
+  $('smtp-host').addEventListener('input', () => {
+    $('smtp-advanced').hidden = !$('smtp-host').value.trim();
+    for (const id of ['smtp-port', 'smtp-encryption']) $(id).disabled = !$('smtp-host').value.trim();
+  });
+  $('imap-encryption').addEventListener('change', () => syncStandardPort('imap'));
+  $('smtp-encryption').addEventListener('change', () => syncStandardPort('smtp'));
   $('enrollment-form').addEventListener('submit', submit);
   $('client-id').addEventListener('input', manualOAuthChanged);
   $('client-secret').addEventListener('input', manualOAuthChanged);

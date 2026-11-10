@@ -58,7 +58,7 @@ export class SmtpService {
     const startRev = accountRevision(account);
     this.transporterRevisions.set(account.id, startRev);
 
-    const smtpConfig = account.smtp || this.getDefaultSmtpConfig(account);
+    const smtpConfig = this.resolveEffectiveSmtpConfig(account);
     const { secure, requireTLS } = this.resolveTlsMode(smtpConfig.port, smtpConfig.secure);
     const proxy = resolveMailProxy(process.env, smtpConfig.host, account.auth?.provider);
 
@@ -100,12 +100,26 @@ export class SmtpService {
     return transporter;
   }
 
+  // F2: the effective SMTP endpoint — the explicit config, or the same
+  // provider-derived default the transport uses. Diagnostics share this
+  // resolution so a derivable configuration is never reported missing.
+  resolveEffectiveSmtpConfig(account: ImapAccount): SmtpConfig {
+    return account.smtp ?? this.getDefaultSmtpConfig(account);
+  }
+
   // Port 465 is implicit TLS (SMTPS); 587/25 are submission ports that upgrade via STARTTLS.
   // A stored `secure: true` on port 587 is almost always a UI mistake — normalize it.
-  private resolveTlsMode(port: number, secure: boolean): { secure: boolean; requireTLS: boolean } {
+  // Static so the transport contract is directly testable: standard ports
+  // pin their mode (candidate validation guarantees the stored choice
+  // matches), custom ports honor the stored flag verbatim.
+  static resolveTlsMode(port: number, secure: boolean): { secure: boolean; requireTLS: boolean } {
     if (port === 465) return { secure: true, requireTLS: false };
     if (port === 587 || port === 25) return { secure: false, requireTLS: true };
     return { secure, requireTLS: !secure };
+  }
+
+  private resolveTlsMode(port: number, secure: boolean): { secure: boolean; requireTLS: boolean } {
+    return SmtpService.resolveTlsMode(port, secure);
   }
 
   private getDefaultSmtpConfig(account: ImapAccount): SmtpConfig {
@@ -289,17 +303,24 @@ export class SmtpService {
     }
   }
 
-  async verifySmtpConnection(account: ImapAccount): Promise<boolean> {
+  // R3: the detailed result keeps the real failure message so diagnostics
+  // can classify the stage (connect / authenticate / tls / proxy). The
+  // boolean wrapper stays for existing callers.
+  async verifySmtpConnectionDetailed(account: ImapAccount): Promise<{ ok: boolean; error?: string }> {
     let transporter: Transporter | undefined;
     try {
       // createTransporter already verifies the newly resolved credentials.
       transporter = await this.createTransporter(account);
-      return true;
+      return { ok: true };
     } catch (error) {
-      return false;
+      return { ok: false, error: error instanceof Error ? error.message : String(error) };
     } finally {
       if (transporter) this.releaseTransporter(account.id, transporter);
     }
+  }
+
+  async verifySmtpConnection(account: ImapAccount): Promise<boolean> {
+    return (await this.verifySmtpConnectionDetailed(account)).ok;
   }
 
   disconnect(accountId: string): void {
