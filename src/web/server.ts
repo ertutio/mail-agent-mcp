@@ -214,10 +214,14 @@ export class WebUIServer {
         const account = await this.accountManager.addAccount({
           name: name || email,
           host: imapHost,
-          port: imapPort || 993,
+          // F3: port and tls pass through exactly as provided - the candidate
+          // validation owns the 1..65535 integer rule and the defaults (993/143,
+          // tls true), so an illegal value is rejected instead of being
+          // silently coerced by a fallback default.
+          ...(imapPort !== undefined ? { port: imapPort } : {}),
           user: imapUsernameFromEnv ? '' : (imapUsername || email),
           password: imapPasswordFromEnv ? '' : password,
-          tls: useTls !== false,
+          ...(useTls !== undefined ? { tls: useTls } : {}),
           ...(imapUsername || imapUsernameFromEnv ? { email } : {}),
           smtp: smtp
             ? {

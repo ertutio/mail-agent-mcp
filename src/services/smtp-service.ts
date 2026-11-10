@@ -102,10 +102,17 @@ export class SmtpService {
 
   // Port 465 is implicit TLS (SMTPS); 587/25 are submission ports that upgrade via STARTTLS.
   // A stored `secure: true` on port 587 is almost always a UI mistake — normalize it.
-  private resolveTlsMode(port: number, secure: boolean): { secure: boolean; requireTLS: boolean } {
+  // Static so the transport contract is directly testable: standard ports
+  // pin their mode (candidate validation guarantees the stored choice
+  // matches), custom ports honor the stored flag verbatim.
+  static resolveTlsMode(port: number, secure: boolean): { secure: boolean; requireTLS: boolean } {
     if (port === 465) return { secure: true, requireTLS: false };
     if (port === 587 || port === 25) return { secure: false, requireTLS: true };
     return { secure, requireTLS: !secure };
+  }
+
+  private resolveTlsMode(port: number, secure: boolean): { secure: boolean; requireTLS: boolean } {
+    return SmtpService.resolveTlsMode(port, secure);
   }
 
   private getDefaultSmtpConfig(account: ImapAccount): SmtpConfig {
