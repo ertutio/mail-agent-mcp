@@ -75,7 +75,8 @@ describe('safe-send MCP tools', () => {
     const { handlers, account, accountManager, smtpService, imapService, sentSnapshots } = harness();
     const preview = json(await handlers.get('imap_preview_send_email')!({ accountId: 'acct-1', to: ['you@example.com'], subject: 'hello', html: '<b>body</b>' }));
     expect(preview).toMatchObject({ draftId: 'draft-1', summary: { accountId: 'acct-1', to: ['you@example.com'], subject: 'hello' } });
-    expect(JSON.stringify(preview)).not.toContain('<b>body</b>');
+    // F1: the preview shows the frozen body the confirmation will submit.
+    expect(JSON.stringify(preview)).toContain('<b>body</b>');
     expect(accountManager.getAccount).toHaveBeenCalledWith('acct-1');
 
     await handlers.get('imap_confirm_send')!({ draftId: preview.draftId, confirmed: true });
@@ -130,7 +131,8 @@ describe('safe-send MCP tools', () => {
       accountId: 'acct-1', folder: 'Archive', uid: 42, to: 'you@example.com',
       body: 'UNTRUSTED caller text; preserve verbatim', includeAttachments: true,
     }));
-    expect(JSON.stringify(preview)).not.toContain('UNTRUSTED');
+    // F1: the forward preview shows the frozen body verbatim.
+    expect(JSON.stringify(preview)).toContain('UNTRUSTED');
     expect(imapService.getEmailContent).toHaveBeenCalledWith('acct-1', 'Archive', 42, { bodyFormat: 'html' });
     expect(imapService.getAttachmentContent).toHaveBeenCalledWith('acct-1', 'Archive', 42, 'original.txt', 111, 0, accountRevision(account));
 
