@@ -84,6 +84,7 @@ const localAccount = (smtp?: { host: string; port: number; secure: boolean; user
 
 interface HarnessOptions {
   realSmtp?: boolean;
+  realManager?: any;
   accounts?: any[];
   imap?: { testConnection?: Function; authenticateOnly?: Function };
   smtp?: { verifySmtpConnection?: Function };
@@ -118,7 +119,7 @@ async function setup(options: HarnessOptions = {}) {
     records,
   };
   const wizard = new WebUIServer(0, {
-    accountManager: manager as any,
+    accountManager: options.realManager ?? manager,
     imapService: imap as any,
     smtpService: options.realSmtp ? (new (await import('../src/services/smtp-service.js')).SmtpService()) : smtp as any,
     credentials: new MemoryBackend() as unknown as CredentialBackend,
@@ -437,22 +438,34 @@ describe('F2: repair endpoint — real rotation, in-memory vault, real store loc
   });
 
   it('F2-LOCAL-SMTP-CONSISTENCY: the shared SMTP secret rotates and the real resolver sees it', async () => {
-    const account = localAccount({ host: 'smtp.local.synth.test', port: 465, secure: true, user: 'me@local.synth.test', password: SYNTHETIC_PASSWORD });
-    const h = await setup({ accounts: [account] });
+    // R2b: uses a real AccountManager — the SMTP linkage decision happens
+    // inside the transaction, so the resolver assertion is end-to-end.
+    const dir = mkdtempSync(join(tmpdir(), 'f2-r2b-http-'));
+    process.env.IMAP_MCP_CONFIG_DIR = dir;
     try {
-      const response = await h.post('/api/accounts/acc-local/repair', { authorizationCode: REPAIR_CODE });
+      const { AccountManager } = await import('../src/services/account-manager.js');
+      const manager = new AccountManager();
+      const account = localAccount({ host: 'smtp.local.synth.test', port: 465, secure: true, user: 'me@local.synth.test', password: SYNTHETIC_PASSWORD });
+      const added = await manager.addAccount({
+        ...account, name: 'Local',
+        smtp: { host: 'smtp.local.synth.test', port: 465, secure: true, user: 'me@local.synth.test', password: SYNTHETIC_PASSWORD },
+      });
+      const h = await setup({ realManager: manager as any });
+      const accountId = added.id;
+      const response = await h.post('/api/accounts/' + accountId + '/repair', { authorizationCode: REPAIR_CODE });
       expect(response.status).toBe(200);
-      // Both secrets moved together (the setup form writes them as one).
-      expect(h.manager.updateAccount).toHaveBeenCalledWith('acc-local', {
-        password: REPAIR_CODE,
-        smtp: expect.objectContaining({ password: REPAIR_CODE }),
-      }, { expectedRevision: expect.any(String) });
+      const live = manager.getAccount(accountId)!;
+      expect(live.password).toBe(REPAIR_CODE);
+      expect(live.smtp?.password).toBe(REPAIR_CODE);
       // Actual resolution: the SMTP resolver answers with the new secret.
       const resolver = new AccountAuthResolver(h.backend as unknown as CredentialBackend);
-      const resolved = await resolver.resolve(h.manager.records.get('acc-local'), 'smtp');
+      const resolved = await resolver.resolve(live, 'smtp');
       expect(resolved.password).toBe(REPAIR_CODE);
       expect(JSON.stringify(await response.json())).not.toContain(REPAIR_CODE);
-    } finally { h.server.close(); }
+    } finally {
+      delete process.env.IMAP_MCP_CONFIG_DIR;
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it('F2-LOCAL-INDEPENDENT-SMTP: an independently configured SMTP secret keeps its binding', async () => {
@@ -461,7 +474,7 @@ describe('F2: repair endpoint — real rotation, in-memory vault, real store loc
     try {
       const response = await h.post('/api/accounts/acc-local/repair', { authorizationCode: REPAIR_CODE });
       expect(response.status).toBe(200);
-      expect(h.manager.updateAccount).toHaveBeenCalledWith('acc-local', { password: REPAIR_CODE }, { expectedRevision: expect.any(String) });
+      expect(h.manager.updateAccount).toHaveBeenCalledWith('acc-local', { password: REPAIR_CODE }, { expectedRevision: expect.any(String), rotateSharedSmtpSecret: true });
       const resolver = new AccountAuthResolver(h.backend as unknown as CredentialBackend);
       const resolved = await resolver.resolve(h.manager.records.get('acc-local'), 'smtp');
       expect(resolved.password).toBe(INDEPENDENT_SMTP_SECRET);
@@ -592,4 +605,122 @@ describe('F2-R3: SMTP verification stage classification through diagnostics', ()
       } finally { h.server.close(); }
     });
   }
+
+// F2 review round 3 / R2a: env overrides must not cause false revision rejection.
+describe('F2-R2a: env-override revision comparison stays consistent', () => {
+  it('F2-R2A-ENV-OVERRIDE: IMAP_USERNAME/SMTP_USERNAME overrides do not falsely reject a legal repair', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'f2-r2a-'));
+    process.env.IMAP_MCP_CONFIG_DIR = dir;
+    // The AccountManager constructor captures env vars at startup.
+    process.env.IMAP_MCP_ACCOUNT_TEST_LOCAL_IMAP_USERNAME = 'env-user@synth.test';
+    process.env.IMAP_MCP_ACCOUNT_TEST_LOCAL_SMTP_USERNAME = 'env-smtp@synth.test';
+    try {
+      const { AccountManager } = await import('../src/services/account-manager.js');
+      const manager = new AccountManager();
+      const account = localAccount({ host: 'smtp.local.synth.test', port: 465, secure: true, user: 'me@local.synth.test', password: SYNTHETIC_PASSWORD });
+      // addAccount persists the disk record with user=me@local.synth.test.
+      const added = await manager.addAccount({ ...account, name: 'Test Local' });
+      // getAccount returns the env-overridden account (user=env-user@synth.test).
+      const effective = manager.getAccount(added.id)!;
+      expect(effective.user).toBe('env-user@synth.test');
+      const { accountRevision } = await import('../src/utils/account-revision.js');
+      const expected = accountRevision(effective);
+      // The repair passes the effective-revision — the transactional gate
+      // must compare against the SAME representation, not the disk record.
+      await expect(manager.updateAccount(added.id, { password: REPAIR_CODE }, { expectedRevision: expected }))
+        .resolves.toBeDefined();
+      // The disk record still has the original user (env overrides are
+      // in-memory only); the password moved.
+      const disk = manager.getAccount(added.id)!;
+      expect(disk.password).toBe(REPAIR_CODE);
+    } finally {
+      delete process.env.IMAP_MCP_ACCOUNT_TEST_LOCAL_IMAP_USERNAME;
+      delete process.env.IMAP_MCP_ACCOUNT_TEST_LOCAL_SMTP_USERNAME;
+      delete process.env.IMAP_MCP_CONFIG_DIR;
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+// F2 review round 3 / R2b: the SMTP linkage decision inside the transaction.
+describe('F2-R2b: SMTP linkage inside the transaction', () => {
+  it('F2-R2B-SHARED: a shared SMTP secret still rotates with the IMAP password', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'f2-r2b-'));
+    process.env.IMAP_MCP_CONFIG_DIR = dir;
+    try {
+      const { AccountManager } = await import('../src/services/account-manager.js');
+      const manager = new AccountManager();
+      const account = localAccount({ host: 'smtp.local.synth.test', port: 465, secure: true, user: 'me@local.synth.test', password: SYNTHETIC_PASSWORD });
+      const added = await manager.addAccount({
+        ...account, name: 'R2b Shared',
+        smtp: { host: 'smtp.local.synth.test', port: 465, secure: true, user: 'me@local.synth.test', password: SYNTHETIC_PASSWORD },
+      });
+      const { accountRevision } = await import('../src/utils/account-revision.js');
+      const expected = accountRevision(manager.getAccount(added.id)!);
+      await manager.updateAccount(added.id, { password: REPAIR_CODE }, { expectedRevision: expected, rotateSharedSmtpSecret: true });
+      const live = manager.getAccount(added.id)!;
+      expect(live.password).toBe(REPAIR_CODE);
+      expect(live.smtp?.password).toBe(REPAIR_CODE);
+    } finally {
+      delete process.env.IMAP_MCP_CONFIG_DIR;
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('F2-R2B-INDEPENDENT: an independently configured SMTP secret keeps its binding', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'f2-r2b-i-'));
+    process.env.IMAP_MCP_CONFIG_DIR = dir;
+    try {
+      const { AccountManager } = await import('../src/services/account-manager.js');
+      const manager = new AccountManager();
+      const account = localAccount({ host: 'smtp.local.synth.test', port: 465, secure: true, user: 'me@local.synth.test', password: SYNTHETIC_PASSWORD });
+      const added = await manager.addAccount({
+        ...account, name: 'R2b Independent',
+        smtp: { host: 'smtp.local.synth.test', port: 465, secure: true, user: 'me@local.synth.test', password: INDEPENDENT_SMTP_SECRET },
+      });
+      const { accountRevision } = await import('../src/utils/account-revision.js');
+      const expected = accountRevision(manager.getAccount(added.id)!);
+      await manager.updateAccount(added.id, { password: REPAIR_CODE }, { expectedRevision: expected, rotateSharedSmtpSecret: true });
+      const live = manager.getAccount(added.id)!;
+      expect(live.password).toBe(REPAIR_CODE);
+      expect(live.smtp?.password).toBe(INDEPENDENT_SMTP_SECRET);
+    } finally {
+      delete process.env.IMAP_MCP_CONFIG_DIR;
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('F2-R2B-CONCURRENT-SMTP-ONLY: a concurrent smtp-only change is preserved by the stale repair commit', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'f2-r2b-c-'));
+    process.env.IMAP_MCP_CONFIG_DIR = dir;
+    try {
+      const { AccountManager } = await import('../src/services/account-manager.js');
+      const manager = new AccountManager();
+      const account = localAccount({ host: 'smtp.local.synth.test', port: 465, secure: true, user: 'me@local.synth.test', password: SYNTHETIC_PASSWORD });
+      const added = await manager.addAccount({
+        ...account, name: 'R2b Concurrent',
+        smtp: { host: 'smtp.local.synth.test', port: 465, secure: true, user: 'me@local.synth.test', password: SYNTHETIC_PASSWORD },
+      });
+      // The caller verifies and snapshots the revision.
+      const { accountRevision } = await import('../src/utils/account-revision.js');
+      const expected = accountRevision(manager.getAccount(added.id)!);
+      // A concurrent process rotates ONLY the SMTP password to an
+      // independent value (revision unchanged — smtp.password is excluded
+      // from the revision contract).
+      const CONCURRENT_SMTP_SECRET = ['concurrent', '-smtp'].join('');
+      await manager.updateAccount(added.id, { smtp: { host: 'smtp.local.synth.test', port: 465, secure: true, user: 'me@local.synth.test', password: CONCURRENT_SMTP_SECRET } });
+      // The stale repair commits with the pre-concurrency expectedRevision.
+      // The transaction sees the CURRENT smtp password is now INDEPENDENT
+      // (different from the current IMAP password) — it must NOT overwrite it.
+      await manager.updateAccount(added.id, { password: REPAIR_CODE }, { expectedRevision: expected, rotateSharedSmtpSecret: true });
+      const live = manager.getAccount(added.id)!;
+      expect(live.password).toBe(REPAIR_CODE); // IMAP rotated
+      expect(live.smtp?.password).toBe(CONCURRENT_SMTP_SECRET); // independent SMTP preserved
+    } finally {
+      delete process.env.IMAP_MCP_CONFIG_DIR;
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
 });

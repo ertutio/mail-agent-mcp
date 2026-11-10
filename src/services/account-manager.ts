@@ -211,10 +211,10 @@ export class AccountManager {
     }
   }
 
-  async updateAccount(id: string, updates: Partial<Omit<ImapAccount, 'id'>>, options?: { expectedRevision?: string }): Promise<ImapAccount> {
+  async updateAccount(id: string, updates: Partial<Omit<ImapAccount, 'id'>>, options?: { expectedRevision?: string; rotateSharedSmtpSecret?: boolean }): Promise<ImapAccount> {
     return this.withStoreTransaction(()=>this.updateAccountUnlocked(id,updates,options));
   }
-  private async updateAccountUnlocked(id:string,updates:Partial<Omit<ImapAccount,'id'>>,options?:{expectedRevision?:string}):Promise<ImapAccount>{
+  private async updateAccountUnlocked(id:string,updates:Partial<Omit<ImapAccount,'id'>>,options?:{expectedRevision?:string;rotateSharedSmtpSecret?:boolean}):Promise<ImapAccount>{
     const existingAccount = this.accounts.get(id);
     if (!existingAccount) {
       throw new Error(`Account with id ${id} not found`);
@@ -222,8 +222,24 @@ export class AccountManager {
     // R2: the authoritative revision gate — checked under the same store
     // transaction as the update, so a concurrent identity change landing
     // after the caller's own check still rejects the stale commit.
-    if (options?.expectedRevision !== undefined && accountRevision(existingAccount) !== options.expectedRevision) {
-      throw new AccountRevisionMismatchError('Account identity changed since the caller verified it; the update was rejected without any write. Re-run the repair against the new identity.');
+    // R2a: the gate computes the revision on the SAME effective account
+    // representation the caller saw (env overrides applied), so a legal
+    // repair is not falsely rejected when IMAP_USERNAME or SMTP_USERNAME
+    // env overrides differ from the disk record.
+    if (options?.expectedRevision !== undefined) {
+      const effective = this.applyEnvOverrides(existingAccount);
+      if (accountRevision(effective) !== options.expectedRevision) {
+        throw new AccountRevisionMismatchError('Account identity changed since the caller verified it; the update was rejected without any write. Re-run the repair against the new identity.');
+      }
+    }
+    // R2b: the SMTP linkage decision runs INSIDE the transaction, based on
+    // the CURRENT record — a concurrent smtp-only password change between
+    // the caller's snapshot and this commit cannot be overwritten.
+    if (options?.rotateSharedSmtpSecret && updates.password !== undefined
+      && existingAccount.smtp && existingAccount.smtp.password !== undefined
+      && existingAccount.smtp.password !== ''
+      && this.decryptField(existingAccount.smtp.password) === this.decryptField(existingAccount.password)) {
+      updates = { ...updates, smtp: { ...existingAccount.smtp, password: updates.password } };
     }
 
     // The merged result is a candidate too: schema and unknown-field rules

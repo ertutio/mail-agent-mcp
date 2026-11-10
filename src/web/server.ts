@@ -692,12 +692,11 @@ export class WebUIServer {
         // rotate both — the SMTP resolver would otherwise keep answering
         // with the retired code. Independently configured SMTP secrets
         // keep their existing binding.
-        const updates: { password: string; smtp?: { host: string; port: number; secure: boolean; user?: string; password: string } } = { password: input.data.authorizationCode };
-        if (live.smtp && account.smtp && live.smtp.password !== undefined
-          && live.smtp.password !== '' && live.smtp.password === account.password) {
-          updates.smtp = { ...live.smtp, password: input.data.authorizationCode };
-        }
-        const updated = await this.accountManager.updateAccount(account.id, updates, { expectedRevision });
+        // R2b: the SMTP linkage decision moved INSIDE the transaction —
+        // the live record (post-gate) decides whether smtp.password is
+        // shared with the IMAP secret, so a concurrent smtp-only change
+        // between the snapshot and the commit is never overwritten.
+        const updated = await this.accountManager.updateAccount(account.id, { password: input.data.authorizationCode }, { expectedRevision, rotateSharedSmtpSecret: true });
         res.json({ success: true, accountId: account.id, account: stripAccountSecrets(updated) });
       } catch (error) {
         if (error instanceof CredentialRollbackError) {
