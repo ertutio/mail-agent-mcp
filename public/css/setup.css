@@ -8,3 +8,13 @@
 
 /* F3: generic account ports and encryption */
 .field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+
+/* F2: account diagnostics panel */
+.diagnostics-body { display: grid; gap: 6px; margin: 12px 0; }
+.diagnosis-line { display: flex; align-items: baseline; gap: 8px; margin: 0; font-size: 14px; }
+.diagnosis-mark { width: 16px; text-align: center; font-weight: 600; }
+.diagnosis-mark.ok { color: #177245; }
+.diagnosis-mark.bad { color: #b3261e; }
+.diagnosis-mark.muted { color: #7a7a7a; }
+.diagnosis-detail { color: #7a7a7a; font-size: 13px; }
+.diagnostics-steps { margin-top: 4px; }
