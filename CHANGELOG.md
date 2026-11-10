@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.2.0] - 2026-11-11
+
+This GitHub installation release adds the F1–F5 feature batch and the B1–B6 fixes. The release ZIP contains built files. npm and MCP Registry publication remain separate.
+
+### Added
+
+- Safe-send previews show complete per-view truncation ranges.
+- Account health diagnostics and a browser repair workflow are available for generic accounts.
+- Generic SMTP settings support custom hosts and ports. The host remains editable when blank, and hidden port fields do not block form submission.
+- Cross-mailbox results can be grouped by conversation and deduplicated.
+- Saved searches can be saved, listed, run, updated and deleted. Digests support unanswered-reply reminders and empty optional date bounds.
+- Attachment matching uses a consistent identity for unnamed files, preserving byte order across preview and send.
+- Drafts preserve explicit and default BCC recipients in the SMTP envelope while omitting BCC from message headers.
+
+### Fixed
+
+- Message-ID searches distinguish searched, failed and pending mailbox ranges and reject empty IDs before discovery or network access.
+- Timed-out account searches retain per-folder continuation markers with the mailbox UID validity.
+- APPEND outcomes distinguish definite server rejection from ambiguous post-submit failures.
+- MCP initialization and health responses use the package version from the module location.
+- Account repair uses revision-pinned updates, preserves linked SMTP credentials and rejects stale identity changes.
+- Empty optional saved-search date bounds are treated as unset when saving, running and generating digests.
+
 ## [0.1.0] - 2026-11-01
 
 First GitHub installation release of the ertutio fork. The release ZIP contains built files; npm and MCP Registry publication are not part of this release. Existing configuration and credential targets remain compatible.

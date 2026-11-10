@@ -50,6 +50,13 @@ function validateCriteria(criteria: Record<string, unknown>): void {
   if (criteria.before !== undefined && criteria.before !== '') parseSearchDateBound(String(criteria.before));
 }
 
+function normalizeSavedSearchDates(criteria: SavedSearch['criteria']): SavedSearch['criteria'] {
+  const normalized = { ...criteria };
+  if (normalized.since === '') delete normalized.since;
+  if (normalized.before === '') delete normalized.before;
+  return normalized;
+}
+
 function json(result: unknown) {
   return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
 }
@@ -99,12 +106,7 @@ export function savedSearchTools(
   }, async ({ name }: { name: string }) => {
     const saved = getSavedSearch(name, dir);
     if (!saved) throw new Error(`No saved search named "${name}"`);
-    // R6 round 4: empty since/before are "unset" — the unified search
-    // rejects empty dates, so drop them before delegating.
-    const criteria = { ...saved.criteria } as Record<string, unknown>;
-    if (criteria.since === '') delete criteria.since;
-    if (criteria.before === '') delete criteria.before;
-    const result = await runUnifiedSearch({ ...criteria, pass: 1 } as UnifiedSearchArgs);
+    const result = await runUnifiedSearch({ ...normalizeSavedSearchDates(saved.criteria), pass: 1 });
     return json({ success: true, savedSearch: saved.name, ...result });
   });
 
@@ -121,7 +123,7 @@ export function savedSearchTools(
     if (savedSearch) {
       const saved = getSavedSearch(savedSearch, dir);
       if (!saved) throw new Error(`No saved search named "${savedSearch}"`);
-      criteria = { ...saved.criteria, limit };
+      criteria = { ...normalizeSavedSearchDates(saved.criteria), limit };
     } else {
       const since = new Date(Date.now() - sinceHours * 3_600_000);
       // IMAP SINCE filters whole days; the exact hour cutoff is applied below.

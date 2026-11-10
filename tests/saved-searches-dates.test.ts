@@ -4,36 +4,56 @@ import { listSavedSearches, upsertSavedSearch, getSavedSearch, deleteSavedSearch
 import { mkdtempSync, rmSync, writeFileSync, readFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import { z } from 'zod';
 
-// R6 round 4: empty since/before are treated as unset — the same rule the
-// tool schema enforces (z.string().optional() allows ''). Previously the
-// storage read validation rejected them, causing a legal MCP input
-// {name:'empty', query:''} to save then read as corrupt.
+function registerTools(directory: string) {
+  const handlers = new Map<string, Function>();
+  const schemas = new Map<string, z.ZodRawShape>();
+  const imap = {
+    listFolders: vi.fn(async () => [{ name: 'INBOX', delimiter: '/', attributes: [] }]),
+    searchEmailPage: vi.fn(async () => ({ messages: [], matched: 0 })),
+  };
+  const manager = {
+    getAllAccounts: () => [{ id: 'a1', name: 'A1', host: 'imap.a.synth.test' }],
+    resolveAccountId: (id?: string) => id ?? 'a1',
+  };
+  savedSearchTools(
+    { registerTool: (name: string, definition: { inputSchema: z.ZodRawShape }, handler: Function) => {
+      handlers.set(name, handler);
+      schemas.set(name, definition.inputSchema);
+    } } as any,
+    imap as any, manager as any, {}, { directory },
+  );
+  return async (name: string, args: Record<string, unknown>) => {
+    const input = z.object(schemas.get(name)!).parse(args);
+    const response = await handlers.get(name)!(input);
+    return JSON.parse(response.content[0].text);
+  };
+}
 
 describe('R6 round 4: empty date fields treated as unset', () => {
   let dir: string;
   beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'r6-dates-')); });
   afterEach(() => { rmSync(dir, { recursive: true, force: true }); });
 
-  it('R6-DATES-SINCE-EMPTY: since:\'\' saves, lists, runs and deletes cleanly', async () => {
-    const handlers = new Map<string, Function>();
-    const imap = {
-      listFolders: vi.fn(async () => [{ name: 'INBOX', delimiter: '/', attributes: [] }]),
-      searchEmailPage: vi.fn(async () => ({ messages: [], matched: 0 })),
-    };
-    const manager = { getAllAccounts: () => [{ id: 'a1', name: 'A1', host: 'imap.a.synth.test' }], resolveAccountId: (id?: string) => id ?? 'a1' };
-    savedSearchTools(
-      { registerTool: (name: string, _def: unknown, handler: Function) => handlers.set(name, handler) } as any,
-      imap as any, manager as any, {}, { directory: dir },
-    );
-    const saved = JSON.parse((await handlers.get('imap_save_search')!({ name: 'empty-since', since: '' })).content[0].text);
+  it.each([
+    { id: 'SINCE-EMPTY', criteria: { since: '' } },
+    { id: 'BEFORE-EMPTY', criteria: { before: '' } },
+    { id: 'BOTH-EMPTY', criteria: { since: '', before: '' } },
+    { id: 'MIXED-BEFORE', criteria: { since: '', before: '2026-06-01' } },
+    { id: 'MIXED-SINCE', criteria: { since: '2026-01-01', before: '' } },
+  ])('R6-DATES-DIGEST-$id: saves, lists, runs, digests and deletes', async ({ criteria }) => {
+    const call = registerTools(dir);
+    const saved = await call('imap_save_search', { name: 'empty-dates', ...criteria });
     expect(saved.success).toBe(true);
-    const list = JSON.parse((await handlers.get('imap_list_saved_searches')!({})).content[0].text);
+    const list = await call('imap_list_saved_searches', {});
     expect(list.savedSearches).toHaveLength(1);
-    expect(list.savedSearches[0].criteria.since).toBe('');
-    const run = JSON.parse((await handlers.get('imap_run_saved_search')!({ name: 'empty-since' })).content[0].text);
+    expect(list.savedSearches[0].criteria).toEqual(criteria);
+    const run = await call('imap_run_saved_search', { name: 'empty-dates' });
     expect(run.success).toBe(true);
-    const del = JSON.parse((await handlers.get('imap_delete_saved_search')!({ name: 'empty-since' })).content[0].text);
+    const digest = await call('imap_mail_digest', { savedSearch: 'empty-dates' });
+    expect(digest.success).toBe(true);
+    const del = await call('imap_delete_saved_search', { name: 'empty-dates' });
     expect(del.success).toBe(true);
   });
 
@@ -51,13 +71,17 @@ describe('R6 round 4: empty date fields treated as unset', () => {
     expect(list[0].criteria.before).toBe('');
   });
 
-  it('R6-DATES-OLD-STORE: an old store with empty date fields loads, runs, updates and deletes', () => {
+  it('R6-DATES-OLD-STORE: an old store with empty dates loads, runs, digests, updates and deletes', async () => {
     const path = join(dir, 'saved-searches.json');
     const old = JSON.stringify([{ name: 'legacy', criteria: { since: '', before: '', query: 'real' } }]);
     writeFileSync(path, old, 'utf8');
     const list = listSavedSearches(dir);
     expect(list).toHaveLength(1);
     expect(list[0].criteria.query).toBe('real');
+    const call = registerTools(dir);
+    expect((await call('imap_run_saved_search', { name: 'legacy' })).success).toBe(true);
+    expect((await call('imap_mail_digest', { savedSearch: 'legacy' })).success).toBe(true);
+    expect(readFileSync(path, 'utf8')).toBe(old);
     // Update works on the loaded entry.
     const updated = upsertSavedSearch({ name: 'legacy', criteria: { since: '', query: 'updated' } }, dir);
     expect(updated.criteria.query).toBe('updated');

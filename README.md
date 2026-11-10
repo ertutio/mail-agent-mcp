@@ -10,7 +10,7 @@
 
 基于 [SinoEdwards/mail-agent-mcp](https://github.com/SinoEdwards/mail-agent-mcp) 开发，保留原项目的 OAuth、安全发送、附件边界和通用 IMAP 功能。
 
-> 当前版本为 v0.1.0 Public Preview / Beta，请从本仓库 GitHub Release 下载预构建安装包。尚未发布到 npm 或 MCP Registry。安全邮箱注册使用 Windows 凭据管理器；macOS/Linux 尚未提供对应的安全凭据后端。
+> 当前版本为 v0.2.0 Public Preview / Beta，请从本仓库 GitHub Release 下载预构建安装包。尚未发布到 npm 或 MCP Registry。安全邮箱注册使用 Windows 凭据管理器；macOS/Linux 尚未提供对应的安全凭据后端。
 
 ## 本次更新
 
@@ -49,7 +49,7 @@ QQ、网易和 Gmail 的安全注册目前要求 Windows。其他服务商的旧
 
 ### 1. 下载安装包
 
-需要 Node.js **22.12 或更新版本**和 npm。打开 [v0.1.0 GitHub Release](https://github.com/ertutio/mail-agent-mcp/releases/tag/v0.1.0)，下载并解压 `mail-agent-mcp-0.1.0.zip`，在解压目录中执行：
+需要 Node.js **22.12 或更新版本**和 npm。打开 [v0.2.0 GitHub Release](https://github.com/ertutio/mail-agent-mcp/releases/tag/v0.2.0)，下载并解压 `mail-agent-mcp-0.2.0.zip`，在解压目录中执行：
 
 ```powershell
 npm ci --omit=dev

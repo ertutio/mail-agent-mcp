@@ -81,7 +81,7 @@ describe('public release surface', () => {
 
   it('uses the approved independent GitHub identity and keeps publishing disabled', () => {
     const pkg = JSON.parse(read('package.json')) as Record<string, unknown>;
-    expect(pkg).toMatchObject({ name: '@ertutio/mail-agent-mcp', version: '0.1.0', private: true });
+    expect(pkg).toMatchObject({ name: '@ertutio/mail-agent-mcp', version: '0.2.0', private: true });
     expect(pkg).toMatchObject({
       mcpName: 'io.github.ertutio/mail-agent-mcp',
       repository: {
@@ -94,7 +94,7 @@ describe('public release surface', () => {
     const server = JSON.parse(read('server.json')) as Record<string, unknown>;
     expect(server).toMatchObject({
       name: 'io.github.ertutio/mail-agent-mcp',
-      version: '0.1.0',
+      version: '0.2.0',
       repository: { url: 'https://github.com/ertutio/mail-agent-mcp' },
       packages: [],
     });
