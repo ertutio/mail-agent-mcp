@@ -10,7 +10,7 @@ import { AccountAuthResolver, buildImapAuth } from '../credentials/account-auth.
 import { resolveMailProxy } from '../utils/mail-proxy.js';
 import { accountRevision } from '../utils/account-revision.js';
 import { attachmentMatchesKey } from '../utils/attachment-part-match.js';
-import { BODY_PREFIX_BYTES, canExposeMessage, confidentialMarkers, marked, preflightSource } from '../utils/confidential-message.js';
+import { BODY_PREFIX_BYTES, canExposeOpening, confidentialMarkers, inspectHeader, marked, preflightHeader, preflightText } from '../utils/confidential-message.js';
 
 /**
  * Providers that require IMAP access to be manually enabled in account settings.
@@ -916,14 +916,26 @@ export class ImapService {
               marked(envelope.envelope.subject ?? '', this.confidential)) {
             throw new Error();
           }
-          const prefix = await client.fetchOne(uid, { uid: true, source: preflightSource, size: true }, { uid: true });
-          if (!prefix || prefix.uid !== uid || !prefix.source || prefix.size === undefined ||
-              prefix.size > MAX_MESSAGE_BYTES || !canExposeMessage(prefix.source, prefix.size, this.confidential)) {
+          const header = await client.fetchOne(uid, { uid: true, bodyParts: [preflightHeader], size: true }, { uid: true });
+          if (!header || header.uid !== uid || !header.headers || header.size === undefined ||
+              !Number.isSafeInteger(header.size) || header.size < header.headers.length || header.size > MAX_MESSAGE_BYTES) {
             throw new Error();
           }
+          const format = inspectHeader(header.headers, this.confidential);
+          if (!format) throw new Error();
+          const textSize = header.size - header.headers.length;
+          let opening = Buffer.alloc(0) as Buffer;
+          if (textSize > 0) {
+            const text = await client.fetchOne(uid, { uid: true, bodyParts: [preflightText] }, { uid: true });
+            const bytes = text && text.uid === uid && text.bodyParts?.get('text');
+            if (!bytes) throw new Error();
+            opening = bytes;
+          }
+          if (!canExposeOpening(opening, textSize, format.ascii, this.confidential)) throw new Error();
           const message = await client.fetchOne(uid, { uid: true, source: boundedSource, size: true, flags: true }, { uid: true });
-          if (!message || message.uid !== uid || !message.source || message.size !== prefix.size ||
-              message.source.length !== prefix.size || !message.source.subarray(0, prefix.source.length).equals(prefix.source)) {
+          if (!message || message.uid !== uid || !message.source || message.size !== header.size ||
+              message.source.length !== header.size || !message.source.subarray(0, header.headers.length).equals(header.headers) ||
+              !message.source.subarray(header.headers.length, header.headers.length + opening.length).equals(opening)) {
             throw new Error();
           }
           const rendered = await this.buildEmailContentFromSource(uid, message.source, message.flags, {

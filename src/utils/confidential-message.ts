@@ -1,7 +1,8 @@
 /** Bounded, conservative preflight for the opt-in single-message MCP surface. */
 export const HEADER_BYTES = 16 * 1024;
 export const BODY_PREFIX_BYTES = 4 * 1024;
-export const preflightSource = { start: 0, maxLength: HEADER_BYTES + 4 + BODY_PREFIX_BYTES };
+export const preflightHeader = { key: 'HEADER', start: 0, maxLength: HEADER_BYTES + 4 };
+export const preflightText = { key: 'TEXT', start: 0, maxLength: BODY_PREFIX_BYTES };
 export const guardedToolName = 'imap_get_email';
 
 export function confidentialMarkers(env: NodeJS.ProcessEnv = process.env): readonly string[] | undefined {
@@ -33,43 +34,49 @@ export function marked(value: string, markers: readonly string[], truncated = fa
   });
 }
 
-export function canExposeMessage(prefix: Buffer, size: number, markers: readonly string[]): boolean {
+export function inspectHeader(bytes: Buffer, markers: readonly string[]): { ascii: boolean } | undefined {
   try {
-    if (!Number.isSafeInteger(size) || size < 1 || prefix.length !== Math.min(size, preflightSource.maxLength)) return false;
-    const boundary = prefix.indexOf('\r\n\r\n');
-    if (boundary < 0 || boundary > HEADER_BYTES) return false;
-    const header = new TextDecoder('utf-8', { fatal: true }).decode(prefix.subarray(0, boundary));
+    const boundary = bytes.indexOf('\r\n\r\n');
+    if (boundary < 0 || boundary > HEADER_BYTES || boundary + 4 !== bytes.length) return undefined;
+    const header = new TextDecoder('utf-8', { fatal: true }).decode(bytes.subarray(0, boundary));
     const fields = new Map<string, string>();
     const singleton = new Set(['subject', 'content-type', 'content-transfer-encoding', 'content-disposition', 'mime-version']);
     let last: string | undefined;
     for (const line of header.split('\r\n')) {
-      if (/[\x00-\x08\x0a-\x1f\x7f]/u.test(line)) return false;
+      if (/[\x00-\x08\x0a-\x1f\x7f]/u.test(line)) return undefined;
       if (/^[ \t]/u.test(line)) {
-        if (!last) return false;
+        if (!last) return undefined;
         fields.set(last, fields.get(last)! + ' ' + line.trim());
         continue;
       }
       const match = /^([!-9;-~]+):[ \t]*(.*)$/u.exec(line);
-      if (!match) return false;
+      if (!match) return undefined;
       last = match[1].toLowerCase();
-      if (singleton.has(last) && fields.has(last)) return false;
+      if (singleton.has(last) && fields.has(last)) return undefined;
       fields.set(last, match[2]);
     }
     const subject = fields.get('subject') ?? '';
     // Do not incorrectly approve unsupported or malformed RFC 2047 encoded words.
-    if (subject.includes('=?')) return false;
+    if (subject.includes('=?')) return undefined;
     const mime = fields.get('mime-version');
-    if (mime !== undefined && mime.trim() !== '1.0') return false;
-    if (fields.has('content-disposition')) return false;
+    if (mime !== undefined && mime.trim() !== '1.0') return undefined;
+    if (fields.has('content-disposition')) return undefined;
     const type = /^text\/plain(?:\s*;\s*charset\s*=\s*(?:"(utf-8|us-ascii)"|(utf-8|us-ascii)))?$/iu.exec(fields.get('content-type')?.trim() ?? 'text/plain');
     const transfer = fields.get('content-transfer-encoding')?.trim().toLowerCase() ?? '7bit';
-    if (!type || !['7bit', '8bit'].includes(transfer)) return false;
-    const start = boundary + 4;
-    const bytes = prefix.subarray(start, start + BODY_PREFIX_BYTES);
-    const ascii = transfer === '7bit' || (type[1] ?? type[2] ?? 'us-ascii').toLowerCase() === 'us-ascii';
+    if (!type || !['7bit', '8bit'].includes(transfer)) return undefined;
+    if (marked(subject, markers)) return undefined;
+    return { ascii: transfer === '7bit' || (type[1] ?? type[2] ?? 'us-ascii').toLowerCase() === 'us-ascii' };
+  } catch {
+    return undefined;
+  }
+}
+
+export function canExposeOpening(bytes: Buffer, size: number, ascii: boolean, markers: readonly string[]): boolean {
+  try {
+    if (!Number.isSafeInteger(size) || size < 0 || bytes.length !== Math.min(size, BODY_PREFIX_BYTES)) return false;
     if (bytes.some(value => value === 0 || (ascii && value > 127))) return false;
     const body = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
-    return !marked(subject, markers) && !marked(body, markers, start + bytes.length < size);
+    return !marked(body, markers, bytes.length < size);
   } catch {
     return false;
   }

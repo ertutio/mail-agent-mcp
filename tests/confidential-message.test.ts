@@ -1,7 +1,8 @@
+import { createRequire } from 'node:module';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ImapService } from '../src/services/imap-service.js';
 import { registerTools } from '../src/tools/index.js';
-import { BODY_PREFIX_BYTES, canExposeMessage, confidentialMarkers, preflightSource } from '../src/utils/confidential-message.js';
+import { BODY_PREFIX_BYTES, canExposeOpening, confidentialMarkers, inspectHeader, preflightHeader, preflightText } from '../src/utils/confidential-message.js';
 
 const markers = ['DO NOT SHARE', '机密'];
 const markerEnv = JSON.stringify(markers);
@@ -9,6 +10,16 @@ const subject = 'synthetic';
 const wire = (body: string, headers: string[] = []) =>
   Buffer.from(['From: sender@example.test', 'To: recipient@example.test', 'Subject: ' + subject, ...headers, '', body].join('\r\n'));
 const textHeaders = ['Content-Type: text/plain; charset=UTF-8', 'Content-Transfer-Encoding: 8bit'];
+
+const split = (msg: Buffer) => {
+  const end = msg.indexOf('\r\n\r\n') + 4;
+  return { header: msg.subarray(0, end), body: msg.subarray(end) };
+};
+const canExposeMessage = (msg: Buffer, size: number, policy: readonly string[]) => {
+  const { header, body } = split(msg);
+  const format = inspectHeader(header, policy);
+  return !!format && canExposeOpening(body.subarray(0, BODY_PREFIX_BYTES), size - header.length, format.ascii, policy);
+};
 
 afterEach(() => vi.unstubAllEnvs());
 
@@ -67,6 +78,11 @@ const read = (service: ImapService) => service.getEmailContent('account', 'INBOX
 const envelope = { uid: 42, envelope: { subject } };
 const message = (source: Buffer) => ({ uid: 42, source, size: source.length, flags: new Set() });
 
+const headerResponse = (msg: Buffer) => ({ uid: 42, headers: split(msg).header, size: msg.length });
+const openingResponse = (msg: Buffer) => ({
+  uid: 42, bodyParts: new Map([['text', split(msg).body.subarray(0, BODY_PREFIX_BYTES)]]),
+});
+
 describe('guarded MCP surface', () => {
   it('allows just the guarded tool; an explicit list can only narrow it', () => {
     vi.stubEnv('IMAP_MCP_CONFIDENTIAL_MARKERS', markerEnv);
@@ -89,24 +105,62 @@ describe('guarded MCP surface', () => {
     expect(fetchOne).toHaveBeenCalledExactlyOnceWith(42, { uid: true, envelope: true }, { uid: true });
     expect(release).toHaveBeenCalledOnce();
   });
-  it('withholds a marked body before rendering or full fetch', async () => {
-    const fetchOne = vi.fn().mockResolvedValueOnce(envelope).mockResolvedValueOnce(message(wire('机密 fixture', textHeaders)));
+  it('requests exactly the bounded HEADER and TEXT wire sections and never full source for a marked long message', async () => {
+    const require = createRequire(import.meta.url);
+    const fetchCommand = require('imapflow/lib/commands/fetch.js');
+    const compiler = require('imapflow/lib/handler/imap-compiler.js');
+    const parser = require('imapflow/lib/handler/imap-parser.js');
+    const msg = wire('机密 fixture ' + 'x'.repeat(BODY_PREFIX_BYTES + 20), textHeaders);
+    const { header, body } = split(msg);
+    const commands: string[] = [];
+    const sendLiteral = async (command: string, attributes: unknown, options: any) => {
+      commands.push((await compiler({ tag: 'A1', command, attributes })).toString());
+      const isHeader = commands.length === 1;
+      const bytes = isHeader ? header : body.subarray(0, BODY_PREFIX_BYTES);
+      const response = '* 1 FETCH (UID 42 ' + (isHeader ? 'RFC822.SIZE ' + msg.length + ' ' : '') +
+        'BODY[' + (isHeader ? 'HEADER' : 'TEXT') + ']<0> {' + bytes.length + '}\r\n)';
+      await options.untagged.FETCH(await parser(Buffer.from(response), { literals: [bytes] }));
+      return { next() {} };
+    };
+    const connection = { state: 1, states: { SELECTED: 1 }, mailbox: {}, capabilities: new Set(['BINARY']), enabled: new Set(), exec: sendLiteral };
+    const fetchOne = vi.fn().mockResolvedValueOnce(envelope).mockImplementation(async (uid, query, options) =>
+      (await fetchCommand(connection, uid, query, options)).list[0]);
+    const { service } = serviceFor(fetchOne);
+    await expect(read(service)).rejects.toThrow(/^Message unavailable under confidential-message policy$/);
+    expect(fetchOne).toHaveBeenCalledTimes(3);
+    expect(commands).toEqual([
+      'A1 UID FETCH 42 (UID RFC822.SIZE BODY.PEEK[HEADER]<0.16388>)',
+      'A1 UID FETCH 42 (UID BODY.PEEK[TEXT]<0.4096>)',
+    ]);
+  });
+  it('does not fetch TEXT when the raw header is unsupported', async () => {
+    const msg = wire('body', ['Content-Type: multipart/alternative; boundary=x']);
+    const fetchOne = vi.fn().mockResolvedValueOnce(envelope).mockResolvedValueOnce(headerResponse(msg));
     const { service } = serviceFor(fetchOne);
     await expect(read(service)).rejects.toThrow(/^Message unavailable under confidential-message policy$/);
     expect(fetchOne).toHaveBeenCalledTimes(2);
-    expect(fetchOne).toHaveBeenLastCalledWith(42, { uid: true, source: preflightSource, size: true }, { uid: true });
+    expect(fetchOne).toHaveBeenLastCalledWith(42, { uid: true, bodyParts: [preflightHeader], size: true }, { uid: true });
+  });
+  it('rejects a server response larger than the requested TEXT window', async () => {
+    const msg = wire('x'.repeat(BODY_PREFIX_BYTES + 20));
+    const fetchOne = vi.fn().mockResolvedValueOnce(envelope).mockResolvedValueOnce(headerResponse(msg))
+      .mockResolvedValueOnce({ uid: 42, bodyParts: new Map([['text', split(msg).body]]) });
+    const { service } = serviceFor(fetchOne);
+    await expect(read(service)).rejects.toThrow(/^Message unavailable under confidential-message policy$/);
+    expect(fetchOne).toHaveBeenCalledTimes(3);
+    expect(fetchOne).toHaveBeenLastCalledWith(42, { uid: true, bodyParts: [preflightText] }, { uid: true });
   });
   it('returns the normal text for supported ordinary mail only after preflight', async () => {
-    const plain = message(wire('ordinary sample'));
-    const fetchOne = vi.fn().mockResolvedValueOnce(envelope).mockResolvedValueOnce(plain).mockResolvedValueOnce(plain);
+    const msg = wire('ordinary sample');
+    const fetchOne = vi.fn().mockResolvedValueOnce(envelope).mockResolvedValueOnce(headerResponse(msg)).mockResolvedValueOnce(openingResponse(msg)).mockResolvedValueOnce(message(msg));
     const { service } = serviceFor(fetchOne);
     await expect(service.getEmailContent('account', 'INBOX', 42, { bodyFormat: 'text' }))
       .resolves.toMatchObject({ subject, textContent: 'ordinary sample' });
-    expect(fetchOne).toHaveBeenCalledTimes(3);
+    expect(fetchOne).toHaveBeenCalledTimes(4);
   });
   it('withholds changed payloads and hides lower-level errors', async () => {
-    const plain = message(wire('ordinary sample'));
-    const fetchOne = vi.fn().mockResolvedValueOnce(envelope).mockResolvedValueOnce(plain).mockResolvedValueOnce(message(wire('DO NOT SHARE xx')));
+    const msg = wire('ordinary sample');
+    const fetchOne = vi.fn().mockResolvedValueOnce(envelope).mockResolvedValueOnce(headerResponse(msg)).mockResolvedValueOnce(openingResponse(msg)).mockResolvedValueOnce(message(wire('changed! sample')));
     const { service } = serviceFor(fetchOne);
     await expect(read(service)).rejects.toThrow(/^Message unavailable under confidential-message policy$/);
     fetchOne.mockRejectedValueOnce(new Error('sensitive synthetic server echo'));
