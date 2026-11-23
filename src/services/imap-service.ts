@@ -10,6 +10,7 @@ import { AccountAuthResolver, buildImapAuth } from '../credentials/account-auth.
 import { resolveMailProxy } from '../utils/mail-proxy.js';
 import { accountRevision } from '../utils/account-revision.js';
 import { attachmentMatchesKey } from '../utils/attachment-part-match.js';
+import { BODY_PREFIX_BYTES, canExposeMessage, confidentialMarkers, marked, preflightSource } from '../utils/confidential-message.js';
 
 /**
  * Providers that require IMAP access to be manually enabled in account settings.
@@ -196,6 +197,8 @@ export class ImapService {
 
   constructor(private readonly authResolver: AccountAuthResolver = new AccountAuthResolver()) {}
 
+  private readonly confidential = confidentialMarkers();
+
   setAccountManager(accountManager: AccountManager): void {
     this.accountManager = accountManager;
   }
@@ -275,7 +278,8 @@ export class ImapService {
 
     // Set up event handlers for connection management
     client.on('error', (err) => {
-      console.error(`IMAP error for account ${account.id}:`, err.message);
+      if (this.confidential) console.error('IMAP connection error under confidential-message policy');
+      else console.error(`IMAP error for account ${account.id}:`, err.message);
       const state = this.connections.get(account.id);
       if (state?.client === client) {
         state.isConnected = false;
@@ -418,7 +422,7 @@ export class ImapService {
       }
 
       this.reconnectAttempts.set(accountId, attempts + 1);
-      console.log(`Reconnecting to account ${accountId} (attempt ${attempts + 1})`);
+      if (!this.confidential) console.log(`Reconnecting to account ${accountId} (attempt ${attempts + 1})`);
 
       // T12: reconnect with the CURRENT identity, not the stale one the dead
       // connection was built with.
@@ -901,6 +905,43 @@ export class ImapService {
     uid: number,
     options: EmailContentOptions = {}
   ): Promise<EmailContent> {
+    if (this.confidential) {
+      try {
+        const client = await this.ensureConnected(accountId);
+        const lock = await client.getMailboxLock(folderName, { readOnly: true });
+        try {
+          const envelope = await client.fetchOne(uid, { uid: true, envelope: true }, { uid: true });
+          if (!envelope || envelope.uid !== uid || !envelope.envelope ||
+              (envelope.envelope.subject !== undefined && typeof envelope.envelope.subject !== 'string') ||
+              marked(envelope.envelope.subject ?? '', this.confidential)) {
+            throw new Error();
+          }
+          const prefix = await client.fetchOne(uid, { uid: true, source: preflightSource, size: true }, { uid: true });
+          if (!prefix || prefix.uid !== uid || !prefix.source || prefix.size === undefined ||
+              prefix.size > MAX_MESSAGE_BYTES || !canExposeMessage(prefix.source, prefix.size, this.confidential)) {
+            throw new Error();
+          }
+          const message = await client.fetchOne(uid, { uid: true, source: boundedSource, size: true, flags: true }, { uid: true });
+          if (!message || message.uid !== uid || !message.source || message.size !== prefix.size ||
+              message.source.length !== prefix.size || !message.source.subarray(0, prefix.source.length).equals(prefix.source)) {
+            throw new Error();
+          }
+          const rendered = await this.buildEmailContentFromSource(uid, message.source, message.flags, {
+            ...options, includeAttachmentText: false,
+          });
+          const outputs = [rendered.textContent, rendered.markdownContent, rendered.htmlContent];
+          if (rendered.attachments.length || marked(rendered.subject, this.confidential) ||
+              outputs.some(body => body !== undefined && marked(body.slice(0, BODY_PREFIX_BYTES), this.confidential!,
+                body.length > BODY_PREFIX_BYTES))) throw new Error();
+          return rendered;
+        } finally {
+          lock.release();
+        }
+      } catch {
+        throw new Error('Message unavailable under confidential-message policy');
+      }
+    }
+
     const client = await this.ensureConnected(accountId);
 
     let lock;

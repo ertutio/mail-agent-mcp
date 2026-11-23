@@ -274,6 +274,12 @@ Existing process environment values take precedence over values loaded from `.en
 
 The two cross-folder deadline variables affect single-account search, not unified search's fixed 15-second per-account and 40-second overall deadlines.
 
+## Optional confidential-message preflight (STDIO MCP only)
+
+Set `IMAP_MCP_CONFIDENTIAL_MARKERS` to a JSON string array such as `["DO NOT SHARE"]`, then restart MCP. When unset, behavior is unchanged; invalid settings stop startup. Matching is literal after Unicode NFKC, lowercasing, stripping invisible formatting characters and collapsing whitespace runs; an incomplete marker at the preview boundary is withheld. Only `imap_get_email` is registered, and an explicit tool allowlist can only restrict it further. Search, digest, attachment downloads and writes are not available in this mode; obtain UIDs from a trusted local source.
+
+The mailbox envelope subject is checked first. If unmarked, the local preflight checks the subject again and the text decoded from the first 4,096 bytes of a single plain-text body. A subject match prevents a body fetch. A body match, uncertainty or unsupported format prevents a subsequent full-message request and no message information is returned. A short message may fit within the bounded preflight transfer but is not sent to the MCP client when blocked. This first version accepts only unencoded subjects and single-part UTF-8/US-ASCII `text/plain` with 7bit/8bit transfer encoding. HTML, multipart, base64, quoted-printable and inconsistent responses are refused. Markers outside the inspected prefix and reads through other clients or modes are out of scope.
+
 ## Security model
 
 - Gmail refresh tokens/client secrets and QQ/NetEase authorization codes use Windows Credential Manager on the hardened provider path.

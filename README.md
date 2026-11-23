@@ -211,6 +211,12 @@ node dist/enroll.js qq-repair ACCOUNT_ID_OR_NAME
 
 详细边界见 [SECURITY.md](SECURITY.md)，工具契约见 [docs/agent-integration.md](docs/agent-integration.md)。
 
+## 可选：机密邮件预检模式（仅 STDIO MCP）
+
+将 `IMAP_MCP_CONFIDENTIAL_MARKERS` 设置为 JSON 字符串数组，例如 `["请勿外发","DO NOT SHARE"]`，然后重启 MCP。未设置时行为不变；配置无效时拒绝启动。标记在统一 Unicode 字形、大小写、不可见字符及连续空白后按字面匹配；预检边界上的疑似未完整标记也会拦截。该模式只注册 `imap_get_email`（显式工具白名单只能进一步收窄），不提供搜索、摘要、附件下载或任何写操作，所以需要从可信本地渠道取得 UID。
+
+邮件先在本机检查主题，再检查单段纯文本正文开头最多 4096 字节所解码的文本。主题命中不会取正文；正文命中、无法确认或格式不支持时不再请求完整邮件，也不返回邮件元数据。短邮件可能完整落在预检读取范围内，但不会发送到 MCP 客户端。首版只接受非 RFC 2047 编码主题、UTF-8/US-ASCII 的单段 `text/plain`、7bit/8bit；HTML、multipart、base64、quoted-printable、一致性校验失败均拒绝。标记在检查范围之外不保证识别；其他客户端和非本模式读取不受保护。
+
 ## 常用配置
 
 | 变量 | 作用 |

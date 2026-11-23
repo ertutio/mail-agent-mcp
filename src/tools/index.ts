@@ -12,6 +12,8 @@ import { unifiedSearchTools } from './unified-search-tools.js';
 import { savedSearchTools } from './saved-search-tools.js';
 import { guardedDeletion } from './guarded-delete-tools.js';
 
+import { confidentialMarkers, guardedToolName } from '../utils/confidential-message.js';
+
 const BLOCKED_DIRECT_SEND_TOOLS = new Set([
   'imap_send_email',
   'imap_reply_to_email',
@@ -93,6 +95,9 @@ export function resolveEnabledTools(
   env: NodeJS.ProcessEnv = process.env
 ): Set<string> | null {
   const explicit = parseToolList(env.IMAP_MCP_ENABLED_TOOLS);
+  if (confidentialMarkers(env)) {
+    return new Set(explicit.length === 0 || explicit.includes(guardedToolName) ? [guardedToolName] : []);
+  }
   if (explicit.length > 0) {
     return new Set(explicit);
   }
