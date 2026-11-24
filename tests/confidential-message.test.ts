@@ -110,6 +110,24 @@ describe('guarded MCP surface', () => {
     await expectSkippedAfterPreview(wire(prefix + marker.normalize('NFD').slice(1), textHeaders), marker);
   });
 
+  it('withholds a mark-leading marker that can reorder across the byte boundary', async () => {
+    const marker = '\u0300\u0315 témoin';
+    const opening = 'x'.repeat(BODY_PREFIX_BYTES - 2) + '\u0315';
+    const body = opening + '\u0300 témoin';
+    const policy = confidentialMarkers({ IMAP_MCP_CONFIDENTIAL_MARKERS: JSON.stringify([marker]) })!;
+
+    expect(Buffer.byteLength(opening)).toBe(BODY_PREFIX_BYTES);
+    expect(body.normalize('NFKC')).toContain(marker);
+    await expectSkippedAfterPreview(wire(body, textHeaders), policy[0]);
+  });
+
+  it('allows a long UTF-8 preview with a stable ending under a combining-mark marker policy', () => {
+    const marker = '\u0300\u0315 témoin';
+    const body = 'x'.repeat(BODY_PREFIX_BYTES) + 'ordinary continuation';
+    const msg = wire(body, textHeaders);
+    expect(canExposeMessage(msg, msg.length, [marker])).toBe(true);
+  });
+
   it('allows just the guarded tool; an explicit list can only narrow it', () => {
     const collect = (value: string) => {
       vi.stubEnv('IMAP_MCP_ENABLED_TOOLS', value);

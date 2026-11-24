@@ -38,7 +38,7 @@ function overlapsMarker(text: string, marker: string, prefixLength: number): boo
 
 /** A following character can compose with the last character or change its casing. */
 function boundaryForm(value: string): string {
-  return value.normalize('NFKD').replace(/\p{M}/gu, '').replace(/ς/gu, 'σ');
+  return value.replace(/\p{M}/gu, '').replace(/ς/gu, 'σ');
 }
 
 export function marked(value: string, markers: readonly string[], truncated = false): boolean {
@@ -99,9 +99,14 @@ export function canExposeOpening(bytes: Buffer, size: number, ascii: boolean, ma
     if (!truncated || ascii) return true;
     // Compare a conservative form only at the boundary. Marks can compose
     // or reorder, and a following letter can change the case of Greek sigma.
-    const tail = boundaryForm(normalize(body));
+    const decomposedBody = normalize(body).normalize('NFKD');
+    const tail = boundaryForm(decomposedBody);
+    const endsWithMark = /\p{M}$/u.test(decomposedBody);
     return markers.every(marker => {
-      const key = boundaryForm(normalize(marker));
+      const decomposedMarker = normalize(marker).normalize('NFKD');
+      // The mark-stripped comparison loses a fragment that consists only of marks.
+      if (endsWithMark && /^\p{M}/u.test(decomposedMarker)) return false;
+      const key = boundaryForm(decomposedMarker);
       return !overlapsMarker(tail, key, key.length);
     });
   } catch {
