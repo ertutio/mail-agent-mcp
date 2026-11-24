@@ -18,6 +18,7 @@ import {
 import { extractPdfPreview } from '../utils/pdf-preview.js';
 import { MAX_BODY_CHARS } from '../utils/mail-resource-limits.js';
 import { parseSearchDateBound, validateSearchRange } from '../utils/search-input.js';
+import { ConfidentialMessageSkipped } from '../utils/confidential-message.js';
 import { forwardBodies, replyRecipientGroups } from '../utils/mail-compose.js';
 
 // Reusable, backward-compatible account selector. accountId stays accepted as
@@ -163,6 +164,7 @@ export function emailTools(
   accountManager: AccountManager,
   smtpService: SmtpService,
   runtimeOptions: EmailToolRuntimeOptions = {},
+  confidential?: readonly string[],
 ): void {
   const searchAllFolderTimeoutMs = positiveInteger(
     runtimeOptions.searchAllFolderTimeoutMs ?? process.env.IMAP_SEARCH_FOLDER_TIMEOUT_MS,
@@ -386,7 +388,9 @@ export function emailTools(
 
   // Get email content tool
   server.registerTool('imap_get_email', {
-    description: 'Read the FULL content of a single email by its UID (body, sender/recipients, date, attachment list, optional raw headers and text-attachment previews). By default the body is returned as clean Markdown in markdownContent and raw HTML is omitted so it never crosses the boundary; set bodyFormat to "html" for the legacy raw htmlContent, or "text" for plain text only. Use after imap_search_emails or imap_get_latest_emails gives you a uid. Body text is truncated to maxContentLength to protect the context window — raise it for long messages. To fetch attachment bytes, use imap_download_attachment.',
+    description: confidential !== undefined
+      ? 'Read a known email UID from a trusted local source. The local confidential-message policy may withhold the message.'
+      : 'Read the FULL content of a single email by its UID (body, sender/recipients, date, attachment list, optional raw headers and text-attachment previews). By default the body is returned as clean Markdown in markdownContent and raw HTML is omitted so it never crosses the boundary; set bodyFormat to "html" for the legacy raw htmlContent, or "text" for plain text only. Use after imap_search_emails or imap_get_latest_emails gives you a uid. Body text is truncated to maxContentLength to protect the context window — raise it for long messages. To fetch attachment bytes, use imap_download_attachment.',
     inputSchema: {
       ...accountSelector,
       folder: z.string().default('INBOX').describe('Folder name'),
@@ -403,7 +407,11 @@ export function emailTools(
       includeAttachmentText,
       maxAttachmentTextChars,
       bodyFormat,
+    }).catch((error: unknown) => {
+      if (error instanceof ConfidentialMessageSkipped) return undefined;
+      throw error;
     });
+    if (!email) return { content: [{ type: 'text' as const, text: JSON.stringify({ status: 'skipped' }) }] };
     const cap = (s?: string) => (s === undefined ? undefined : s.substring(0, maxContentLength));
     const textTruncated = email.textContent ? email.textContent.length > maxContentLength : false;
     const htmlTruncated = email.htmlContent ? email.htmlContent.length > maxContentLength : false;

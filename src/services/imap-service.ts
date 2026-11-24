@@ -10,6 +10,7 @@ import { AccountAuthResolver, buildImapAuth } from '../credentials/account-auth.
 import { resolveMailProxy } from '../utils/mail-proxy.js';
 import { accountRevision } from '../utils/account-revision.js';
 import { attachmentMatchesKey } from '../utils/attachment-part-match.js';
+import { BODY_PREFIX_BYTES, canExposeOpening, ConfidentialMessageSkipped, inspectHeader, marked, preflightHeader, preflightText } from '../utils/confidential-message.js';
 
 /**
  * Providers that require IMAP access to be manually enabled in account settings.
@@ -194,7 +195,10 @@ export class ImapService {
   private maxReconnectAttempts = 3;
   private accountManager?: AccountManager;
 
-  constructor(private readonly authResolver: AccountAuthResolver = new AccountAuthResolver()) {}
+  constructor(
+    private readonly authResolver: AccountAuthResolver = new AccountAuthResolver(),
+    private readonly confidential?: readonly string[],
+  ) {}
 
   setAccountManager(accountManager: AccountManager): void {
     this.accountManager = accountManager;
@@ -275,7 +279,8 @@ export class ImapService {
 
     // Set up event handlers for connection management
     client.on('error', (err) => {
-      console.error(`IMAP error for account ${account.id}:`, err.message);
+      if (this.confidential) console.error('IMAP connection error under confidential-message policy');
+      else console.error(`IMAP error for account ${account.id}:`, err.message);
       const state = this.connections.get(account.id);
       if (state?.client === client) {
         state.isConnected = false;
@@ -418,7 +423,7 @@ export class ImapService {
       }
 
       this.reconnectAttempts.set(accountId, attempts + 1);
-      console.log(`Reconnecting to account ${accountId} (attempt ${attempts + 1})`);
+      if (!this.confidential) console.log(`Reconnecting to account ${accountId} (attempt ${attempts + 1})`);
 
       // T12: reconnect with the CURRENT identity, not the stale one the dead
       // connection was built with.
@@ -901,6 +906,55 @@ export class ImapService {
     uid: number,
     options: EmailContentOptions = {}
   ): Promise<EmailContent> {
+    if (this.confidential) {
+      try {
+        const client = await this.ensureConnected(accountId);
+        const lock = await client.getMailboxLock(folderName, { readOnly: true });
+        try {
+          const envelope = await client.fetchOne(uid, { uid: true, envelope: true }, { uid: true });
+          if (!envelope || envelope.uid !== uid || !envelope.envelope ||
+              (envelope.envelope.subject !== undefined && typeof envelope.envelope.subject !== 'string') ||
+              marked(envelope.envelope.subject ?? '', this.confidential)) {
+            throw new Error();
+          }
+          const header = await client.fetchOne(uid, { uid: true, bodyParts: [preflightHeader], size: true }, { uid: true });
+          if (!header || header.uid !== uid || !header.headers || header.size === undefined ||
+              !Number.isSafeInteger(header.size) || header.size < header.headers.length || header.size > MAX_MESSAGE_BYTES) {
+            throw new Error();
+          }
+          const format = inspectHeader(header.headers, this.confidential);
+          if (!format) throw new Error();
+          const textSize = header.size - header.headers.length;
+          let opening = Buffer.alloc(0) as Buffer;
+          if (textSize > 0) {
+            const text = await client.fetchOne(uid, { uid: true, bodyParts: [preflightText] }, { uid: true });
+            const bytes = text && text.uid === uid && text.bodyParts?.get('text');
+            if (!bytes) throw new Error();
+            opening = bytes;
+          }
+          if (!canExposeOpening(opening, textSize, format.ascii, this.confidential)) throw new Error();
+          const message = await client.fetchOne(uid, { uid: true, source: boundedSource, size: true, flags: true }, { uid: true });
+          if (!message || message.uid !== uid || !message.source || message.size !== header.size ||
+              message.source.length !== header.size || !message.source.subarray(0, header.headers.length).equals(header.headers) ||
+              !message.source.subarray(header.headers.length, header.headers.length + opening.length).equals(opening)) {
+            throw new Error();
+          }
+          const rendered = await this.buildEmailContentFromSource(uid, message.source, message.flags, {
+            ...options, includeAttachmentText: false,
+          });
+          const outputs = [rendered.textContent, rendered.markdownContent, rendered.htmlContent];
+          if (rendered.attachments.length || marked(rendered.subject, this.confidential) ||
+              outputs.some(body => body !== undefined && marked(body.slice(0, BODY_PREFIX_BYTES), this.confidential!,
+                body.length > BODY_PREFIX_BYTES))) throw new Error();
+          return rendered;
+        } finally {
+          lock.release();
+        }
+      } catch {
+        throw new ConfidentialMessageSkipped();
+      }
+    }
+
     const client = await this.ensureConnected(accountId);
 
     let lock;

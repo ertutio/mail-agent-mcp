@@ -9,6 +9,7 @@ import { registerTools } from './tools/index.js';
 import { AccountAuthResolver } from './credentials/account-auth.js';
 import { createGmailAccessTokenExchange } from './credentials/gmail-token-exchange.js';
 import { UnavailableCredentialBackend, WindowsCredentialBackend } from './credentials/windows-credential-backend.js';
+import { confidentialMarkers } from './utils/confidential-message.js';
 import { resolvePackageVersion } from './utils/package-version.js';
 
 // Silence any package version output to stdout
@@ -35,7 +36,8 @@ const authResolver = new AccountAuthResolver(
   credentialBackend,
   createGmailAccessTokenExchange({ credentials: credentialBackend }),
 );
-const imapService = new ImapService(authResolver);
+const confidential = confidentialMarkers();
+const imapService = new ImapService(authResolver, confidential);
 const accountManager = new AccountManager(credentialBackend);
 const smtpService = new SmtpService(authResolver);
 const spamService = new SpamService();
@@ -47,7 +49,7 @@ imapService.setAccountManager(accountManager);
 smtpService.setAccountManager(accountManager);
 
 // Register all tools
-registerTools(server, imapService, accountManager, smtpService, spamService);
+registerTools(server, imapService, accountManager, smtpService, spamService, confidential);
 
 async function main() {
   const transport = new StdioServerTransport();

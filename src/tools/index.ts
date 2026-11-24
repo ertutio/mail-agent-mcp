@@ -12,6 +12,8 @@ import { unifiedSearchTools } from './unified-search-tools.js';
 import { savedSearchTools } from './saved-search-tools.js';
 import { guardedDeletion } from './guarded-delete-tools.js';
 
+import { guardedToolName } from '../utils/confidential-message.js';
+
 const BLOCKED_DIRECT_SEND_TOOLS = new Set([
   'imap_send_email',
   'imap_reply_to_email',
@@ -90,9 +92,13 @@ function isTruthy(value: string | undefined): boolean {
  *  3. Otherwise → `null` (all tools registered, original behavior).
  */
 export function resolveEnabledTools(
-  env: NodeJS.ProcessEnv = process.env
+  env: NodeJS.ProcessEnv = process.env,
+  confidential?: readonly string[],
 ): Set<string> | null {
   const explicit = parseToolList(env.IMAP_MCP_ENABLED_TOOLS);
+  if (confidential) {
+    return new Set(explicit.length === 0 || explicit.includes(guardedToolName) ? [guardedToolName] : []);
+  }
   if (explicit.length > 0) {
     return new Set(explicit);
   }
@@ -144,9 +150,10 @@ export function registerTools(
   imapService: ImapService,
   accountManager: AccountManager,
   smtpService: SmtpService,
-  spamService: SpamService
+  spamService: SpamService,
+  confidential?: readonly string[],
 ): void {
-  const enabled = resolveEnabledTools();
+  const enabled = resolveEnabledTools(process.env, confidential);
 
   // When `enabled` is null no restriction is configured, so the registrars get
   // the raw server and every tool is registered (original behavior). Otherwise
@@ -160,7 +167,7 @@ export function registerTools(
   accountTools(target, accountManager, imapService);
 
   // Register email operation tools
-  emailTools(deletion.server, deletion.imap, accountManager, smtpService);
+  emailTools(deletion.server, deletion.imap, accountManager, smtpService, {}, confidential);
   unifiedSearchTools(target, imapService, accountManager);
   savedSearchTools(target, imapService, accountManager);
 
