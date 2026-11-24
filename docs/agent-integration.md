@@ -94,6 +94,7 @@ An MCP client can discover tools with tools/list. Do not assume npm availability
 
 - `IMAP_MCP_READ_ONLY`: truthy values expose the 17-tool mailbox-read-only subset. Attachment download can still write attachment files inside the attachment root, so this is not host-filesystem-read-only.
 - `IMAP_MCP_ENABLED_TOOLS`: non-empty comma-separated allowlist; takes precedence over read-only mode.
+- `IMAP_MCP_CONFIDENTIAL_MARKERS`: optional JSON string array parsed at STDIO startup. This mode exposes only `imap_get_email` by known UID, and the allowlist can restrict it further. A withheld read returns only `{"status":"skipped"}`. See the README for the bounded preflight and supported formats.
 - `IMAP_DOWNLOAD_DIR`, `IMAP_MAX_UPLOAD_SIZE`, `IMAP_UPLOAD_TTL_MS`: attachment root, decoded upload byte limit, and upload lifetime.
 - `HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY` (and lowercase variants): inherited by Gmail token HTTP requests and, unless explicitly overridden, IMAP/SMTP transports. Keep loopback and bypassed provider hosts in `NO_PROXY`.
 - `IMAP_MCP_ACCOUNT_<NAME>_IMAP_USERNAME`, `_IMAP_PASSWORD`, `_SMTP_USERNAME`, `_SMTP_PASSWORD`: startup overrides for legacy generic accounts only.

@@ -5,6 +5,12 @@ export const preflightHeader = { key: 'HEADER', start: 0, maxLength: HEADER_BYTE
 export const preflightText = { key: 'TEXT', start: 0, maxLength: BODY_PREFIX_BYTES };
 export const guardedToolName = 'imap_get_email';
 
+export class ConfidentialMessageSkipped extends Error {
+  constructor() {
+    super('Message unavailable under confidential-message policy');
+  }
+}
+
 export function confidentialMarkers(env: NodeJS.ProcessEnv = process.env): readonly string[] | undefined {
   const raw = env.IMAP_MCP_CONFIDENTIAL_MARKERS;
   if (raw === undefined) return undefined;
@@ -18,7 +24,21 @@ export function confidentialMarkers(env: NodeJS.ProcessEnv = process.env): reado
 }
 
 function normalize(value: string): string {
-  return value.normalize('NFKC').toLowerCase().replace(/[\p{Default_Ignorable_Code_Point}\u2028\u2029]/gu, '').replace(/\s+/gu, ' ');
+  return value.replace(/[\p{Default_Ignorable_Code_Point}\u2028\u2029]/gu, '')
+    .normalize('NFKC').toLowerCase().normalize('NFKC').replace(/\s+/gu, ' ');
+}
+
+function overlapsMarker(text: string, marker: string, prefixLength: number): boolean {
+  if (!marker.length) return true;
+  for (let length = 1; length <= prefixLength; length++) {
+    if (text.endsWith(marker.slice(0, length))) return true;
+  }
+  return false;
+}
+
+/** A following character can compose with the last character or change its casing. */
+function boundaryForm(value: string): string {
+  return value.normalize('NFKD').replace(/\p{M}/gu, '').replace(/ς/gu, 'σ');
 }
 
 export function marked(value: string, markers: readonly string[], truncated = false): boolean {
@@ -26,11 +46,9 @@ export function marked(value: string, markers: readonly string[], truncated = fa
   return markers.some(marker => {
     const key = normalize(marker);
     if (text.includes(key)) return true;
-    // If a marker might straddle the bounded prefix, withhold rather than
-    // request the full message. Avoid splitting UTF-16 surrogate pairs.
+    // Withhold when a literal marker might straddle the preview boundary.
     if (!truncated) return false;
-    const chars = Array.from(key);
-    return chars.slice(1).some((_, i) => text.endsWith(chars.slice(0, i + 1).join('')));
+    return overlapsMarker(text, key, key.length - 1);
   });
 }
 
@@ -76,7 +94,16 @@ export function canExposeOpening(bytes: Buffer, size: number, ascii: boolean, ma
     if (!Number.isSafeInteger(size) || size < 0 || bytes.length !== Math.min(size, BODY_PREFIX_BYTES)) return false;
     if (bytes.some(value => value === 0 || (ascii && value > 127))) return false;
     const body = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
-    return !marked(body, markers, bytes.length < size);
+    const truncated = bytes.length < size;
+    if (marked(body, markers, truncated)) return false;
+    if (!truncated || ascii) return true;
+    // Compare a conservative form only at the boundary. Marks can compose
+    // or reorder, and a following letter can change the case of Greek sigma.
+    const tail = boundaryForm(normalize(body));
+    return markers.every(marker => {
+      const key = boundaryForm(normalize(marker));
+      return !overlapsMarker(tail, key, key.length);
+    });
   } catch {
     return false;
   }

@@ -10,7 +10,7 @@ import { AccountAuthResolver, buildImapAuth } from '../credentials/account-auth.
 import { resolveMailProxy } from '../utils/mail-proxy.js';
 import { accountRevision } from '../utils/account-revision.js';
 import { attachmentMatchesKey } from '../utils/attachment-part-match.js';
-import { BODY_PREFIX_BYTES, canExposeOpening, confidentialMarkers, inspectHeader, marked, preflightHeader, preflightText } from '../utils/confidential-message.js';
+import { BODY_PREFIX_BYTES, canExposeOpening, ConfidentialMessageSkipped, inspectHeader, marked, preflightHeader, preflightText } from '../utils/confidential-message.js';
 
 /**
  * Providers that require IMAP access to be manually enabled in account settings.
@@ -195,9 +195,10 @@ export class ImapService {
   private maxReconnectAttempts = 3;
   private accountManager?: AccountManager;
 
-  constructor(private readonly authResolver: AccountAuthResolver = new AccountAuthResolver()) {}
-
-  private readonly confidential = confidentialMarkers();
+  constructor(
+    private readonly authResolver: AccountAuthResolver = new AccountAuthResolver(),
+    private readonly confidential?: readonly string[],
+  ) {}
 
   setAccountManager(accountManager: AccountManager): void {
     this.accountManager = accountManager;
@@ -950,7 +951,7 @@ export class ImapService {
           lock.release();
         }
       } catch {
-        throw new Error('Message unavailable under confidential-message policy');
+        throw new ConfidentialMessageSkipped();
       }
     }
 

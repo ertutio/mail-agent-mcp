@@ -1,11 +1,10 @@
 import { createRequire } from 'node:module';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { ImapService } from '../src/services/imap-service.js';
 import { registerTools } from '../src/tools/index.js';
 import { BODY_PREFIX_BYTES, canExposeOpening, confidentialMarkers, inspectHeader, preflightHeader, preflightText } from '../src/utils/confidential-message.js';
 
 const markers = ['DO NOT SHARE', '机密'];
-const markerEnv = JSON.stringify(markers);
 const subject = 'synthetic';
 const wire = (body: string, headers: string[] = []) =>
   Buffer.from(['From: sender@example.test', 'To: recipient@example.test', 'Subject: ' + subject, ...headers, '', body].join('\r\n'));
@@ -20,8 +19,6 @@ const canExposeMessage = (msg: Buffer, size: number, policy: readonly string[]) 
   const format = inspectHeader(header, policy);
   return !!format && canExposeOpening(body.subarray(0, BODY_PREFIX_BYTES), size - header.length, format.ascii, policy);
 };
-
-afterEach(() => vi.unstubAllEnvs());
 
 describe('confidential preflight', () => {
   it('matches decoded UTF-8 literal in a bounded prefix', () => {
@@ -66,9 +63,8 @@ describe('confidential preflight', () => {
   });
 });
 
-function serviceFor(fetchOne: ReturnType<typeof vi.fn>) {
-  vi.stubEnv('IMAP_MCP_CONFIDENTIAL_MARKERS', markerEnv);
-  const service = new ImapService();
+function serviceFor(fetchOne: ReturnType<typeof vi.fn>, policy: readonly string[] = markers) {
+  const service = new ImapService(undefined, policy);
   const release = vi.fn();
   const getMailboxLock = vi.fn().mockResolvedValue({ release });
   vi.spyOn(service as any, 'ensureConnected').mockResolvedValue({ fetchOne, getMailboxLock });
@@ -84,14 +80,47 @@ const openingResponse = (msg: Buffer) => ({
 });
 
 describe('guarded MCP surface', () => {
+  async function expectSkippedAfterPreview(msg: Buffer, marker: string) {
+    const fetchOne = vi.fn().mockResolvedValueOnce(envelope).mockResolvedValueOnce(headerResponse(msg))
+      .mockResolvedValueOnce(openingResponse(msg)).mockResolvedValueOnce(message(msg));
+    const { service, release } = serviceFor(fetchOne, [marker]);
+    const accountManager = { resolveAccountId: () => 'account' };
+    const handlers = new Map<string, (input: Record<string, unknown>) => Promise<unknown>>();
+    registerTools({
+      registerTool: (name: string, _config: unknown, handler: (input: Record<string, unknown>) => Promise<unknown>) =>
+        handlers.set(name, handler),
+    } as any, service, accountManager as any, {} as any, {} as any, [marker]);
+    const result = await handlers.get('imap_get_email')!({ folder: 'INBOX', uid: 42, maxContentLength: 10000 });
+    expect(result).toEqual({ content: [{ type: 'text', text: '{"status":"skipped"}' }] });
+    expect(fetchOne).toHaveBeenCalledTimes(3);
+    expect(fetchOne).toHaveBeenLastCalledWith(42, { uid: true, bodyParts: [preflightText] }, { uid: true });
+    expect(release).toHaveBeenCalledOnce();
+  }
+
+  it('withholds a canonical-equivalent marker after invisible characters are removed', async () => {
+    const marker = 'Café témoin';
+    const body = marker.normalize('NFD').replace('e\u0301', 'e\u200b\u0301');
+    await expectSkippedAfterPreview(wire(body, textHeaders), marker);
+  });
+
+  it('withholds a preview whose complete final UTF-8 character can compose across the byte boundary', async () => {
+    const marker = 'é témoin';
+    const prefix = 'x'.repeat(BODY_PREFIX_BYTES - 1) + 'e';
+    expect(Buffer.byteLength(prefix)).toBe(BODY_PREFIX_BYTES);
+    await expectSkippedAfterPreview(wire(prefix + marker.normalize('NFD').slice(1), textHeaders), marker);
+  });
+
   it('allows just the guarded tool; an explicit list can only narrow it', () => {
-    vi.stubEnv('IMAP_MCP_CONFIDENTIAL_MARKERS', markerEnv);
     const collect = (value: string) => {
       vi.stubEnv('IMAP_MCP_ENABLED_TOOLS', value);
       const names: string[] = [];
       const stub: any = {};
-      registerTools({ registerTool: (name: string) => names.push(name) } as any, stub, stub, stub, stub);
-      return names;
+      try {
+        registerTools({ registerTool: (name: string) => names.push(name) } as any, stub, stub, stub, stub, markers);
+        return names;
+      } finally {
+        vi.unstubAllEnvs();
+      }
     };
     expect(collect('')).toEqual(['imap_get_email']);
     expect(collect('imap_get_email,imap_download_attachment,imap_search_emails,imap_mail_digest')).toEqual(['imap_get_email']);
